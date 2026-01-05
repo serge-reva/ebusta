@@ -1,0 +1,7 @@
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"from\": {{from}},\n  \"size\": {{size}},\n  \"query\": {\n    \"bool\": {\n      \"must\": [\n        {\n          \"simple_query_string\": {\n            \"query\": \"{{q}}\",\n            \"fields\": [\"title^3\", \"authors^2\", \"annotation\"],\n            \"default_operator\": \"and\"\n          }\n        }\n      ]\n    }\n  }{{#sort}},\n  \"sort\": {{sort}}{{/sort}}\n}\n"
+  }
+}
+

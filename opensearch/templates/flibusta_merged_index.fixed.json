@@ -1,0 +1,215 @@
+{
+  "settings": {
+    "index": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "refresh_interval": "1s"
+    },
+    "analysis": {
+      "filter": {
+        "ru_stop": {
+          "type": "stop",
+          "stopwords": "_russian_"
+        },
+        "ru_stemmer": {
+          "type": "stemmer",
+          "language": "russian"
+        },
+        "en_stop": {
+          "type": "stop",
+          "stopwords": "_english_"
+        },
+        "en_stemmer": {
+          "type": "stemmer",
+          "language": "english"
+        },
+        "shingle_2_3": {
+          "type": "shingle",
+          "min_shingle_size": 2,
+          "max_shingle_size": 3
+        }
+      },
+      "char_filter": {
+        "quotes": {
+          "type": "mapping",
+          "mappings": [
+            "“=>\"",
+            "”=>\"",
+            "‘=>'",
+            "’=>'"
+          ]
+        }
+      },
+      "normalizer": {
+        "lc_ascii": {
+          "type": "custom",
+          "filter": [
+            "lowercase",
+            "asciifolding"
+          ]
+        }
+      },
+      "analyzer": {
+        "mixed_text": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "char_filter": [
+            "quotes"
+          ],
+          "filter": [
+            "lowercase",
+            "ru_stop",
+            "ru_stemmer",
+            "en_stop",
+            "en_stemmer"
+          ]
+        },
+        "autocomplete": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase"
+          ]
+        },
+        "autocomplete_edge": {
+          "type": "custom",
+          "tokenizer": "edge_ngram_tokenizer",
+          "filter": [
+            "lowercase"
+          ]
+        },
+        "shingled": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "shingle_2_3"
+          ]
+        }
+      },
+      "tokenizer": {
+        "edge_ngram_tokenizer": {
+          "type": "edge_ngram",
+          "min_gram": 2,
+          "max_gram": 20,
+          "token_chars": [
+            "letter",
+            "digit"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "docId": {
+        "type": "keyword"
+      },
+      "source": {
+        "type": "keyword"
+      },
+      "ingestedAt": {
+        "type": "date"
+      },
+      "title": {
+        "type": "text",
+        "analyzer": "mixed_text",
+        "fields": {
+          "kw": {
+            "type": "keyword",
+            "normalizer": "lc_ascii"
+          },
+          "ac": {
+            "type": "text",
+            "analyzer": "autocomplete_edge",
+            "search_analyzer": "autocomplete"
+          },
+          "sh": {
+            "type": "text",
+            "analyzer": "shingled"
+          }
+        }
+      },
+      "authors": {
+        "type": "text",
+        "analyzer": "mixed_text",
+        "fields": {
+          "kw": {
+            "type": "keyword",
+            "normalizer": "lc_ascii"
+          },
+          "ac": {
+            "type": "text",
+            "analyzer": "autocomplete_edge",
+            "search_analyzer": "autocomplete"
+          }
+        }
+      },
+      "genres": {
+        "type": "keyword",
+        "normalizer": "lc_ascii"
+      },
+      "languages": {
+        "type": "keyword",
+        "normalizer": "lc_ascii"
+      },
+      "year": {
+        "type": "integer"
+      },
+      "annotation": {
+        "type": "text",
+        "analyzer": "mixed_text"
+      },
+      "sequences": {
+        "type": "nested",
+        "properties": {
+          "name": {
+            "type": "text",
+            "analyzer": "mixed_text",
+            "fields": {
+              "kw": {
+                "type": "keyword",
+                "normalizer": "lc_ascii"
+              },
+              "ac": {
+                "type": "text",
+                "analyzer": "autocomplete_edge",
+                "search_analyzer": "autocomplete"
+              }
+            }
+          },
+          "number": {
+            "type": "float"
+          }
+        }
+      },
+      "fileInfo": {
+        "type": "object",
+        "properties": {
+          "container": {
+            "type": "keyword"
+          },
+          "filename": {
+            "type": "keyword"
+          },
+          "size": {
+            "type": "long"
+          },
+          "sha1": {
+            "type": "keyword"
+          }
+        }
+      },
+      "suggest_title": {
+        "type": "completion"
+      },
+      "suggest_author": {
+        "type": "completion"
+      }
+    }
+  }
+}

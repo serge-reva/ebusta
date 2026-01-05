@@ -1,0 +1,6 @@
+gateway:
+  url: "http://localhost:8080"
+  timeout: 2s
+ui:
+  show_trace: true
+  colors: true

@@ -1,0 +1,6 @@
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"query\": {\n    \"bool\": {\n      \"should\": [\n        { \"match\": { \"title.prefix\": { \"query\": \"{{q}}\", \"boost\": 5 } } },\n        { \"match_phrase_prefix\": { \"title\": { \"query\": \"{{q}}\", \"boost\": 2 } } },\n        { \"term\": { \"title.kw\": { \"value\": \"{{q}}\", \"boost\": 20 } } }\n      ],\n      \"minimum_should_match\": 1\n    }\n  },\n  \"size\": {{size}},\n  \"from\": {{from}},\n  \"sort\": [{ \"title.kw\": { \"order\": \"asc\" } }],\n  \"track_total_hits\": false,\n  \"_source\": [\"title\",\"authors\",\"fileInfo.container\",\"fileInfo.filename\"],\n  \"highlight\": { \"fields\": { \"title\": {} } }\n}"
+  }
+}

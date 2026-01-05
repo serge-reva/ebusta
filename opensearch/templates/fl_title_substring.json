@@ -1,0 +1,7 @@
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"from\": 0,\n  \"size\": {{size}},\n  \"query\": {\n    \"query_string\": {\n      \"query\": \"*{{q}}*\",\n      \"fields\": [\"title.kw\", \"authors.kw\"],\n      \"analyze_wildcard\": true,\n      \"default_operator\": \"and\"\n    }\n  },\n  \"_source\": [\"title\", \"authors\", \"year\", \"fileInfo.container\", \"fileInfo.filename\"]\n}\n"
+  }
+}
+

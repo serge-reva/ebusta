@@ -1,0 +1,7 @@
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"size\": 0,\n  \"aggs\": {\n    \"authors\": {\n      \"composite\": {\n        \"size\": {{size}},\n        \"sources\": [ { \"a\": { \"terms\": { \"field\": \"authors.kw\" } } } ]{{#after}},\n        \"after\": {{after}}{{/after}}\n      }\n    }\n  }\n}\n"
+  }
+}
+
