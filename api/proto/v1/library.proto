@@ -4,18 +4,95 @@ package libraryv1;
 
 option go_package = "ebusta/api/proto/v1;libraryv1";
 
+// =============================================================================
+// СЕРВИСЫ
+// =============================================================================
+
 service LibraryService {
-  // Поиск книг по строке (вызывает fl_mixed_search)
   rpc SearchBooks (SearchRequest) returns (SearchResponse);
-  
-  // Получение списка авторов (вызывает fl_authors_all)
   rpc GetAuthors (ListRequest) returns (ListResponse);
+}
+
+service AuthService {
+  rpc CheckAccess (AccessRequest) returns (AccessResponse);
+}
+
+service MessageConverterService {
+  rpc Convert (RawInput) returns (UnmarshaledMessage);
+}
+
+service ProcessorService {
+  rpc HandleCommand (UnmarshaledMessage) returns (Response);
+}
+
+service Orchestrator {
+  rpc Execute (ExecuteRequest) returns (Response);
+}
+
+// =============================================================================
+// AST (Abstract Syntax Tree)
+// =============================================================================
+
+enum LogicalOp {
+  AND = 0;
+  OR = 1;
+}
+
+enum Operator {
+  OP_UNKNOWN = 0;
+  OP_EQUALS = 1;
+  OP_CONTAINS = 2;
+  OP_REGEX = 3;
+}
+
+message SearchQuery {
+  oneof node {
+    LogicalNode logical = 1;
+    FilterNode filter = 2;
+    NotNode negation = 3;
+  }
+}
+
+message LogicalNode {
+  LogicalOp op = 1;
+  repeated SearchQuery nodes = 2;
+}
+
+message FilterNode {
+  string field = 1;
+  string value = 2;
+  Operator operator = 3;
+}
+
+message NotNode {
+  SearchQuery node = 1;
+}
+
+// =============================================================================
+// СООБЩЕНИЯ (MESSAGES)
+// =============================================================================
+
+message RawInput {
+  string data = 1;
+}
+
+message UnmarshaledMessage {
+  SearchQuery query = 1;
+  MessageMeta meta = 2;
+}
+
+message MessageMeta {
+  string canonical_form = 1;
+  string source = 2;
+  string trace_id = 3;
+  SearchQuery ast_plan = 4; // ДОБАВЛЕНО: нужно для cmd/message-converter
 }
 
 message SearchRequest {
   string query = 1;
   int32 offset = 2;
   int32 limit = 3;
+  string template_id = 4;
 }
 
 message Book {
@@ -37,4 +114,33 @@ message ListRequest {
 
 message ListResponse {
   repeated string items = 1;
+}
+
+message ExecuteRequest {
+  string raw_input = 1;
+  string trace_id = 2;
+}
+
+message Response {
+  string status = 1;
+  repeated Book books = 2;
+  ResponseMeta meta = 3;
+}
+
+message ResponseMeta {
+  string trace_id = 1;
+  string canonical_form = 2;
+}
+
+message AccessRequest {
+  string user_id = 1;
+  string action = 2;
+  string trace_id = 3; 
+  string platform = 4;
+}
+
+message AccessResponse {
+  bool allowed = 1;
+  string reason = 2;
+  string user_role = 3;
 }

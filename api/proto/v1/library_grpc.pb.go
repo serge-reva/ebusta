@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.0
 // - protoc             v3.21.12
-// source: library.proto
+// source: api/proto/v1/library.proto
 
 package libraryv1
 
@@ -19,105 +19,245 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DataService_GetData_FullMethodName = "/libraryv1.DataService/GetData"
+	LibraryService_SearchBooks_FullMethodName = "/libraryv1.LibraryService/SearchBooks"
+	LibraryService_GetAuthors_FullMethodName  = "/libraryv1.LibraryService/GetAuthors"
 )
 
-// DataServiceClient is the client API for DataService service.
+// LibraryServiceClient is the client API for LibraryService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type DataServiceClient interface {
-	GetData(ctx context.Context, in *DataRequest, opts ...grpc.CallOption) (*DataResponse, error)
+type LibraryServiceClient interface {
+	SearchBooks(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
+	GetAuthors(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
 }
 
-type dataServiceClient struct {
+type libraryServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewDataServiceClient(cc grpc.ClientConnInterface) DataServiceClient {
-	return &dataServiceClient{cc}
+func NewLibraryServiceClient(cc grpc.ClientConnInterface) LibraryServiceClient {
+	return &libraryServiceClient{cc}
 }
 
-func (c *dataServiceClient) GetData(ctx context.Context, in *DataRequest, opts ...grpc.CallOption) (*DataResponse, error) {
+func (c *libraryServiceClient) SearchBooks(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DataResponse)
-	err := c.cc.Invoke(ctx, DataService_GetData_FullMethodName, in, out, cOpts...)
+	out := new(SearchResponse)
+	err := c.cc.Invoke(ctx, LibraryService_SearchBooks_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// DataServiceServer is the server API for DataService service.
-// All implementations must embed UnimplementedDataServiceServer
-// for forward compatibility.
-type DataServiceServer interface {
-	GetData(context.Context, *DataRequest) (*DataResponse, error)
-	mustEmbedUnimplementedDataServiceServer()
+func (c *libraryServiceClient) GetAuthors(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListResponse)
+	err := c.cc.Invoke(ctx, LibraryService_GetAuthors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
-// UnimplementedDataServiceServer must be embedded to have
+// LibraryServiceServer is the server API for LibraryService service.
+// All implementations must embed UnimplementedLibraryServiceServer
+// for forward compatibility.
+type LibraryServiceServer interface {
+	SearchBooks(context.Context, *SearchRequest) (*SearchResponse, error)
+	GetAuthors(context.Context, *ListRequest) (*ListResponse, error)
+	mustEmbedUnimplementedLibraryServiceServer()
+}
+
+// UnimplementedLibraryServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedDataServiceServer struct{}
+type UnimplementedLibraryServiceServer struct{}
 
-func (UnimplementedDataServiceServer) GetData(context.Context, *DataRequest) (*DataResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetData not implemented")
+func (UnimplementedLibraryServiceServer) SearchBooks(context.Context, *SearchRequest) (*SearchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchBooks not implemented")
 }
-func (UnimplementedDataServiceServer) mustEmbedUnimplementedDataServiceServer() {}
-func (UnimplementedDataServiceServer) testEmbeddedByValue()                     {}
+func (UnimplementedLibraryServiceServer) GetAuthors(context.Context, *ListRequest) (*ListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAuthors not implemented")
+}
+func (UnimplementedLibraryServiceServer) mustEmbedUnimplementedLibraryServiceServer() {}
+func (UnimplementedLibraryServiceServer) testEmbeddedByValue()                        {}
 
-// UnsafeDataServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to DataServiceServer will
+// UnsafeLibraryServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to LibraryServiceServer will
 // result in compilation errors.
-type UnsafeDataServiceServer interface {
-	mustEmbedUnimplementedDataServiceServer()
+type UnsafeLibraryServiceServer interface {
+	mustEmbedUnimplementedLibraryServiceServer()
 }
 
-func RegisterDataServiceServer(s grpc.ServiceRegistrar, srv DataServiceServer) {
-	// If the following call panics, it indicates UnimplementedDataServiceServer was
+func RegisterLibraryServiceServer(s grpc.ServiceRegistrar, srv LibraryServiceServer) {
+	// If the following call panics, it indicates UnimplementedLibraryServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&DataService_ServiceDesc, srv)
+	s.RegisterService(&LibraryService_ServiceDesc, srv)
 }
 
-func _DataService_GetData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DataRequest)
+func _LibraryService_SearchBooks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataServiceServer).GetData(ctx, in)
+		return srv.(LibraryServiceServer).SearchBooks(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: DataService_GetData_FullMethodName,
+		FullMethod: LibraryService_SearchBooks_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataServiceServer).GetData(ctx, req.(*DataRequest))
+		return srv.(LibraryServiceServer).SearchBooks(ctx, req.(*SearchRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// DataService_ServiceDesc is the grpc.ServiceDesc for DataService service.
+func _LibraryService_GetAuthors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LibraryServiceServer).GetAuthors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LibraryService_GetAuthors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LibraryServiceServer).GetAuthors(ctx, req.(*ListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// LibraryService_ServiceDesc is the grpc.ServiceDesc for LibraryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var DataService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "libraryv1.DataService",
-	HandlerType: (*DataServiceServer)(nil),
+var LibraryService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "libraryv1.LibraryService",
+	HandlerType: (*LibraryServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetData",
-			Handler:    _DataService_GetData_Handler,
+			MethodName: "SearchBooks",
+			Handler:    _LibraryService_SearchBooks_Handler,
+		},
+		{
+			MethodName: "GetAuthors",
+			Handler:    _LibraryService_GetAuthors_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "library.proto",
+	Metadata: "api/proto/v1/library.proto",
+}
+
+const (
+	AuthService_CheckAccess_FullMethodName = "/libraryv1.AuthService/CheckAccess"
+)
+
+// AuthServiceClient is the client API for AuthService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type AuthServiceClient interface {
+	CheckAccess(ctx context.Context, in *AccessRequest, opts ...grpc.CallOption) (*AccessResponse, error)
+}
+
+type authServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewAuthServiceClient(cc grpc.ClientConnInterface) AuthServiceClient {
+	return &authServiceClient{cc}
+}
+
+func (c *authServiceClient) CheckAccess(ctx context.Context, in *AccessRequest, opts ...grpc.CallOption) (*AccessResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AccessResponse)
+	err := c.cc.Invoke(ctx, AuthService_CheckAccess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AuthServiceServer is the server API for AuthService service.
+// All implementations must embed UnimplementedAuthServiceServer
+// for forward compatibility.
+type AuthServiceServer interface {
+	CheckAccess(context.Context, *AccessRequest) (*AccessResponse, error)
+	mustEmbedUnimplementedAuthServiceServer()
+}
+
+// UnimplementedAuthServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedAuthServiceServer struct{}
+
+func (UnimplementedAuthServiceServer) CheckAccess(context.Context, *AccessRequest) (*AccessResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CheckAccess not implemented")
+}
+func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
+func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
+
+// UnsafeAuthServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to AuthServiceServer will
+// result in compilation errors.
+type UnsafeAuthServiceServer interface {
+	mustEmbedUnimplementedAuthServiceServer()
+}
+
+func RegisterAuthServiceServer(s grpc.ServiceRegistrar, srv AuthServiceServer) {
+	// If the following call panics, it indicates UnimplementedAuthServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&AuthService_ServiceDesc, srv)
+}
+
+func _AuthService_CheckAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CheckAccess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_CheckAccess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CheckAccess(ctx, req.(*AccessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var AuthService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "libraryv1.AuthService",
+	HandlerType: (*AuthServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CheckAccess",
+			Handler:    _AuthService_CheckAccess_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/v1/library.proto",
 }
 
 const (
@@ -220,7 +360,7 @@ var MessageConverterService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "library.proto",
+	Metadata: "api/proto/v1/library.proto",
 }
 
 const (
@@ -231,7 +371,6 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ProcessorServiceClient interface {
-	// Исправлено: Процессор принимает UnmarshaledMessage (с метаданными)
 	HandleCommand(ctx context.Context, in *UnmarshaledMessage, opts ...grpc.CallOption) (*Response, error)
 }
 
@@ -257,7 +396,6 @@ func (c *processorServiceClient) HandleCommand(ctx context.Context, in *Unmarsha
 // All implementations must embed UnimplementedProcessorServiceServer
 // for forward compatibility.
 type ProcessorServiceServer interface {
-	// Исправлено: Процессор принимает UnmarshaledMessage (с метаданными)
 	HandleCommand(context.Context, *UnmarshaledMessage) (*Response, error)
 	mustEmbedUnimplementedProcessorServiceServer()
 }
@@ -324,7 +462,7 @@ var ProcessorService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "library.proto",
+	Metadata: "api/proto/v1/library.proto",
 }
 
 const (
@@ -426,5 +564,5 @@ var Orchestrator_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "library.proto",
+	Metadata: "api/proto/v1/library.proto",
 }
