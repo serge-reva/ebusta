@@ -6,6 +6,19 @@ bin/
 *.so
 *.dylib
 
+bin/
+
+# Бинарники и данные конкретного модуля bulker
+flibusta_fb2_bulker/bin/
+flibusta_fb2_bulker/data/out/*
+flibusta_fb2_bulker/data/src/*
+flibusta_fb2_bulker/data/warn/*
+
+# Исключения для структуры данных
+!flibusta_fb2_bulker/data/**/.gitkeep
+
+
+
 # Объекты и кэш
 *.a
 *.o

@@ -1,0 +1,317 @@
+-e 
+
+=== FILE: ./sources-05012026-06.txt ===
+
+-e 
+
+=== FILE: ./fl_authors_all.json ===
+
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"size\": 0,\n  \"aggs\": {\n    \"authors\": {\n      \"composite\": {\n        \"size\": {{size}},\n        \"sources\": [ { \"a\": { \"terms\": { \"field\": \"authors.kw\" } } } ]{{#after}},\n        \"after\": {{after}}{{/after}}\n      }\n    }\n  }\n}\n"
+  }
+}
+
+-e 
+=== END OF FILE ===
+
+-e 
+
+=== FILE: ./fl_author_exact.json ===
+
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"query\": { \"term\": { \"authors.kw\": { \"value\": \"{{author}}\" } } },\n  \"size\": {{size}},\n  \"from\": {{from}},\n  \"_source\": [\"title\",\"authors\",\"fileInfo.container\",\"fileInfo.filename\"],\n  \"sort\": [{ \"title.kw\": { \"order\": \"asc\" } }],\n  \"track_total_hits\": false,\n  \"highlight\": { \"fields\": { \"authors\": {}, \"title\": {} } }\n}"
+  }
+}-e 
+=== END OF FILE ===
+
+-e 
+
+=== FILE: ./fl_names_token_prefix.json ===
+
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"query\": {\n    \"bool\": {\n      \"should\": [\n        { \"multi_match\": { \"query\": \"{{q}}\", \"type\": \"phrase_prefix\", \"fields\": [\"authors^3\",\"title^1\"] } },\n        { \"match\": { \"authors.prefix\": { \"query\": \"{{q}}\", \"boost\": 4 } } },\n        { \"match\": { \"title.prefix\":   { \"query\": \"{{q}}\", \"boost\": 2 } } }\n      ],\n      \"minimum_should_match\": 1\n    }\n  },\n  \"size\": {{size}},\n  \"from\": {{from}},\n  \"sort\": [{ \"title.kw\": { \"order\": \"asc\" } }],\n  \"track_total_hits\": false,\n  \"_source\": [\"title\",\"authors\",\"fileInfo.container\",\"fileInfo.filename\"],\n  \"highlight\": { \"fields\": { \"authors\": {}, \"title\": {} } }\n}"
+  }
+}-e 
+=== END OF FILE ===
+
+-e 
+
+=== FILE: ./fl_title_substring.json ===
+
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"from\": 0,\n  \"size\": {{size}},\n  \"query\": {\n    \"query_string\": {\n      \"query\": \"*{{q}}*\",\n      \"fields\": [\"title.kw\", \"authors.kw\"],\n      \"analyze_wildcard\": true,\n      \"default_operator\": \"and\"\n    }\n  },\n  \"_source\": [\"title\", \"authors\", \"year\", \"fileInfo.container\", \"fileInfo.filename\"]\n}\n"
+  }
+}
+
+-e 
+=== END OF FILE ===
+
+-e 
+
+=== FILE: ./fl_title_prefix.json ===
+
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"query\": {\n    \"bool\": {\n      \"should\": [\n        { \"match\": { \"title.prefix\": { \"query\": \"{{q}}\", \"boost\": 5 } } },\n        { \"match_phrase_prefix\": { \"title\": { \"query\": \"{{q}}\", \"boost\": 2 } } },\n        { \"term\": { \"title.kw\": { \"value\": \"{{q}}\", \"boost\": 20 } } }\n      ],\n      \"minimum_should_match\": 1\n    }\n  },\n  \"size\": {{size}},\n  \"from\": {{from}},\n  \"sort\": [{ \"title.kw\": { \"order\": \"asc\" } }],\n  \"track_total_hits\": false,\n  \"_source\": [\"title\",\"authors\",\"fileInfo.container\",\"fileInfo.filename\"],\n  \"highlight\": { \"fields\": { \"title\": {} } }\n}"
+  }
+}-e 
+=== END OF FILE ===
+
+-e 
+
+=== FILE: ./flibusta_merged_index.fixed.json ===
+
+{
+  "settings": {
+    "index": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "refresh_interval": "1s"
+    },
+    "analysis": {
+      "filter": {
+        "ru_stop": {
+          "type": "stop",
+          "stopwords": "_russian_"
+        },
+        "ru_stemmer": {
+          "type": "stemmer",
+          "language": "russian"
+        },
+        "en_stop": {
+          "type": "stop",
+          "stopwords": "_english_"
+        },
+        "en_stemmer": {
+          "type": "stemmer",
+          "language": "english"
+        },
+        "shingle_2_3": {
+          "type": "shingle",
+          "min_shingle_size": 2,
+          "max_shingle_size": 3
+        }
+      },
+      "char_filter": {
+        "quotes": {
+          "type": "mapping",
+          "mappings": [
+            "“=>\"",
+            "”=>\"",
+            "‘=>'",
+            "’=>'"
+          ]
+        }
+      },
+      "normalizer": {
+        "lc_ascii": {
+          "type": "custom",
+          "filter": [
+            "lowercase",
+            "asciifolding"
+          ]
+        }
+      },
+      "analyzer": {
+        "mixed_text": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "char_filter": [
+            "quotes"
+          ],
+          "filter": [
+            "lowercase",
+            "ru_stop",
+            "ru_stemmer",
+            "en_stop",
+            "en_stemmer"
+          ]
+        },
+        "autocomplete": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase"
+          ]
+        },
+        "autocomplete_edge": {
+          "type": "custom",
+          "tokenizer": "edge_ngram_tokenizer",
+          "filter": [
+            "lowercase"
+          ]
+        },
+        "shingled": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "shingle_2_3"
+          ]
+        }
+      },
+      "tokenizer": {
+        "edge_ngram_tokenizer": {
+          "type": "edge_ngram",
+          "min_gram": 2,
+          "max_gram": 20,
+          "token_chars": [
+            "letter",
+            "digit"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "docId": {
+        "type": "keyword"
+      },
+      "source": {
+        "type": "keyword"
+      },
+      "ingestedAt": {
+        "type": "date"
+      },
+      "title": {
+        "type": "text",
+        "analyzer": "mixed_text",
+        "fields": {
+          "kw": {
+            "type": "keyword",
+            "normalizer": "lc_ascii"
+          },
+          "ac": {
+            "type": "text",
+            "analyzer": "autocomplete_edge",
+            "search_analyzer": "autocomplete"
+          },
+          "sh": {
+            "type": "text",
+            "analyzer": "shingled"
+          }
+        }
+      },
+      "authors": {
+        "type": "text",
+        "analyzer": "mixed_text",
+        "fields": {
+          "kw": {
+            "type": "keyword",
+            "normalizer": "lc_ascii"
+          },
+          "ac": {
+            "type": "text",
+            "analyzer": "autocomplete_edge",
+            "search_analyzer": "autocomplete"
+          }
+        }
+      },
+      "genres": {
+        "type": "keyword",
+        "normalizer": "lc_ascii"
+      },
+      "languages": {
+        "type": "keyword",
+        "normalizer": "lc_ascii"
+      },
+      "year": {
+        "type": "integer"
+      },
+      "annotation": {
+        "type": "text",
+        "analyzer": "mixed_text"
+      },
+      "sequences": {
+        "type": "nested",
+        "properties": {
+          "name": {
+            "type": "text",
+            "analyzer": "mixed_text",
+            "fields": {
+              "kw": {
+                "type": "keyword",
+                "normalizer": "lc_ascii"
+              },
+              "ac": {
+                "type": "text",
+                "analyzer": "autocomplete_edge",
+                "search_analyzer": "autocomplete"
+              }
+            }
+          },
+          "number": {
+            "type": "float"
+          }
+        }
+      },
+      "fileInfo": {
+        "type": "object",
+        "properties": {
+          "container": {
+            "type": "keyword"
+          },
+          "filename": {
+            "type": "keyword"
+          },
+          "size": {
+            "type": "long"
+          },
+          "sha1": {
+            "type": "keyword"
+          }
+        }
+      },
+      "suggest_title": {
+        "type": "completion"
+      },
+      "suggest_author": {
+        "type": "completion"
+      }
+    }
+  }
+}-e 
+=== END OF FILE ===
+
+-e 
+
+=== FILE: ./fl_mixed_search.json ===
+
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"from\": {{from}},\n  \"size\": {{size}},\n  \"query\": {\n    \"bool\": {\n      \"must\": [\n        {\n          \"simple_query_string\": {\n            \"query\": \"{{q}}\",\n            \"fields\": [\"title^3\", \"authors^2\", \"annotation\"],\n            \"default_operator\": \"and\"\n          }\n        }\n      ]\n    }\n  }{{#sort}},\n  \"sort\": {{sort}}{{/sort}}\n}\n"
+  }
+}
+
+-e 
+=== END OF FILE ===
+
+-e 
+
+=== FILE: ./fl_titles_all.json ===
+
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"size\": 0,\n  \"aggs\": {\n    \"titles\": {\n      \"composite\": {\n        \"size\": {{size}},\n        \"sources\": [ { \"t\": { \"terms\": { \"field\": \"title.kw\" } } } ]{{#after}},\n        \"after\": {{after}}{{/after}}\n      }\n    }\n  }\n}\n"
+  }
+}
+
+-e 
+=== END OF FILE ===
+
