@@ -1,0 +1,7 @@
+users:
+  - id: "serge_dev_cli"
+    platform: "cli"
+    role: "admin"
+  - id: "12345678"
+    platform: "telegram"
+    role: "family"

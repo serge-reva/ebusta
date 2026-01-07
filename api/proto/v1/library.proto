@@ -4,99 +4,37 @@ package libraryv1;
 
 option go_package = "ebusta/api/proto/v1;libraryv1";
 
-service DataService {
-  rpc GetData (DataRequest) returns (DataResponse);
+service LibraryService {
+  // Поиск книг по строке (вызывает fl_mixed_search)
+  rpc SearchBooks (SearchRequest) returns (SearchResponse);
+  
+  // Получение списка авторов (вызывает fl_authors_all)
+  rpc GetAuthors (ListRequest) returns (ListResponse);
 }
 
-service MessageConverterService {
-  rpc Convert (RawInput) returns (UnmarshaledMessage);
-}
-
-service ProcessorService {
-  // Исправлено: Процессор принимает UnmarshaledMessage (с метаданными)
-  rpc HandleCommand (UnmarshaledMessage) returns (Response);
-}
-
-service Orchestrator {
-  rpc Execute (ExecuteRequest) returns (Response);
-}
-
-enum LogicalOp {
-  AND = 0;
-  OR = 1;
-}
-
-enum Operator {
-  OP_EQUALS = 0;
-  OP_CONTAINS = 1;
-  OP_REGEX = 2;
-}
-
-message RawInput {
-  string data = 1;
-}
-
-message UnmarshaledMessage {
-  SearchQuery query = 1;
-  MessageMeta meta = 2;
-}
-
-message MessageMeta {
-  string source = 1;
-  string canonical_form = 2;
-  SearchQuery ast_plan = 3;
-}
-
-message SearchQuery {
-  oneof node {
-    FilterNode filter = 1;
-    LogicalNode logical = 2;
-    NotNode negation = 3;
-  }
-}
-
-message FilterNode {
-  string field = 1;
-  string value = 2;
-  Operator operator = 3;
-}
-
-message LogicalNode {
-  LogicalOp op = 1;
-  repeated SearchQuery nodes = 2;
-}
-
-message NotNode {
-  SearchQuery node = 1;
-}
-
-message DataRequest {
-  SearchQuery query = 1;
-}
-
-message DataResponse {
-  string status = 1;
-  repeated Book books = 2;
-}
-
-message Response {
-  string status = 1;
-  repeated Book books = 2;
-  ResponseMeta meta = 3;
-}
-
-message ResponseMeta {
-  string trace_id = 1;
-  string canonical_form = 2;
-}
-
-message ExecuteRequest {
-  string raw_input = 1;
-  string trace_id = 2;
+message SearchRequest {
+  string query = 1;
+  int32 offset = 2;
+  int32 limit = 3;
 }
 
 message Book {
   string id = 1;
   string title = 2;
   repeated string authors = 3;
+  string container = 4;
+  string filename = 5;
+}
+
+message SearchResponse {
+  repeated Book books = 1;
+  int32 total = 2;
+}
+
+message ListRequest {
+  int32 limit = 1;
+}
+
+message ListResponse {
+  repeated string items = 1;
 }

@@ -13,6 +13,7 @@ build:
 	@go build -o $(BIN_DIR)/orchestrator ./cmd/orchestrator
 	@go build -o $(BIN_DIR)/web-adapter ./cmd/web-adapter
 	@go build -o $(BIN_DIR)/ebusta-cli ./cmd/cli
+	@go build -o $(BIN_DIR)/auth-manager ./cmd/auth-manager
 
 run: stop build
 	@echo "🚀 Starting services..."
@@ -30,6 +31,7 @@ stop:
 	@-pkill -f $(BIN_DIR)/processor > /dev/null 2>&1 || true
 	@-pkill -f $(BIN_DIR)/orchestrator > /dev/null 2>&1 || true
 	@-pkill -f $(BIN_DIR)/web-adapter > /dev/null 2>&1 || true
+	@-pkill -f $(BIN_DIR)/auth-manager > /dev/null 2>&1 || true
 
 smoke-test: build
 	@echo "🧪 Running CLI Smoke Tests..."
