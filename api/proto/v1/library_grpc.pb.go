@@ -19,139 +19,305 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	LibraryService_SearchBooks_FullMethodName = "/libraryv1.LibraryService/SearchBooks"
-	LibraryService_GetAuthors_FullMethodName  = "/libraryv1.LibraryService/GetAuthors"
+	OrchestratorService_Search_FullMethodName = "/libraryv1.OrchestratorService/Search"
 )
 
-// LibraryServiceClient is the client API for LibraryService service.
+// OrchestratorServiceClient is the client API for OrchestratorService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type LibraryServiceClient interface {
-	SearchBooks(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
-	GetAuthors(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
+type OrchestratorServiceClient interface {
+	Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
 }
 
-type libraryServiceClient struct {
+type orchestratorServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewLibraryServiceClient(cc grpc.ClientConnInterface) LibraryServiceClient {
-	return &libraryServiceClient{cc}
+func NewOrchestratorServiceClient(cc grpc.ClientConnInterface) OrchestratorServiceClient {
+	return &orchestratorServiceClient{cc}
 }
 
-func (c *libraryServiceClient) SearchBooks(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
+func (c *orchestratorServiceClient) Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SearchResponse)
-	err := c.cc.Invoke(ctx, LibraryService_SearchBooks_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, OrchestratorService_Search_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *libraryServiceClient) GetAuthors(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListResponse)
-	err := c.cc.Invoke(ctx, LibraryService_GetAuthors_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// LibraryServiceServer is the server API for LibraryService service.
-// All implementations must embed UnimplementedLibraryServiceServer
+// OrchestratorServiceServer is the server API for OrchestratorService service.
+// All implementations must embed UnimplementedOrchestratorServiceServer
 // for forward compatibility.
-type LibraryServiceServer interface {
-	SearchBooks(context.Context, *SearchRequest) (*SearchResponse, error)
-	GetAuthors(context.Context, *ListRequest) (*ListResponse, error)
-	mustEmbedUnimplementedLibraryServiceServer()
+type OrchestratorServiceServer interface {
+	Search(context.Context, *SearchRequest) (*SearchResponse, error)
+	mustEmbedUnimplementedOrchestratorServiceServer()
 }
 
-// UnimplementedLibraryServiceServer must be embedded to have
+// UnimplementedOrchestratorServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedLibraryServiceServer struct{}
+type UnimplementedOrchestratorServiceServer struct{}
 
-func (UnimplementedLibraryServiceServer) SearchBooks(context.Context, *SearchRequest) (*SearchResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method SearchBooks not implemented")
+func (UnimplementedOrchestratorServiceServer) Search(context.Context, *SearchRequest) (*SearchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Search not implemented")
 }
-func (UnimplementedLibraryServiceServer) GetAuthors(context.Context, *ListRequest) (*ListResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetAuthors not implemented")
-}
-func (UnimplementedLibraryServiceServer) mustEmbedUnimplementedLibraryServiceServer() {}
-func (UnimplementedLibraryServiceServer) testEmbeddedByValue()                        {}
+func (UnimplementedOrchestratorServiceServer) mustEmbedUnimplementedOrchestratorServiceServer() {}
+func (UnimplementedOrchestratorServiceServer) testEmbeddedByValue()                             {}
 
-// UnsafeLibraryServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to LibraryServiceServer will
+// UnsafeOrchestratorServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to OrchestratorServiceServer will
 // result in compilation errors.
-type UnsafeLibraryServiceServer interface {
-	mustEmbedUnimplementedLibraryServiceServer()
+type UnsafeOrchestratorServiceServer interface {
+	mustEmbedUnimplementedOrchestratorServiceServer()
 }
 
-func RegisterLibraryServiceServer(s grpc.ServiceRegistrar, srv LibraryServiceServer) {
-	// If the following call panics, it indicates UnimplementedLibraryServiceServer was
+func RegisterOrchestratorServiceServer(s grpc.ServiceRegistrar, srv OrchestratorServiceServer) {
+	// If the following call panics, it indicates UnimplementedOrchestratorServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&LibraryService_ServiceDesc, srv)
+	s.RegisterService(&OrchestratorService_ServiceDesc, srv)
 }
 
-func _LibraryService_SearchBooks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _OrchestratorService_Search_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SearchRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(LibraryServiceServer).SearchBooks(ctx, in)
+		return srv.(OrchestratorServiceServer).Search(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: LibraryService_SearchBooks_FullMethodName,
+		FullMethod: OrchestratorService_Search_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(LibraryServiceServer).SearchBooks(ctx, req.(*SearchRequest))
+		return srv.(OrchestratorServiceServer).Search(ctx, req.(*SearchRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _LibraryService_GetAuthors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListRequest)
+// OrchestratorService_ServiceDesc is the grpc.ServiceDesc for OrchestratorService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var OrchestratorService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "libraryv1.OrchestratorService",
+	HandlerType: (*OrchestratorServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Search",
+			Handler:    _OrchestratorService_Search_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/v1/library.proto",
+}
+
+const (
+	ProcessorService_Process_FullMethodName = "/libraryv1.ProcessorService/Process"
+)
+
+// ProcessorServiceClient is the client API for ProcessorService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type ProcessorServiceClient interface {
+	Process(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
+}
+
+type processorServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewProcessorServiceClient(cc grpc.ClientConnInterface) ProcessorServiceClient {
+	return &processorServiceClient{cc}
+}
+
+func (c *processorServiceClient) Process(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchResponse)
+	err := c.cc.Invoke(ctx, ProcessorService_Process_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ProcessorServiceServer is the server API for ProcessorService service.
+// All implementations must embed UnimplementedProcessorServiceServer
+// for forward compatibility.
+type ProcessorServiceServer interface {
+	Process(context.Context, *SearchRequest) (*SearchResponse, error)
+	mustEmbedUnimplementedProcessorServiceServer()
+}
+
+// UnimplementedProcessorServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedProcessorServiceServer struct{}
+
+func (UnimplementedProcessorServiceServer) Process(context.Context, *SearchRequest) (*SearchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Process not implemented")
+}
+func (UnimplementedProcessorServiceServer) mustEmbedUnimplementedProcessorServiceServer() {}
+func (UnimplementedProcessorServiceServer) testEmbeddedByValue()                          {}
+
+// UnsafeProcessorServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ProcessorServiceServer will
+// result in compilation errors.
+type UnsafeProcessorServiceServer interface {
+	mustEmbedUnimplementedProcessorServiceServer()
+}
+
+func RegisterProcessorServiceServer(s grpc.ServiceRegistrar, srv ProcessorServiceServer) {
+	// If the following call panics, it indicates UnimplementedProcessorServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ProcessorService_ServiceDesc, srv)
+}
+
+func _ProcessorService_Process_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(LibraryServiceServer).GetAuthors(ctx, in)
+		return srv.(ProcessorServiceServer).Process(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: LibraryService_GetAuthors_FullMethodName,
+		FullMethod: ProcessorService_Process_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(LibraryServiceServer).GetAuthors(ctx, req.(*ListRequest))
+		return srv.(ProcessorServiceServer).Process(ctx, req.(*SearchRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// LibraryService_ServiceDesc is the grpc.ServiceDesc for LibraryService service.
+// ProcessorService_ServiceDesc is the grpc.ServiceDesc for ProcessorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var LibraryService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "libraryv1.LibraryService",
-	HandlerType: (*LibraryServiceServer)(nil),
+var ProcessorService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "libraryv1.ProcessorService",
+	HandlerType: (*ProcessorServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Process",
+			Handler:    _ProcessorService_Process_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/v1/library.proto",
+}
+
+const (
+	StorageService_SearchBooks_FullMethodName = "/libraryv1.StorageService/SearchBooks"
+)
+
+// StorageServiceClient is the client API for StorageService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type StorageServiceClient interface {
+	SearchBooks(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
+}
+
+type storageServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewStorageServiceClient(cc grpc.ClientConnInterface) StorageServiceClient {
+	return &storageServiceClient{cc}
+}
+
+func (c *storageServiceClient) SearchBooks(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchResponse)
+	err := c.cc.Invoke(ctx, StorageService_SearchBooks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// StorageServiceServer is the server API for StorageService service.
+// All implementations must embed UnimplementedStorageServiceServer
+// for forward compatibility.
+type StorageServiceServer interface {
+	SearchBooks(context.Context, *SearchRequest) (*SearchResponse, error)
+	mustEmbedUnimplementedStorageServiceServer()
+}
+
+// UnimplementedStorageServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedStorageServiceServer struct{}
+
+func (UnimplementedStorageServiceServer) SearchBooks(context.Context, *SearchRequest) (*SearchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchBooks not implemented")
+}
+func (UnimplementedStorageServiceServer) mustEmbedUnimplementedStorageServiceServer() {}
+func (UnimplementedStorageServiceServer) testEmbeddedByValue()                        {}
+
+// UnsafeStorageServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to StorageServiceServer will
+// result in compilation errors.
+type UnsafeStorageServiceServer interface {
+	mustEmbedUnimplementedStorageServiceServer()
+}
+
+func RegisterStorageServiceServer(s grpc.ServiceRegistrar, srv StorageServiceServer) {
+	// If the following call panics, it indicates UnimplementedStorageServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&StorageService_ServiceDesc, srv)
+}
+
+func _StorageService_SearchBooks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StorageServiceServer).SearchBooks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StorageService_SearchBooks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StorageServiceServer).SearchBooks(ctx, req.(*SearchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// StorageService_ServiceDesc is the grpc.ServiceDesc for StorageService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var StorageService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "libraryv1.StorageService",
+	HandlerType: (*StorageServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "SearchBooks",
-			Handler:    _LibraryService_SearchBooks_Handler,
-		},
-		{
-			MethodName: "GetAuthors",
-			Handler:    _LibraryService_GetAuthors_Handler,
+			Handler:    _StorageService_SearchBooks_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -364,203 +530,143 @@ var MessageConverterService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	ProcessorService_HandleCommand_FullMethodName = "/libraryv1.ProcessorService/HandleCommand"
+	LibraryService_SearchBooks_FullMethodName = "/libraryv1.LibraryService/SearchBooks"
+	LibraryService_GetAuthors_FullMethodName  = "/libraryv1.LibraryService/GetAuthors"
 )
 
-// ProcessorServiceClient is the client API for ProcessorService service.
+// LibraryServiceClient is the client API for LibraryService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type ProcessorServiceClient interface {
-	HandleCommand(ctx context.Context, in *UnmarshaledMessage, opts ...grpc.CallOption) (*Response, error)
+//
+// Legacy
+type LibraryServiceClient interface {
+	SearchBooks(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
+	GetAuthors(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
 }
 
-type processorServiceClient struct {
+type libraryServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewProcessorServiceClient(cc grpc.ClientConnInterface) ProcessorServiceClient {
-	return &processorServiceClient{cc}
+func NewLibraryServiceClient(cc grpc.ClientConnInterface) LibraryServiceClient {
+	return &libraryServiceClient{cc}
 }
 
-func (c *processorServiceClient) HandleCommand(ctx context.Context, in *UnmarshaledMessage, opts ...grpc.CallOption) (*Response, error) {
+func (c *libraryServiceClient) SearchBooks(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Response)
-	err := c.cc.Invoke(ctx, ProcessorService_HandleCommand_FullMethodName, in, out, cOpts...)
+	out := new(SearchResponse)
+	err := c.cc.Invoke(ctx, LibraryService_SearchBooks_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// ProcessorServiceServer is the server API for ProcessorService service.
-// All implementations must embed UnimplementedProcessorServiceServer
-// for forward compatibility.
-type ProcessorServiceServer interface {
-	HandleCommand(context.Context, *UnmarshaledMessage) (*Response, error)
-	mustEmbedUnimplementedProcessorServiceServer()
+func (c *libraryServiceClient) GetAuthors(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListResponse)
+	err := c.cc.Invoke(ctx, LibraryService_GetAuthors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
-// UnimplementedProcessorServiceServer must be embedded to have
+// LibraryServiceServer is the server API for LibraryService service.
+// All implementations must embed UnimplementedLibraryServiceServer
+// for forward compatibility.
+//
+// Legacy
+type LibraryServiceServer interface {
+	SearchBooks(context.Context, *SearchRequest) (*SearchResponse, error)
+	GetAuthors(context.Context, *ListRequest) (*ListResponse, error)
+	mustEmbedUnimplementedLibraryServiceServer()
+}
+
+// UnimplementedLibraryServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedProcessorServiceServer struct{}
+type UnimplementedLibraryServiceServer struct{}
 
-func (UnimplementedProcessorServiceServer) HandleCommand(context.Context, *UnmarshaledMessage) (*Response, error) {
-	return nil, status.Error(codes.Unimplemented, "method HandleCommand not implemented")
+func (UnimplementedLibraryServiceServer) SearchBooks(context.Context, *SearchRequest) (*SearchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchBooks not implemented")
 }
-func (UnimplementedProcessorServiceServer) mustEmbedUnimplementedProcessorServiceServer() {}
-func (UnimplementedProcessorServiceServer) testEmbeddedByValue()                          {}
+func (UnimplementedLibraryServiceServer) GetAuthors(context.Context, *ListRequest) (*ListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAuthors not implemented")
+}
+func (UnimplementedLibraryServiceServer) mustEmbedUnimplementedLibraryServiceServer() {}
+func (UnimplementedLibraryServiceServer) testEmbeddedByValue()                        {}
 
-// UnsafeProcessorServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to ProcessorServiceServer will
+// UnsafeLibraryServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to LibraryServiceServer will
 // result in compilation errors.
-type UnsafeProcessorServiceServer interface {
-	mustEmbedUnimplementedProcessorServiceServer()
+type UnsafeLibraryServiceServer interface {
+	mustEmbedUnimplementedLibraryServiceServer()
 }
 
-func RegisterProcessorServiceServer(s grpc.ServiceRegistrar, srv ProcessorServiceServer) {
-	// If the following call panics, it indicates UnimplementedProcessorServiceServer was
+func RegisterLibraryServiceServer(s grpc.ServiceRegistrar, srv LibraryServiceServer) {
+	// If the following call panics, it indicates UnimplementedLibraryServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&ProcessorService_ServiceDesc, srv)
+	s.RegisterService(&LibraryService_ServiceDesc, srv)
 }
 
-func _ProcessorService_HandleCommand_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UnmarshaledMessage)
+func _LibraryService_SearchBooks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ProcessorServiceServer).HandleCommand(ctx, in)
+		return srv.(LibraryServiceServer).SearchBooks(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ProcessorService_HandleCommand_FullMethodName,
+		FullMethod: LibraryService_SearchBooks_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProcessorServiceServer).HandleCommand(ctx, req.(*UnmarshaledMessage))
+		return srv.(LibraryServiceServer).SearchBooks(ctx, req.(*SearchRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// ProcessorService_ServiceDesc is the grpc.ServiceDesc for ProcessorService service.
+func _LibraryService_GetAuthors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LibraryServiceServer).GetAuthors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LibraryService_GetAuthors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LibraryServiceServer).GetAuthors(ctx, req.(*ListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// LibraryService_ServiceDesc is the grpc.ServiceDesc for LibraryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var ProcessorService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "libraryv1.ProcessorService",
-	HandlerType: (*ProcessorServiceServer)(nil),
+var LibraryService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "libraryv1.LibraryService",
+	HandlerType: (*LibraryServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "HandleCommand",
-			Handler:    _ProcessorService_HandleCommand_Handler,
+			MethodName: "SearchBooks",
+			Handler:    _LibraryService_SearchBooks_Handler,
 		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/v1/library.proto",
-}
-
-const (
-	Orchestrator_Execute_FullMethodName = "/libraryv1.Orchestrator/Execute"
-)
-
-// OrchestratorClient is the client API for Orchestrator service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type OrchestratorClient interface {
-	Execute(ctx context.Context, in *ExecuteRequest, opts ...grpc.CallOption) (*Response, error)
-}
-
-type orchestratorClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewOrchestratorClient(cc grpc.ClientConnInterface) OrchestratorClient {
-	return &orchestratorClient{cc}
-}
-
-func (c *orchestratorClient) Execute(ctx context.Context, in *ExecuteRequest, opts ...grpc.CallOption) (*Response, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Response)
-	err := c.cc.Invoke(ctx, Orchestrator_Execute_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// OrchestratorServer is the server API for Orchestrator service.
-// All implementations must embed UnimplementedOrchestratorServer
-// for forward compatibility.
-type OrchestratorServer interface {
-	Execute(context.Context, *ExecuteRequest) (*Response, error)
-	mustEmbedUnimplementedOrchestratorServer()
-}
-
-// UnimplementedOrchestratorServer must be embedded to have
-// forward compatible implementations.
-//
-// NOTE: this should be embedded by value instead of pointer to avoid a nil
-// pointer dereference when methods are called.
-type UnimplementedOrchestratorServer struct{}
-
-func (UnimplementedOrchestratorServer) Execute(context.Context, *ExecuteRequest) (*Response, error) {
-	return nil, status.Error(codes.Unimplemented, "method Execute not implemented")
-}
-func (UnimplementedOrchestratorServer) mustEmbedUnimplementedOrchestratorServer() {}
-func (UnimplementedOrchestratorServer) testEmbeddedByValue()                      {}
-
-// UnsafeOrchestratorServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to OrchestratorServer will
-// result in compilation errors.
-type UnsafeOrchestratorServer interface {
-	mustEmbedUnimplementedOrchestratorServer()
-}
-
-func RegisterOrchestratorServer(s grpc.ServiceRegistrar, srv OrchestratorServer) {
-	// If the following call panics, it indicates UnimplementedOrchestratorServer was
-	// embedded by pointer and is nil.  This will cause panics if an
-	// unimplemented method is ever invoked, so we test this at initialization
-	// time to prevent it from happening at runtime later due to I/O.
-	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
-		t.testEmbeddedByValue()
-	}
-	s.RegisterService(&Orchestrator_ServiceDesc, srv)
-}
-
-func _Orchestrator_Execute_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ExecuteRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(OrchestratorServer).Execute(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Orchestrator_Execute_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OrchestratorServer).Execute(ctx, req.(*ExecuteRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-// Orchestrator_ServiceDesc is the grpc.ServiceDesc for Orchestrator service.
-// It's only intended for direct use with grpc.RegisterService,
-// and not to be introspected or modified (even as a copy)
-var Orchestrator_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "libraryv1.Orchestrator",
-	HandlerType: (*OrchestratorServer)(nil),
-	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Execute",
-			Handler:    _Orchestrator_Execute_Handler,
+			MethodName: "GetAuthors",
+			Handler:    _LibraryService_GetAuthors_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

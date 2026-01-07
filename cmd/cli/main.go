@@ -1,101 +1,62 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
+	"log"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/chzyer/readline"
-	"github.com/spf13/viper"
+	"ebusta/api/proto/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
-type Response struct {
-	Status string `json:"status"`
-	Meta   struct { 
-		CanonicalForm string `json:"canonical_form"` 
-	} `json:"meta"`
-	Books  []struct {
-		Id      string   `json:"id"`
-		Title   string   `json:"title"`
-		Authors []string `json:"authors"`
-	} `json:"books"`
-}
-
-func init() {
-	viper.SetConfigName("ebusta")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
-	viper.SetDefault("gateway.url", "http://localhost:8080")
-	viper.ReadInConfig()
-}
-
 func main() {
-	if len(os.Args) > 1 {
-		executeRequest(strings.Join(os.Args[1:], " "))
-		return
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: ebusta-cli \"query\"")
+		os.Exit(1)
 	}
-
-	rl, err := readline.NewEx(&readline.Config{
-		Prompt:          "\033[32mebusta>\033[0m ",
-		HistoryFile:     ".ebusta_history",
-		InterruptPrompt: "^C",
-		EOFPrompt:       "exit",
-	})
-	if err != nil {
-		panic(err)
-	}
-	defer rl.Close()
-
-	fmt.Println("Ebusta Interactive Shell")
-	for {
-		line, err := rl.Readline()
-		if err != nil { break }
-		input := strings.TrimSpace(line)
-		if input == "" { continue }
-		if input == "exit" || input == "quit" { return }
-		executeRequest(input)
-	}
-}
-
-func executeRequest(query string) {
-	start := time.Now() // Старт таймера
 	
-	apiURL := viper.GetString("gateway.url") + "/input?msg=" + url.QueryEscape(query)
-	client := http.Client{Timeout: 5 * time.Second}
-	
-	resp, err := client.Get(apiURL)
+	query := os.Args[1]
+	debugMode := os.Getenv("DEBUG")
+	if debugMode == "" { debugMode = "0" }
+
+	// CLI -> Orchestrator
+	conn, err := grpc.Dial("localhost:50054", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
+
+	c := libraryv1.NewOrchestratorServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	md := metadata.Pairs("x-debug", debugMode)
+	ctx = metadata.NewOutgoingContext(ctx, md)
+
+	r, err := c.Search(ctx, &libraryv1.SearchRequest{Query: query})
+	if err != nil {
+		fmt.Printf("API Error: %v\n", err)
 		return
 	}
-	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
-	var res Response
-	if err := json.Unmarshal(body, &res); err != nil {
-		fmt.Printf("API Error: %s\n", string(body))
-		return
-	}
-
-	elapsed := time.Since(start) // Конец таймера
-
-	fmt.Printf("\n[Plan]: %s\n", res.Meta.CanonicalForm)
-	fmt.Printf("[Trace]: %s\n", resp.Header.Get("X-Trace-ID"))
-
-	if len(res.Books) > 0 {
-		fmt.Printf("%-5s | %-25s | %-20s\n", "ID", "Title", "Authors")
-		fmt.Println(strings.Repeat("-", 60))
-		for _, b := range res.Books {
-			fmt.Printf("%-5s | %-25s | %-20s\n", b.Id, b.Title, strings.Join(b.Authors, ", "))
-		}
-	} else {
+	if len(r.Books) == 0 {
 		fmt.Println("No results found.")
+		return
 	}
-	
-	fmt.Printf("\n⏱ Поиск занял: %v\n\n", elapsed)
+
+	fmt.Printf("%-40s | %-40s | %s\n", "ID", "Title", "Authors")
+	fmt.Println(strings.Repeat("-", 100))
+	for _, b := range r.Books {
+		authors := strings.Join(b.Authors, ", ")
+		title := b.Title
+		if len(title) > 38 { title = title[:35] + "..." }
+		if len(authors) > 30 { authors = authors[:27] + "..." }
+		fmt.Printf("%-40s | %-40s | %s\n", b.Id, title, authors)
+	}
 }

@@ -26,6 +26,7 @@ type LogicalOp int32
 const (
 	LogicalOp_AND LogicalOp = 0
 	LogicalOp_OR  LogicalOp = 1
+	LogicalOp_NOT LogicalOp = 2
 )
 
 // Enum value maps for LogicalOp.
@@ -33,10 +34,12 @@ var (
 	LogicalOp_name = map[int32]string{
 		0: "AND",
 		1: "OR",
+		2: "NOT",
 	}
 	LogicalOp_value = map[string]int32{
 		"AND": 0,
 		"OR":  1,
+		"NOT": 2,
 	}
 )
 
@@ -70,25 +73,22 @@ func (LogicalOp) EnumDescriptor() ([]byte, []int) {
 type Operator int32
 
 const (
-	Operator_OP_UNKNOWN  Operator = 0
-	Operator_OP_EQUALS   Operator = 1
-	Operator_OP_CONTAINS Operator = 2
-	Operator_OP_REGEX    Operator = 3
+	Operator_OP_EQUALS   Operator = 0
+	Operator_OP_CONTAINS Operator = 1
+	Operator_OP_REGEX    Operator = 2
 )
 
 // Enum value maps for Operator.
 var (
 	Operator_name = map[int32]string{
-		0: "OP_UNKNOWN",
-		1: "OP_EQUALS",
-		2: "OP_CONTAINS",
-		3: "OP_REGEX",
+		0: "OP_EQUALS",
+		1: "OP_CONTAINS",
+		2: "OP_REGEX",
 	}
 	Operator_value = map[string]int32{
-		"OP_UNKNOWN":  0,
-		"OP_EQUALS":   1,
-		"OP_CONTAINS": 2,
-		"OP_REGEX":    3,
+		"OP_EQUALS":   0,
+		"OP_CONTAINS": 1,
+		"OP_REGEX":    2,
 	}
 )
 
@@ -119,437 +119,20 @@ func (Operator) EnumDescriptor() ([]byte, []int) {
 	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{1}
 }
 
-type SearchQuery struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Types that are valid to be assigned to Node:
-	//
-	//	*SearchQuery_Logical
-	//	*SearchQuery_Filter
-	//	*SearchQuery_Negation
-	Node          isSearchQuery_Node `protobuf_oneof:"node"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SearchQuery) Reset() {
-	*x = SearchQuery{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SearchQuery) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SearchQuery) ProtoMessage() {}
-
-func (x *SearchQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SearchQuery.ProtoReflect.Descriptor instead.
-func (*SearchQuery) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *SearchQuery) GetNode() isSearchQuery_Node {
-	if x != nil {
-		return x.Node
-	}
-	return nil
-}
-
-func (x *SearchQuery) GetLogical() *LogicalNode {
-	if x != nil {
-		if x, ok := x.Node.(*SearchQuery_Logical); ok {
-			return x.Logical
-		}
-	}
-	return nil
-}
-
-func (x *SearchQuery) GetFilter() *FilterNode {
-	if x != nil {
-		if x, ok := x.Node.(*SearchQuery_Filter); ok {
-			return x.Filter
-		}
-	}
-	return nil
-}
-
-func (x *SearchQuery) GetNegation() *NotNode {
-	if x != nil {
-		if x, ok := x.Node.(*SearchQuery_Negation); ok {
-			return x.Negation
-		}
-	}
-	return nil
-}
-
-type isSearchQuery_Node interface {
-	isSearchQuery_Node()
-}
-
-type SearchQuery_Logical struct {
-	Logical *LogicalNode `protobuf:"bytes,1,opt,name=logical,proto3,oneof"`
-}
-
-type SearchQuery_Filter struct {
-	Filter *FilterNode `protobuf:"bytes,2,opt,name=filter,proto3,oneof"`
-}
-
-type SearchQuery_Negation struct {
-	Negation *NotNode `protobuf:"bytes,3,opt,name=negation,proto3,oneof"`
-}
-
-func (*SearchQuery_Logical) isSearchQuery_Node() {}
-
-func (*SearchQuery_Filter) isSearchQuery_Node() {}
-
-func (*SearchQuery_Negation) isSearchQuery_Node() {}
-
-type LogicalNode struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Op            LogicalOp              `protobuf:"varint,1,opt,name=op,proto3,enum=libraryv1.LogicalOp" json:"op,omitempty"`
-	Nodes         []*SearchQuery         `protobuf:"bytes,2,rep,name=nodes,proto3" json:"nodes,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *LogicalNode) Reset() {
-	*x = LogicalNode{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *LogicalNode) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*LogicalNode) ProtoMessage() {}
-
-func (x *LogicalNode) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use LogicalNode.ProtoReflect.Descriptor instead.
-func (*LogicalNode) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *LogicalNode) GetOp() LogicalOp {
-	if x != nil {
-		return x.Op
-	}
-	return LogicalOp_AND
-}
-
-func (x *LogicalNode) GetNodes() []*SearchQuery {
-	if x != nil {
-		return x.Nodes
-	}
-	return nil
-}
-
-type FilterNode struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Field         string                 `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
-	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
-	Operator      Operator               `protobuf:"varint,3,opt,name=operator,proto3,enum=libraryv1.Operator" json:"operator,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *FilterNode) Reset() {
-	*x = FilterNode{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *FilterNode) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*FilterNode) ProtoMessage() {}
-
-func (x *FilterNode) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use FilterNode.ProtoReflect.Descriptor instead.
-func (*FilterNode) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *FilterNode) GetField() string {
-	if x != nil {
-		return x.Field
-	}
-	return ""
-}
-
-func (x *FilterNode) GetValue() string {
-	if x != nil {
-		return x.Value
-	}
-	return ""
-}
-
-func (x *FilterNode) GetOperator() Operator {
-	if x != nil {
-		return x.Operator
-	}
-	return Operator_OP_UNKNOWN
-}
-
-type NotNode struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Node          *SearchQuery           `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *NotNode) Reset() {
-	*x = NotNode{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *NotNode) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NotNode) ProtoMessage() {}
-
-func (x *NotNode) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NotNode.ProtoReflect.Descriptor instead.
-func (*NotNode) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *NotNode) GetNode() *SearchQuery {
-	if x != nil {
-		return x.Node
-	}
-	return nil
-}
-
-type RawInput struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Data          string                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RawInput) Reset() {
-	*x = RawInput{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RawInput) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RawInput) ProtoMessage() {}
-
-func (x *RawInput) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RawInput.ProtoReflect.Descriptor instead.
-func (*RawInput) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *RawInput) GetData() string {
-	if x != nil {
-		return x.Data
-	}
-	return ""
-}
-
-type UnmarshaledMessage struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Query         *SearchQuery           `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
-	Meta          *MessageMeta           `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *UnmarshaledMessage) Reset() {
-	*x = UnmarshaledMessage{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *UnmarshaledMessage) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*UnmarshaledMessage) ProtoMessage() {}
-
-func (x *UnmarshaledMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UnmarshaledMessage.ProtoReflect.Descriptor instead.
-func (*UnmarshaledMessage) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *UnmarshaledMessage) GetQuery() *SearchQuery {
-	if x != nil {
-		return x.Query
-	}
-	return nil
-}
-
-func (x *UnmarshaledMessage) GetMeta() *MessageMeta {
-	if x != nil {
-		return x.Meta
-	}
-	return nil
-}
-
-type MessageMeta struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CanonicalForm string                 `protobuf:"bytes,1,opt,name=canonical_form,json=canonicalForm,proto3" json:"canonical_form,omitempty"`
-	Source        string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
-	TraceId       string                 `protobuf:"bytes,3,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
-	AstPlan       *SearchQuery           `protobuf:"bytes,4,opt,name=ast_plan,json=astPlan,proto3" json:"ast_plan,omitempty"` // ДОБАВЛЕНО: нужно для cmd/message-converter
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MessageMeta) Reset() {
-	*x = MessageMeta{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MessageMeta) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MessageMeta) ProtoMessage() {}
-
-func (x *MessageMeta) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MessageMeta.ProtoReflect.Descriptor instead.
-func (*MessageMeta) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *MessageMeta) GetCanonicalForm() string {
-	if x != nil {
-		return x.CanonicalForm
-	}
-	return ""
-}
-
-func (x *MessageMeta) GetSource() string {
-	if x != nil {
-		return x.Source
-	}
-	return ""
-}
-
-func (x *MessageMeta) GetTraceId() string {
-	if x != nil {
-		return x.TraceId
-	}
-	return ""
-}
-
-func (x *MessageMeta) GetAstPlan() *SearchQuery {
-	if x != nil {
-		return x.AstPlan
-	}
-	return nil
-}
-
 type SearchRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
-	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
+	TemplateId    string                 `protobuf:"bytes,2,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
 	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
-	TemplateId    string                 `protobuf:"bytes,4,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	TraceId       string                 `protobuf:"bytes,5,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SearchRequest) Reset() {
 	*x = SearchRequest{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[7]
+	mi := &file_api_proto_v1_library_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -561,7 +144,7 @@ func (x *SearchRequest) String() string {
 func (*SearchRequest) ProtoMessage() {}
 
 func (x *SearchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[7]
+	mi := &file_api_proto_v1_library_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -574,7 +157,7 @@ func (x *SearchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchRequest.ProtoReflect.Descriptor instead.
 func (*SearchRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{7}
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *SearchRequest) GetQuery() string {
@@ -584,11 +167,11 @@ func (x *SearchRequest) GetQuery() string {
 	return ""
 }
 
-func (x *SearchRequest) GetOffset() int32 {
+func (x *SearchRequest) GetTemplateId() string {
 	if x != nil {
-		return x.Offset
+		return x.TemplateId
 	}
-	return 0
+	return ""
 }
 
 func (x *SearchRequest) GetLimit() int32 {
@@ -598,11 +181,78 @@ func (x *SearchRequest) GetLimit() int32 {
 	return 0
 }
 
-func (x *SearchRequest) GetTemplateId() string {
+func (x *SearchRequest) GetOffset() int32 {
 	if x != nil {
-		return x.TemplateId
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *SearchRequest) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
 	}
 	return ""
+}
+
+type SearchResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Books         []*Book                `protobuf:"bytes,3,rep,name=books,proto3" json:"books,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchResponse) Reset() {
+	*x = SearchResponse{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchResponse) ProtoMessage() {}
+
+func (x *SearchResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchResponse.ProtoReflect.Descriptor instead.
+func (*SearchResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SearchResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *SearchResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *SearchResponse) GetBooks() []*Book {
+	if x != nil {
+		return x.Books
+	}
+	return nil
 }
 
 type Book struct {
@@ -618,7 +268,7 @@ type Book struct {
 
 func (x *Book) Reset() {
 	*x = Book{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[8]
+	mi := &file_api_proto_v1_library_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -630,7 +280,7 @@ func (x *Book) String() string {
 func (*Book) ProtoMessage() {}
 
 func (x *Book) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[8]
+	mi := &file_api_proto_v1_library_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -643,7 +293,7 @@ func (x *Book) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Book.ProtoReflect.Descriptor instead.
 func (*Book) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{8}
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Book) GetId() string {
@@ -681,68 +331,16 @@ func (x *Book) GetFilename() string {
 	return ""
 }
 
-type SearchResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Books         []*Book                `protobuf:"bytes,1,rep,name=books,proto3" json:"books,omitempty"`
-	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SearchResponse) Reset() {
-	*x = SearchResponse{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SearchResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SearchResponse) ProtoMessage() {}
-
-func (x *SearchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SearchResponse.ProtoReflect.Descriptor instead.
-func (*SearchResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *SearchResponse) GetBooks() []*Book {
-	if x != nil {
-		return x.Books
-	}
-	return nil
-}
-
-func (x *SearchResponse) GetTotal() int32 {
-	if x != nil {
-		return x.Total
-	}
-	return 0
-}
-
 type ListRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListRequest) Reset() {
 	*x = ListRequest{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[10]
+	mi := &file_api_proto_v1_library_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -754,7 +352,7 @@ func (x *ListRequest) String() string {
 func (*ListRequest) ProtoMessage() {}
 
 func (x *ListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[10]
+	mi := &file_api_proto_v1_library_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -767,14 +365,14 @@ func (x *ListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRequest.ProtoReflect.Descriptor instead.
 func (*ListRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{10}
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *ListRequest) GetLimit() int32 {
+func (x *ListRequest) GetQuery() string {
 	if x != nil {
-		return x.Limit
+		return x.Query
 	}
-	return 0
+	return ""
 }
 
 type ListResponse struct {
@@ -786,7 +384,7 @@ type ListResponse struct {
 
 func (x *ListResponse) Reset() {
 	*x = ListResponse{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[11]
+	mi := &file_api_proto_v1_library_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -798,7 +396,7 @@ func (x *ListResponse) String() string {
 func (*ListResponse) ProtoMessage() {}
 
 func (x *ListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[11]
+	mi := &file_api_proto_v1_library_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -811,7 +409,7 @@ func (x *ListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListResponse.ProtoReflect.Descriptor instead.
 func (*ListResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{11}
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListResponse) GetItems() []string {
@@ -821,29 +419,30 @@ func (x *ListResponse) GetItems() []string {
 	return nil
 }
 
-type ExecuteRequest struct {
+type AccessRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	RawInput      string                 `protobuf:"bytes,1,opt,name=raw_input,json=rawInput,proto3" json:"raw_input,omitempty"`
-	TraceId       string                 `protobuf:"bytes,2,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Platform      string                 `protobuf:"bytes,2,opt,name=platform,proto3" json:"platform,omitempty"`
+	TraceId       string                 `protobuf:"bytes,3,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ExecuteRequest) Reset() {
-	*x = ExecuteRequest{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[12]
+func (x *AccessRequest) Reset() {
+	*x = AccessRequest{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ExecuteRequest) String() string {
+func (x *AccessRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ExecuteRequest) ProtoMessage() {}
+func (*AccessRequest) ProtoMessage() {}
 
-func (x *ExecuteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[12]
+func (x *AccessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -854,23 +453,272 @@ func (x *ExecuteRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ExecuteRequest.ProtoReflect.Descriptor instead.
-func (*ExecuteRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{12}
+// Deprecated: Use AccessRequest.ProtoReflect.Descriptor instead.
+func (*AccessRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *ExecuteRequest) GetRawInput() string {
+func (x *AccessRequest) GetUserId() string {
 	if x != nil {
-		return x.RawInput
+		return x.UserId
 	}
 	return ""
 }
 
-func (x *ExecuteRequest) GetTraceId() string {
+func (x *AccessRequest) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *AccessRequest) GetTraceId() string {
 	if x != nil {
 		return x.TraceId
 	}
 	return ""
+}
+
+type AccessResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Allowed       bool                   `protobuf:"varint,1,opt,name=allowed,proto3" json:"allowed,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	UserRole      string                 `protobuf:"bytes,3,opt,name=user_role,json=userRole,proto3" json:"user_role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccessResponse) Reset() {
+	*x = AccessResponse{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccessResponse) ProtoMessage() {}
+
+func (x *AccessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccessResponse.ProtoReflect.Descriptor instead.
+func (*AccessResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *AccessResponse) GetAllowed() bool {
+	if x != nil {
+		return x.Allowed
+	}
+	return false
+}
+
+func (x *AccessResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *AccessResponse) GetUserRole() string {
+	if x != nil {
+		return x.UserRole
+	}
+	return ""
+}
+
+type RawInput struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Исправлено: переименовано в 'data', чтобы появился метод GetData(), который ждет message-converter
+	Data          string `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	TraceId       string `protobuf:"bytes,2,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RawInput) Reset() {
+	*x = RawInput{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RawInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RawInput) ProtoMessage() {}
+
+func (x *RawInput) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RawInput.ProtoReflect.Descriptor instead.
+func (*RawInput) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *RawInput) GetData() string {
+	if x != nil {
+		return x.Data
+	}
+	return ""
+}
+
+func (x *RawInput) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+type MessageMeta struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TraceId       string                 `protobuf:"bytes,1,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	CanonicalForm string                 `protobuf:"bytes,2,opt,name=canonical_form,json=canonicalForm,proto3" json:"canonical_form,omitempty"`
+	Platform      string                 `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"`
+	UserId        string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Исправлено: добавлено поле, которое требует message-converter
+	AstPlan       string `protobuf:"bytes,5,opt,name=ast_plan,json=astPlan,proto3" json:"ast_plan,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MessageMeta) Reset() {
+	*x = MessageMeta{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MessageMeta) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MessageMeta) ProtoMessage() {}
+
+func (x *MessageMeta) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MessageMeta.ProtoReflect.Descriptor instead.
+func (*MessageMeta) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *MessageMeta) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+func (x *MessageMeta) GetCanonicalForm() string {
+	if x != nil {
+		return x.CanonicalForm
+	}
+	return ""
+}
+
+func (x *MessageMeta) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *MessageMeta) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *MessageMeta) GetAstPlan() string {
+	if x != nil {
+		return x.AstPlan
+	}
+	return ""
+}
+
+type UnmarshaledMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Meta          *MessageMeta           `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
+	Query         *SearchQuery           `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnmarshaledMessage) Reset() {
+	*x = UnmarshaledMessage{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnmarshaledMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnmarshaledMessage) ProtoMessage() {}
+
+func (x *UnmarshaledMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnmarshaledMessage.ProtoReflect.Descriptor instead.
+func (*UnmarshaledMessage) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *UnmarshaledMessage) GetMeta() *MessageMeta {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
+}
+
+func (x *UnmarshaledMessage) GetQuery() *SearchQuery {
+	if x != nil {
+		return x.Query
+	}
+	return nil
 }
 
 type Response struct {
@@ -884,7 +732,7 @@ type Response struct {
 
 func (x *Response) Reset() {
 	*x = Response{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[13]
+	mi := &file_api_proto_v1_library_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -896,7 +744,7 @@ func (x *Response) String() string {
 func (*Response) ProtoMessage() {}
 
 func (x *Response) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[13]
+	mi := &file_api_proto_v1_library_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -909,7 +757,7 @@ func (x *Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Response.ProtoReflect.Descriptor instead.
 func (*Response) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{13}
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Response) GetStatus() string {
@@ -943,7 +791,7 @@ type ResponseMeta struct {
 
 func (x *ResponseMeta) Reset() {
 	*x = ResponseMeta{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[14]
+	mi := &file_api_proto_v1_library_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -955,7 +803,7 @@ func (x *ResponseMeta) String() string {
 func (*ResponseMeta) ProtoMessage() {}
 
 func (x *ResponseMeta) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[14]
+	mi := &file_api_proto_v1_library_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -968,7 +816,7 @@ func (x *ResponseMeta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResponseMeta.ProtoReflect.Descriptor instead.
 func (*ResponseMeta) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{14}
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ResponseMeta) GetTraceId() string {
@@ -985,30 +833,238 @@ func (x *ResponseMeta) GetCanonicalForm() string {
 	return ""
 }
 
-type AccessRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Action        string                 `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
-	TraceId       string                 `protobuf:"bytes,3,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
-	Platform      string                 `protobuf:"bytes,4,opt,name=platform,proto3" json:"platform,omitempty"`
+type SearchQuery struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Node:
+	//
+	//	*SearchQuery_Filter
+	//	*SearchQuery_Logical
+	//	*SearchQuery_Negation
+	Node          isSearchQuery_Node `protobuf_oneof:"node"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AccessRequest) Reset() {
-	*x = AccessRequest{}
+func (x *SearchQuery) Reset() {
+	*x = SearchQuery{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchQuery) ProtoMessage() {}
+
+func (x *SearchQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchQuery.ProtoReflect.Descriptor instead.
+func (*SearchQuery) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SearchQuery) GetNode() isSearchQuery_Node {
+	if x != nil {
+		return x.Node
+	}
+	return nil
+}
+
+func (x *SearchQuery) GetFilter() *FilterNode {
+	if x != nil {
+		if x, ok := x.Node.(*SearchQuery_Filter); ok {
+			return x.Filter
+		}
+	}
+	return nil
+}
+
+func (x *SearchQuery) GetLogical() *LogicalNode {
+	if x != nil {
+		if x, ok := x.Node.(*SearchQuery_Logical); ok {
+			return x.Logical
+		}
+	}
+	return nil
+}
+
+func (x *SearchQuery) GetNegation() *NotNode {
+	if x != nil {
+		if x, ok := x.Node.(*SearchQuery_Negation); ok {
+			return x.Negation
+		}
+	}
+	return nil
+}
+
+type isSearchQuery_Node interface {
+	isSearchQuery_Node()
+}
+
+type SearchQuery_Filter struct {
+	Filter *FilterNode `protobuf:"bytes,1,opt,name=filter,proto3,oneof"`
+}
+
+type SearchQuery_Logical struct {
+	Logical *LogicalNode `protobuf:"bytes,2,opt,name=logical,proto3,oneof"`
+}
+
+type SearchQuery_Negation struct {
+	Negation *NotNode `protobuf:"bytes,3,opt,name=negation,proto3,oneof"`
+}
+
+func (*SearchQuery_Filter) isSearchQuery_Node() {}
+
+func (*SearchQuery_Logical) isSearchQuery_Node() {}
+
+func (*SearchQuery_Negation) isSearchQuery_Node() {}
+
+type FilterNode struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Field         string                 `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
+	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Operator      Operator               `protobuf:"varint,3,opt,name=operator,proto3,enum=libraryv1.Operator" json:"operator,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FilterNode) Reset() {
+	*x = FilterNode{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FilterNode) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FilterNode) ProtoMessage() {}
+
+func (x *FilterNode) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FilterNode.ProtoReflect.Descriptor instead.
+func (*FilterNode) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *FilterNode) GetField() string {
+	if x != nil {
+		return x.Field
+	}
+	return ""
+}
+
+func (x *FilterNode) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *FilterNode) GetOperator() Operator {
+	if x != nil {
+		return x.Operator
+	}
+	return Operator_OP_EQUALS
+}
+
+type LogicalNode struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Op            LogicalOp              `protobuf:"varint,1,opt,name=op,proto3,enum=libraryv1.LogicalOp" json:"op,omitempty"`
+	Nodes         []*SearchQuery         `protobuf:"bytes,2,rep,name=nodes,proto3" json:"nodes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LogicalNode) Reset() {
+	*x = LogicalNode{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LogicalNode) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LogicalNode) ProtoMessage() {}
+
+func (x *LogicalNode) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LogicalNode.ProtoReflect.Descriptor instead.
+func (*LogicalNode) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *LogicalNode) GetOp() LogicalOp {
+	if x != nil {
+		return x.Op
+	}
+	return LogicalOp_AND
+}
+
+func (x *LogicalNode) GetNodes() []*SearchQuery {
+	if x != nil {
+		return x.Nodes
+	}
+	return nil
+}
+
+type NotNode struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Важно: имя поля 'node' генерирует поле 'Node' в Go структуре, что нужно парсеру
+	Node          *SearchQuery `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NotNode) Reset() {
+	*x = NotNode{}
 	mi := &file_api_proto_v1_library_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AccessRequest) String() string {
+func (x *NotNode) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AccessRequest) ProtoMessage() {}
+func (*NotNode) ProtoMessage() {}
 
-func (x *AccessRequest) ProtoReflect() protoreflect.Message {
+func (x *NotNode) ProtoReflect() protoreflect.Message {
 	mi := &file_api_proto_v1_library_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1020,188 +1076,108 @@ func (x *AccessRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessRequest.ProtoReflect.Descriptor instead.
-func (*AccessRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use NotNode.ProtoReflect.Descriptor instead.
+func (*NotNode) Descriptor() ([]byte, []int) {
 	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *AccessRequest) GetUserId() string {
+func (x *NotNode) GetNode() *SearchQuery {
 	if x != nil {
-		return x.UserId
+		return x.Node
 	}
-	return ""
-}
-
-func (x *AccessRequest) GetAction() string {
-	if x != nil {
-		return x.Action
-	}
-	return ""
-}
-
-func (x *AccessRequest) GetTraceId() string {
-	if x != nil {
-		return x.TraceId
-	}
-	return ""
-}
-
-func (x *AccessRequest) GetPlatform() string {
-	if x != nil {
-		return x.Platform
-	}
-	return ""
-}
-
-type AccessResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Allowed       bool                   `protobuf:"varint,1,opt,name=allowed,proto3" json:"allowed,omitempty"`
-	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
-	UserRole      string                 `protobuf:"bytes,3,opt,name=user_role,json=userRole,proto3" json:"user_role,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AccessResponse) Reset() {
-	*x = AccessResponse{}
-	mi := &file_api_proto_v1_library_proto_msgTypes[16]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AccessResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AccessResponse) ProtoMessage() {}
-
-func (x *AccessResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_v1_library_proto_msgTypes[16]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AccessResponse.ProtoReflect.Descriptor instead.
-func (*AccessResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{16}
-}
-
-func (x *AccessResponse) GetAllowed() bool {
-	if x != nil {
-		return x.Allowed
-	}
-	return false
-}
-
-func (x *AccessResponse) GetReason() string {
-	if x != nil {
-		return x.Reason
-	}
-	return ""
-}
-
-func (x *AccessResponse) GetUserRole() string {
-	if x != nil {
-		return x.UserRole
-	}
-	return ""
+	return nil
 }
 
 var File_api_proto_v1_library_proto protoreflect.FileDescriptor
 
 const file_api_proto_v1_library_proto_rawDesc = "" +
 	"\n" +
-	"\x1aapi/proto/v1/library.proto\x12\tlibraryv1\"\xac\x01\n" +
-	"\vSearchQuery\x122\n" +
-	"\alogical\x18\x01 \x01(\v2\x16.libraryv1.LogicalNodeH\x00R\alogical\x12/\n" +
-	"\x06filter\x18\x02 \x01(\v2\x15.libraryv1.FilterNodeH\x00R\x06filter\x120\n" +
-	"\bnegation\x18\x03 \x01(\v2\x12.libraryv1.NotNodeH\x00R\bnegationB\x06\n" +
-	"\x04node\"a\n" +
-	"\vLogicalNode\x12$\n" +
-	"\x02op\x18\x01 \x01(\x0e2\x14.libraryv1.LogicalOpR\x02op\x12,\n" +
-	"\x05nodes\x18\x02 \x03(\v2\x16.libraryv1.SearchQueryR\x05nodes\"i\n" +
-	"\n" +
-	"FilterNode\x12\x14\n" +
-	"\x05field\x18\x01 \x01(\tR\x05field\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value\x12/\n" +
-	"\boperator\x18\x03 \x01(\x0e2\x13.libraryv1.OperatorR\boperator\"5\n" +
-	"\aNotNode\x12*\n" +
-	"\x04node\x18\x01 \x01(\v2\x16.libraryv1.SearchQueryR\x04node\"\x1e\n" +
-	"\bRawInput\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\tR\x04data\"n\n" +
-	"\x12UnmarshaledMessage\x12,\n" +
-	"\x05query\x18\x01 \x01(\v2\x16.libraryv1.SearchQueryR\x05query\x12*\n" +
-	"\x04meta\x18\x02 \x01(\v2\x16.libraryv1.MessageMetaR\x04meta\"\x9a\x01\n" +
-	"\vMessageMeta\x12%\n" +
-	"\x0ecanonical_form\x18\x01 \x01(\tR\rcanonicalForm\x12\x16\n" +
-	"\x06source\x18\x02 \x01(\tR\x06source\x12\x19\n" +
-	"\btrace_id\x18\x03 \x01(\tR\atraceId\x121\n" +
-	"\bast_plan\x18\x04 \x01(\v2\x16.libraryv1.SearchQueryR\aastPlan\"t\n" +
+	"\x1aapi/proto/v1/library.proto\x12\tlibraryv1\"\x8f\x01\n" +
 	"\rSearchRequest\x12\x14\n" +
-	"\x05query\x18\x01 \x01(\tR\x05query\x12\x16\n" +
-	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x1f\n" +
-	"\vtemplate_id\x18\x04 \x01(\tR\n" +
-	"templateId\"\x80\x01\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12\x1f\n" +
+	"\vtemplate_id\x18\x02 \x01(\tR\n" +
+	"templateId\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\x12\x19\n" +
+	"\btrace_id\x18\x05 \x01(\tR\atraceId\"e\n" +
+	"\x0eSearchResponse\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12%\n" +
+	"\x05books\x18\x03 \x03(\v2\x0f.libraryv1.BookR\x05books\"\x80\x01\n" +
 	"\x04Book\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
 	"\aauthors\x18\x03 \x03(\tR\aauthors\x12\x1c\n" +
 	"\tcontainer\x18\x04 \x01(\tR\tcontainer\x12\x1a\n" +
-	"\bfilename\x18\x05 \x01(\tR\bfilename\"M\n" +
-	"\x0eSearchResponse\x12%\n" +
-	"\x05books\x18\x01 \x03(\v2\x0f.libraryv1.BookR\x05books\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total\"#\n" +
+	"\bfilename\x18\x05 \x01(\tR\bfilename\"#\n" +
 	"\vListRequest\x12\x14\n" +
-	"\x05limit\x18\x01 \x01(\x05R\x05limit\"$\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\"$\n" +
 	"\fListResponse\x12\x14\n" +
-	"\x05items\x18\x01 \x03(\tR\x05items\"H\n" +
-	"\x0eExecuteRequest\x12\x1b\n" +
-	"\traw_input\x18\x01 \x01(\tR\brawInput\x12\x19\n" +
-	"\btrace_id\x18\x02 \x01(\tR\atraceId\"v\n" +
+	"\x05items\x18\x01 \x03(\tR\x05items\"_\n" +
+	"\rAccessRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
+	"\bplatform\x18\x02 \x01(\tR\bplatform\x12\x19\n" +
+	"\btrace_id\x18\x03 \x01(\tR\atraceId\"_\n" +
+	"\x0eAccessResponse\x12\x18\n" +
+	"\aallowed\x18\x01 \x01(\bR\aallowed\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x1b\n" +
+	"\tuser_role\x18\x03 \x01(\tR\buserRole\"9\n" +
+	"\bRawInput\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\tR\x04data\x12\x19\n" +
+	"\btrace_id\x18\x02 \x01(\tR\atraceId\"\x9f\x01\n" +
+	"\vMessageMeta\x12\x19\n" +
+	"\btrace_id\x18\x01 \x01(\tR\atraceId\x12%\n" +
+	"\x0ecanonical_form\x18\x02 \x01(\tR\rcanonicalForm\x12\x1a\n" +
+	"\bplatform\x18\x03 \x01(\tR\bplatform\x12\x17\n" +
+	"\auser_id\x18\x04 \x01(\tR\x06userId\x12\x19\n" +
+	"\bast_plan\x18\x05 \x01(\tR\aastPlan\"n\n" +
+	"\x12UnmarshaledMessage\x12*\n" +
+	"\x04meta\x18\x01 \x01(\v2\x16.libraryv1.MessageMetaR\x04meta\x12,\n" +
+	"\x05query\x18\x02 \x01(\v2\x16.libraryv1.SearchQueryR\x05query\"v\n" +
 	"\bResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12%\n" +
 	"\x05books\x18\x02 \x03(\v2\x0f.libraryv1.BookR\x05books\x12+\n" +
 	"\x04meta\x18\x03 \x01(\v2\x17.libraryv1.ResponseMetaR\x04meta\"P\n" +
 	"\fResponseMeta\x12\x19\n" +
 	"\btrace_id\x18\x01 \x01(\tR\atraceId\x12%\n" +
-	"\x0ecanonical_form\x18\x02 \x01(\tR\rcanonicalForm\"w\n" +
-	"\rAccessRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x16\n" +
-	"\x06action\x18\x02 \x01(\tR\x06action\x12\x19\n" +
-	"\btrace_id\x18\x03 \x01(\tR\atraceId\x12\x1a\n" +
-	"\bplatform\x18\x04 \x01(\tR\bplatform\"_\n" +
-	"\x0eAccessResponse\x12\x18\n" +
-	"\aallowed\x18\x01 \x01(\bR\aallowed\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x1b\n" +
-	"\tuser_role\x18\x03 \x01(\tR\buserRole*\x1c\n" +
+	"\x0ecanonical_form\x18\x02 \x01(\tR\rcanonicalForm\"\xac\x01\n" +
+	"\vSearchQuery\x12/\n" +
+	"\x06filter\x18\x01 \x01(\v2\x15.libraryv1.FilterNodeH\x00R\x06filter\x122\n" +
+	"\alogical\x18\x02 \x01(\v2\x16.libraryv1.LogicalNodeH\x00R\alogical\x120\n" +
+	"\bnegation\x18\x03 \x01(\v2\x12.libraryv1.NotNodeH\x00R\bnegationB\x06\n" +
+	"\x04node\"i\n" +
+	"\n" +
+	"FilterNode\x12\x14\n" +
+	"\x05field\x18\x01 \x01(\tR\x05field\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\x12/\n" +
+	"\boperator\x18\x03 \x01(\x0e2\x13.libraryv1.OperatorR\boperator\"a\n" +
+	"\vLogicalNode\x12$\n" +
+	"\x02op\x18\x01 \x01(\x0e2\x14.libraryv1.LogicalOpR\x02op\x12,\n" +
+	"\x05nodes\x18\x02 \x03(\v2\x16.libraryv1.SearchQueryR\x05nodes\"5\n" +
+	"\aNotNode\x12*\n" +
+	"\x04node\x18\x01 \x01(\v2\x16.libraryv1.SearchQueryR\x04node*%\n" +
 	"\tLogicalOp\x12\a\n" +
 	"\x03AND\x10\x00\x12\x06\n" +
-	"\x02OR\x10\x01*H\n" +
-	"\bOperator\x12\x0e\n" +
-	"\n" +
-	"OP_UNKNOWN\x10\x00\x12\r\n" +
-	"\tOP_EQUALS\x10\x01\x12\x0f\n" +
-	"\vOP_CONTAINS\x10\x02\x12\f\n" +
-	"\bOP_REGEX\x10\x032\x93\x01\n" +
-	"\x0eLibraryService\x12B\n" +
-	"\vSearchBooks\x12\x18.libraryv1.SearchRequest\x1a\x19.libraryv1.SearchResponse\x12=\n" +
-	"\n" +
-	"GetAuthors\x12\x16.libraryv1.ListRequest\x1a\x17.libraryv1.ListResponse2Q\n" +
+	"\x02OR\x10\x01\x12\a\n" +
+	"\x03NOT\x10\x02*8\n" +
+	"\bOperator\x12\r\n" +
+	"\tOP_EQUALS\x10\x00\x12\x0f\n" +
+	"\vOP_CONTAINS\x10\x01\x12\f\n" +
+	"\bOP_REGEX\x10\x022T\n" +
+	"\x13OrchestratorService\x12=\n" +
+	"\x06Search\x12\x18.libraryv1.SearchRequest\x1a\x19.libraryv1.SearchResponse2R\n" +
+	"\x10ProcessorService\x12>\n" +
+	"\aProcess\x12\x18.libraryv1.SearchRequest\x1a\x19.libraryv1.SearchResponse2T\n" +
+	"\x0eStorageService\x12B\n" +
+	"\vSearchBooks\x12\x18.libraryv1.SearchRequest\x1a\x19.libraryv1.SearchResponse2Q\n" +
 	"\vAuthService\x12B\n" +
 	"\vCheckAccess\x12\x18.libraryv1.AccessRequest\x1a\x19.libraryv1.AccessResponse2X\n" +
 	"\x17MessageConverterService\x12=\n" +
-	"\aConvert\x12\x13.libraryv1.RawInput\x1a\x1d.libraryv1.UnmarshaledMessage2W\n" +
-	"\x10ProcessorService\x12C\n" +
-	"\rHandleCommand\x12\x1d.libraryv1.UnmarshaledMessage\x1a\x13.libraryv1.Response2I\n" +
-	"\fOrchestrator\x129\n" +
-	"\aExecute\x12\x19.libraryv1.ExecuteRequest\x1a\x13.libraryv1.ResponseB\x1fZ\x1debusta/api/proto/v1;libraryv1b\x06proto3"
+	"\aConvert\x12\x13.libraryv1.RawInput\x1a\x1d.libraryv1.UnmarshaledMessage2\x93\x01\n" +
+	"\x0eLibraryService\x12B\n" +
+	"\vSearchBooks\x12\x18.libraryv1.SearchRequest\x1a\x19.libraryv1.SearchResponse\x12=\n" +
+	"\n" +
+	"GetAuthors\x12\x16.libraryv1.ListRequest\x1a\x17.libraryv1.ListResponseB\x1fZ\x1debusta/api/proto/v1;libraryv1b\x06proto3"
 
 var (
 	file_api_proto_v1_library_proto_rawDescOnce sync.Once
@@ -1216,59 +1192,59 @@ func file_api_proto_v1_library_proto_rawDescGZIP() []byte {
 }
 
 var file_api_proto_v1_library_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_api_proto_v1_library_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_api_proto_v1_library_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_api_proto_v1_library_proto_goTypes = []any{
 	(LogicalOp)(0),             // 0: libraryv1.LogicalOp
 	(Operator)(0),              // 1: libraryv1.Operator
-	(*SearchQuery)(nil),        // 2: libraryv1.SearchQuery
-	(*LogicalNode)(nil),        // 3: libraryv1.LogicalNode
-	(*FilterNode)(nil),         // 4: libraryv1.FilterNode
-	(*NotNode)(nil),            // 5: libraryv1.NotNode
-	(*RawInput)(nil),           // 6: libraryv1.RawInput
-	(*UnmarshaledMessage)(nil), // 7: libraryv1.UnmarshaledMessage
-	(*MessageMeta)(nil),        // 8: libraryv1.MessageMeta
-	(*SearchRequest)(nil),      // 9: libraryv1.SearchRequest
-	(*Book)(nil),               // 10: libraryv1.Book
-	(*SearchResponse)(nil),     // 11: libraryv1.SearchResponse
-	(*ListRequest)(nil),        // 12: libraryv1.ListRequest
-	(*ListResponse)(nil),       // 13: libraryv1.ListResponse
-	(*ExecuteRequest)(nil),     // 14: libraryv1.ExecuteRequest
-	(*Response)(nil),           // 15: libraryv1.Response
-	(*ResponseMeta)(nil),       // 16: libraryv1.ResponseMeta
-	(*AccessRequest)(nil),      // 17: libraryv1.AccessRequest
-	(*AccessResponse)(nil),     // 18: libraryv1.AccessResponse
+	(*SearchRequest)(nil),      // 2: libraryv1.SearchRequest
+	(*SearchResponse)(nil),     // 3: libraryv1.SearchResponse
+	(*Book)(nil),               // 4: libraryv1.Book
+	(*ListRequest)(nil),        // 5: libraryv1.ListRequest
+	(*ListResponse)(nil),       // 6: libraryv1.ListResponse
+	(*AccessRequest)(nil),      // 7: libraryv1.AccessRequest
+	(*AccessResponse)(nil),     // 8: libraryv1.AccessResponse
+	(*RawInput)(nil),           // 9: libraryv1.RawInput
+	(*MessageMeta)(nil),        // 10: libraryv1.MessageMeta
+	(*UnmarshaledMessage)(nil), // 11: libraryv1.UnmarshaledMessage
+	(*Response)(nil),           // 12: libraryv1.Response
+	(*ResponseMeta)(nil),       // 13: libraryv1.ResponseMeta
+	(*SearchQuery)(nil),        // 14: libraryv1.SearchQuery
+	(*FilterNode)(nil),         // 15: libraryv1.FilterNode
+	(*LogicalNode)(nil),        // 16: libraryv1.LogicalNode
+	(*NotNode)(nil),            // 17: libraryv1.NotNode
 }
 var file_api_proto_v1_library_proto_depIdxs = []int32{
-	3,  // 0: libraryv1.SearchQuery.logical:type_name -> libraryv1.LogicalNode
-	4,  // 1: libraryv1.SearchQuery.filter:type_name -> libraryv1.FilterNode
-	5,  // 2: libraryv1.SearchQuery.negation:type_name -> libraryv1.NotNode
-	0,  // 3: libraryv1.LogicalNode.op:type_name -> libraryv1.LogicalOp
-	2,  // 4: libraryv1.LogicalNode.nodes:type_name -> libraryv1.SearchQuery
-	1,  // 5: libraryv1.FilterNode.operator:type_name -> libraryv1.Operator
-	2,  // 6: libraryv1.NotNode.node:type_name -> libraryv1.SearchQuery
-	2,  // 7: libraryv1.UnmarshaledMessage.query:type_name -> libraryv1.SearchQuery
-	8,  // 8: libraryv1.UnmarshaledMessage.meta:type_name -> libraryv1.MessageMeta
-	2,  // 9: libraryv1.MessageMeta.ast_plan:type_name -> libraryv1.SearchQuery
-	10, // 10: libraryv1.SearchResponse.books:type_name -> libraryv1.Book
-	10, // 11: libraryv1.Response.books:type_name -> libraryv1.Book
-	16, // 12: libraryv1.Response.meta:type_name -> libraryv1.ResponseMeta
-	9,  // 13: libraryv1.LibraryService.SearchBooks:input_type -> libraryv1.SearchRequest
-	12, // 14: libraryv1.LibraryService.GetAuthors:input_type -> libraryv1.ListRequest
-	17, // 15: libraryv1.AuthService.CheckAccess:input_type -> libraryv1.AccessRequest
-	6,  // 16: libraryv1.MessageConverterService.Convert:input_type -> libraryv1.RawInput
-	7,  // 17: libraryv1.ProcessorService.HandleCommand:input_type -> libraryv1.UnmarshaledMessage
-	14, // 18: libraryv1.Orchestrator.Execute:input_type -> libraryv1.ExecuteRequest
-	11, // 19: libraryv1.LibraryService.SearchBooks:output_type -> libraryv1.SearchResponse
-	13, // 20: libraryv1.LibraryService.GetAuthors:output_type -> libraryv1.ListResponse
-	18, // 21: libraryv1.AuthService.CheckAccess:output_type -> libraryv1.AccessResponse
-	7,  // 22: libraryv1.MessageConverterService.Convert:output_type -> libraryv1.UnmarshaledMessage
-	15, // 23: libraryv1.ProcessorService.HandleCommand:output_type -> libraryv1.Response
-	15, // 24: libraryv1.Orchestrator.Execute:output_type -> libraryv1.Response
-	19, // [19:25] is the sub-list for method output_type
-	13, // [13:19] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	4,  // 0: libraryv1.SearchResponse.books:type_name -> libraryv1.Book
+	10, // 1: libraryv1.UnmarshaledMessage.meta:type_name -> libraryv1.MessageMeta
+	14, // 2: libraryv1.UnmarshaledMessage.query:type_name -> libraryv1.SearchQuery
+	4,  // 3: libraryv1.Response.books:type_name -> libraryv1.Book
+	13, // 4: libraryv1.Response.meta:type_name -> libraryv1.ResponseMeta
+	15, // 5: libraryv1.SearchQuery.filter:type_name -> libraryv1.FilterNode
+	16, // 6: libraryv1.SearchQuery.logical:type_name -> libraryv1.LogicalNode
+	17, // 7: libraryv1.SearchQuery.negation:type_name -> libraryv1.NotNode
+	1,  // 8: libraryv1.FilterNode.operator:type_name -> libraryv1.Operator
+	0,  // 9: libraryv1.LogicalNode.op:type_name -> libraryv1.LogicalOp
+	14, // 10: libraryv1.LogicalNode.nodes:type_name -> libraryv1.SearchQuery
+	14, // 11: libraryv1.NotNode.node:type_name -> libraryv1.SearchQuery
+	2,  // 12: libraryv1.OrchestratorService.Search:input_type -> libraryv1.SearchRequest
+	2,  // 13: libraryv1.ProcessorService.Process:input_type -> libraryv1.SearchRequest
+	2,  // 14: libraryv1.StorageService.SearchBooks:input_type -> libraryv1.SearchRequest
+	7,  // 15: libraryv1.AuthService.CheckAccess:input_type -> libraryv1.AccessRequest
+	9,  // 16: libraryv1.MessageConverterService.Convert:input_type -> libraryv1.RawInput
+	2,  // 17: libraryv1.LibraryService.SearchBooks:input_type -> libraryv1.SearchRequest
+	5,  // 18: libraryv1.LibraryService.GetAuthors:input_type -> libraryv1.ListRequest
+	3,  // 19: libraryv1.OrchestratorService.Search:output_type -> libraryv1.SearchResponse
+	3,  // 20: libraryv1.ProcessorService.Process:output_type -> libraryv1.SearchResponse
+	3,  // 21: libraryv1.StorageService.SearchBooks:output_type -> libraryv1.SearchResponse
+	8,  // 22: libraryv1.AuthService.CheckAccess:output_type -> libraryv1.AccessResponse
+	11, // 23: libraryv1.MessageConverterService.Convert:output_type -> libraryv1.UnmarshaledMessage
+	3,  // 24: libraryv1.LibraryService.SearchBooks:output_type -> libraryv1.SearchResponse
+	6,  // 25: libraryv1.LibraryService.GetAuthors:output_type -> libraryv1.ListResponse
+	19, // [19:26] is the sub-list for method output_type
+	12, // [12:19] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_v1_library_proto_init() }
@@ -1276,9 +1252,9 @@ func file_api_proto_v1_library_proto_init() {
 	if File_api_proto_v1_library_proto != nil {
 		return
 	}
-	file_api_proto_v1_library_proto_msgTypes[0].OneofWrappers = []any{
-		(*SearchQuery_Logical)(nil),
+	file_api_proto_v1_library_proto_msgTypes[12].OneofWrappers = []any{
 		(*SearchQuery_Filter)(nil),
+		(*SearchQuery_Logical)(nil),
 		(*SearchQuery_Negation)(nil),
 	}
 	type x struct{}
@@ -1287,9 +1263,9 @@ func file_api_proto_v1_library_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_v1_library_proto_rawDesc), len(file_api_proto_v1_library_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   17,
+			NumMessages:   16,
 			NumExtensions: 0,
-			NumServices:   5,
+			NumServices:   6,
 		},
 		GoTypes:           file_api_proto_v1_library_proto_goTypes,
 		DependencyIndexes: file_api_proto_v1_library_proto_depIdxs,

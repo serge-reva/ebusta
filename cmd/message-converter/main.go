@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"net"
 
 	"ebusta/api/proto/v1"
-	"ebusta/internal/logger"
 	"ebusta/internal/parser"
-
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
 
@@ -17,30 +16,33 @@ type server struct {
 }
 
 func (s *server) Convert(ctx context.Context, req *libraryv1.RawInput) (*libraryv1.UnmarshaledMessage, error) {
-	defer logger.Track(ctx, "Converter: AST Parsing")()
+	log.Printf("🔄 Converter parsing: %s", req.Data)
 
-	p := parser.NewParser(req.GetData())
-	query := p.Parse()
+	// Теперь эта функция существует в internal/parser/parser.go
+	queryAst := parser.Parse(req.Data)
 
 	return &libraryv1.UnmarshaledMessage{
-		// ГЛАВНЫЙ ФИКС: заполняем основное поле Query
-		Query: query, 
 		Meta: &libraryv1.MessageMeta{
-			CanonicalForm: req.GetData(),
-			AstPlan:       query, // Оставляем для совместимости, если нужно
+			TraceId:       req.TraceId,
+			CanonicalForm: req.Data,
+			// Преобразуем структуру AST в строку для логов/отладки
+			AstPlan:       fmt.Sprintf("%v", queryAst),
 		},
+		Query: queryAst,
 	}, nil
 }
 
 func main() {
 	lis, err := net.Listen("tcp", ":50052")
 	if err != nil {
-		logrus.Fatalf("failed to listen: %v", err)
+		log.Fatalf("failed to listen: %v", err)
 	}
+
 	s := grpc.NewServer()
 	libraryv1.RegisterMessageConverterServiceServer(s, &server{})
-	logrus.Info("AST Translator started on :50052")
+
+	log.Println("🔄 MessageConverter started on :50052")
 	if err := s.Serve(lis); err != nil {
-		logrus.Fatalf("failed to serve: %v", err)
+		log.Fatalf("failed to serve: %v", err)
 	}
 }

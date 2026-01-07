@@ -1,48 +1,61 @@
 package parser
 
 import (
+	"fmt"
 	"ebusta/api/proto/v1"
-	"strings"
 )
 
-type Parser struct {
-	lexer *Lexer
-	curr  Token
+// ==========================================
+// PUBLIC API
+// ==========================================
+
+// Parse - точка входа. Создает лексер и парсер.
+func Parse(input string) *libraryv1.SearchQuery {
+	l := newLexer(input)
+	p := newParser(l)
+	return p.parseSearchQuery()
 }
 
-func NewParser(input string) *Parser {
-	p := &Parser{lexer: NewLexer(input)}
-	p.curr = p.lexer.NextToken()
+// ==========================================
+// PARSER LOGIC
+// ==========================================
+
+type Parser struct {
+	l       *Lexer
+	curTok  Token
+	peekTok Token
+}
+
+func newParser(l *Lexer) *Parser {
+	p := &Parser{l: l}
+	p.nextToken()
+	p.nextToken()
 	return p
 }
 
-func (p *Parser) next() {
-	p.curr = p.lexer.NextToken()
+func (p *Parser) nextToken() {
+	p.curTok = p.peekTok
+	p.peekTok = p.l.NextToken()
 }
 
-// Parse — главная точка входа
-func (p *Parser) Parse() *libraryv1.SearchQuery {
+// Expression -> Term { OR Term }
+func (p *Parser) parseSearchQuery() *libraryv1.SearchQuery {
+	if p.curTok.Type == TOKEN_EOF {
+		return nil
+	}
 	return p.parseExpression()
 }
 
-// parseExpression обрабатывает AND/OR (самый низкий приоритет, верх дерева)
 func (p *Parser) parseExpression() *libraryv1.SearchQuery {
-	left := p.parseUnary()
+	left := p.parseTerm()
 
-	for p.curr.Type == TokenAnd || p.curr.Type == TokenOr {
-		opType := p.curr.Type
-		p.next()
-		right := p.parseUnary()
-
-		logicalOp := libraryv1.LogicalOp_AND
-		if opType == TokenOr {
-			logicalOp = libraryv1.LogicalOp_OR
-		}
-
+	for p.curTok.Type == TOKEN_OR {
+		p.nextToken() // eat OR
+		right := p.parseTerm()
 		left = &libraryv1.SearchQuery{
 			Node: &libraryv1.SearchQuery_Logical{
 				Logical: &libraryv1.LogicalNode{
-					Op:    logicalOp,
+					Op:    libraryv1.LogicalOp_OR,
 					Nodes: []*libraryv1.SearchQuery{left, right},
 				},
 			},
@@ -51,57 +64,93 @@ func (p *Parser) parseExpression() *libraryv1.SearchQuery {
 	return left
 }
 
-// parseUnary обрабатывает NOT
-func (p *Parser) parseUnary() *libraryv1.SearchQuery {
-	if p.curr.Type == TokenNot {
-		p.next()
-		return &libraryv1.SearchQuery{
-			Node: &libraryv1.SearchQuery_Negation{
-				Negation: &libraryv1.NotNode{
-					Node: p.parsePrimary(),
+// Term -> Factor { AND Factor }
+func (p *Parser) parseTerm() *libraryv1.SearchQuery {
+	left := p.parseFactor()
+
+	for p.curTok.Type == TOKEN_AND {
+		p.nextToken() // eat AND
+		right := p.parseFactor()
+		left = &libraryv1.SearchQuery{
+			Node: &libraryv1.SearchQuery_Logical{
+				Logical: &libraryv1.LogicalNode{
+					Op:    libraryv1.LogicalOp_AND,
+					Nodes: []*libraryv1.SearchQuery{left, right},
 				},
 			},
 		}
 	}
-	return p.parsePrimary()
+	return left
 }
 
-// parsePrimary обрабатывает конкретные фильтры
-func (p *Parser) parsePrimary() *libraryv1.SearchQuery {
-	if p.curr.Type == TokenField {
-		field := p.curr.Value
-		p.next()
-		val := p.curr.Value
-		p.next()
+// Factor -> ( Expr ) | NOT Factor | Filter
+func (p *Parser) parseFactor() *libraryv1.SearchQuery {
+	switch p.curTok.Type {
+	case TOKEN_LPAREN:
+		p.nextToken() // eat (
+		exp := p.parseExpression()
+		if p.curTok.Type != TOKEN_RPAREN {
+			fmt.Println("Error: expected )") 
+		}
+		p.nextToken() // eat )
+		return exp
+
+	case TOKEN_NOT:
+		p.nextToken() // eat NOT
+		right := p.parseFactor()
+		return &libraryv1.SearchQuery{
+			Node: &libraryv1.SearchQuery_Negation{
+				Negation: &libraryv1.NotNode{
+					Node: right,
+				},
+			},
+		}
+	
+	default:
+		return p.parseFilter()
+	}
+}
+
+// Filter -> IDENT [OP] VALUE
+func (p *Parser) parseFilter() *libraryv1.SearchQuery {
+	if p.curTok.Type == TOKEN_IDENT && (p.peekTok.Type == TOKEN_COLON || p.peekTok.Type == TOKEN_EQUALS || p.peekTok.Type == TOKEN_CONTAINS) {
+		field := p.curTok.Value
+		p.nextToken() // eat field
+		
+		var op libraryv1.Operator
+		switch p.curTok.Type {
+		case TOKEN_COLON:    op = libraryv1.Operator_OP_CONTAINS
+		case TOKEN_EQUALS:   op = libraryv1.Operator_OP_EQUALS
+		case TOKEN_CONTAINS: op = libraryv1.Operator_OP_CONTAINS
+		}
+		
+		p.nextToken() // eat op
+		
+		value := p.curTok.Value
+		p.nextToken() // eat value
 
 		return &libraryv1.SearchQuery{
 			Node: &libraryv1.SearchQuery_Filter{
 				Filter: &libraryv1.FilterNode{
 					Field:    field,
-					Value:    val,
-					Operator: p.detectOperator(val),
+					Value:    value,
+					Operator: op,
 				},
 			},
 		}
 	}
 
-	// По умолчанию Any
-	val := p.curr.Value
-	p.next()
+	// Implicit "any" search
+	val := p.curTok.Value
+	p.nextToken()
+	
 	return &libraryv1.SearchQuery{
 		Node: &libraryv1.SearchQuery_Filter{
 			Filter: &libraryv1.FilterNode{
 				Field:    "any",
 				Value:    val,
-				Operator: p.detectOperator(val),
+				Operator: libraryv1.Operator_OP_CONTAINS,
 			},
 		},
 	}
-}
-
-func (p *Parser) detectOperator(val string) libraryv1.Operator {
-	if strings.HasPrefix(val, "/") && strings.HasSuffix(val, "/") {
-		return libraryv1.Operator_OP_REGEX
-	}
-	return libraryv1.Operator_OP_CONTAINS
 }

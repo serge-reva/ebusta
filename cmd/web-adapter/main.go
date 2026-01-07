@@ -2,57 +2,83 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"ebusta/api/proto/v1"
-	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type Gateway struct {
-	orchClient libraryv1.OrchestratorClient
-}
-
 func main() {
-	conn, err := grpc.Dial("localhost:50054", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// 1. Подключение к Orchestrator (порт 50054)
+	orchHost := os.Getenv("ORCHESTRATOR_HOST")
+	if orchHost == "" {
+		orchHost = "localhost:50054"
+	}
+
+	conn, err := grpc.Dial(orchHost, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("did not connect to orchestrator: %v", err)
+		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
 
-	gw := &Gateway{
-		orchClient: libraryv1.NewOrchestratorClient(conn),
-	}
+	// ИСПРАВЛЕНИЕ 1: Правильное имя клиента (OrchestratorServiceClient)
+	client := libraryv1.NewOrchestratorServiceClient(conn)
 
-	http.HandleFunc("/input", gw.handleInput)
-	log.Println("Web-Adapter (The Door) started on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
-}
+	http.HandleFunc("/input", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("msg")
+		if query == "" {
+			query = r.URL.Query().Get("q")
+		}
+		
+		if query == "" {
+			http.Error(w, "Please provide 'msg' parameter", http.StatusBadRequest)
+			return
+		}
 
-func (gw *Gateway) handleInput(w http.ResponseWriter, r *http.Request) {
-	msg := r.URL.Query().Get("msg")
-	traceID := uuid.New().String()
+		log.Printf("🌍 Web Adapter received: %s", query)
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-	// Просто пересылаем всё в оркестратор
-	resp, err := gw.orchClient.Execute(ctx, &libraryv1.ExecuteRequest{
-		RawInput: msg,
-		TraceId:  traceID,
+		// ИСПРАВЛЕНИЕ 2: Используем SearchRequest и метод Search
+		resp, err := client.Search(ctx, &libraryv1.SearchRequest{
+			Query: query,
+		})
+
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error calling Orchestrator: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Форматируем простой текстовый ответ
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		
+		if len(resp.Books) == 0 {
+			fmt.Fprintf(w, "No books found for: %s\n", query)
+			return
+		}
+
+		fmt.Fprintf(w, "Found %d books:\n", len(resp.Books))
+		fmt.Fprintln(w, strings.Repeat("-", 40))
+		for _, b := range resp.Books {
+			authors := strings.Join(b.Authors, ", ")
+			fmt.Fprintf(w, "[%s] %s — %s\n", b.Id, b.Title, authors)
+		}
 	})
 
-	if err != nil {
-		log.Printf("[%s] Orchestrator error: %v", traceID, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("X-Trace-Id", traceID)
-	json.NewEncoder(w).Encode(resp)
+	log.Printf("🌍 Web Adapter started on :%s", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
 }
