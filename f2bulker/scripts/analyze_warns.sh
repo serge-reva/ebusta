@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# Читаем конфиг для получения пути к warn_dir
+BASE_DIR=$(cd "$(dirname "$0")/.." && pwd)
+CONFIG="$BASE_DIR/config.yaml"
+WARN_DIR=$(grep "warn_dir" "$CONFIG" | awk -F': ' '{print $2}' | tr -d '"' | tr -d ' ' | tr -d "'")
+
+# Превращаем относительный путь в абсолютный
+[[ "$WARN_DIR" == ./* ]] && WARN_DIR="$BASE_DIR/${WARN_DIR#./}"
+
+if [ ! -d "$WARN_DIR" ] || [ -z "$(ls -A "$WARN_DIR")" ]; then
+    echo "Directory $WARN_DIR is empty or does not exist. Nothing to analyze."
+    exit 0
+fi
+
+REPORT_FILE="$WARN_DIR/analysis_report.txt"
+echo "--- Warn Analysis Report: $(date) ---" > "$REPORT_FILE"
+
+echo "Processing files in $WARN_DIR..."
+
+for f in "$WARN_DIR"/*.fb2; do
+    [ -e "$f" ] || continue
+    FILENAME=$(basename "$f")
+    
+    echo "File: $FILENAME" >> "$REPORT_FILE"
+    echo "Size: $(stat -c%s "$f") bytes" >> "$REPORT_FILE"
+    echo "File Type: $(file -b "$f")" >> "$REPORT_FILE"
+    echo "Head Snippet (first 20 lines):" >> "$REPORT_FILE"
+    head -n 20 "$f" >> "$REPORT_FILE"
+    echo "--------------------------------------" >> "$REPORT_FILE"
+done
+
+echo "Report generated: $REPORT_FILE"
+
+# Отправка на удаленный хост
+echo "Transferring to reva@mars..."
+scp -r "$WARN_DIR" reva@mars:/home/reva/to_chat
+
+if [ $? -eq 0 ]; then
+    echo "✅ Success: Files and report sent to reva@mars:/home/to_chat"
+else
+    echo "❌ Error: SCP failed. Check your SSH connection."
+    exit 1
+fi

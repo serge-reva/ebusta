@@ -1,0 +1,4 @@
+bin/
+data/src/*.zip
+data/out/*.jsonl
+data/warn/*

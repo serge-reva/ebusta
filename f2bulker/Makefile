@@ -1,5 +1,5 @@
-BINARY_NAME=bulker
-INSTALL_DIR=/opt/flibusta_fb2_bulker
+BINARY_NAME=f2bulker
+INSTALL_DIR=/opt/f2bulker
 BIN_PATH=$(INSTALL_DIR)/$(BINARY_NAME)
 LOCAL_BIN=./bin/$(BINARY_NAME)
 IS_ROOT = $(shell id -u)

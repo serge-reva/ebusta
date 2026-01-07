@@ -1,0 +1,19 @@
+opensearch:
+  index_name: "flibusta_merged_index"
+
+paths:
+  source_dir: "./data/src"
+  output_dir: "./data/out"
+  warn_dir: "./data/warn"
+
+processing:
+  threads: 8
+
+logging:
+  log_path: "f2bulker.log"
+
+metrics:
+  pushgateway_url: "http://localhost:9091"
+
+# Пауза в секундах между архивами, чтобы сервер остыл
+sleep_between_zips: 60

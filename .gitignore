@@ -6,18 +6,14 @@ bin/
 *.so
 *.dylib
 
-bin/
-
-# Бинарники и данные конкретного модуля bulker
-flibusta_fb2_bulker/bin/
-flibusta_fb2_bulker/data/out/*
-flibusta_fb2_bulker/data/src/*
-flibusta_fb2_bulker/data/warn/*
+# Бинарники и данные модуля f2bulker
+f2bulker/bin/
+f2bulker/data/out/*
+f2bulker/data/src/*
+f2bulker/data/warn/*
 
 # Исключения для структуры данных
-!flibusta_fb2_bulker/data/**/.gitkeep
-
-
+!f2bulker/data/**/.gitkeep
 
 # Объекты и кэш
 *.a
@@ -30,7 +26,7 @@ flibusta_fb2_bulker/data/warn/*
 sources-*.txt
 *.db
 
-# Зависимости (если не вендоришь)
+# Зависимости
 vendor/
 
 # IDE
