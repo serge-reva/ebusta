@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 
 	"ebusta/api/proto/v1"
 	"github.com/spf13/viper"
@@ -19,6 +20,7 @@ type storageServer struct {
 	libraryv1.UnimplementedStorageServiceServer
 	osBaseURL string
 	indexName string
+	debug     bool // Флаг отладки
 }
 
 func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
@@ -30,20 +32,15 @@ func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRe
 	// === ЛОГИКА ВЫБОРА ПАРАМЕТРА ===
 	var paramName string
 	switch templateID {
-	// Добавили fl_author_fuzzy в список
 	case "fl_author_exact", "fl_author_fuzzy":
 		paramName = "author"
-	
 	case "fl_title_substring", "fl_titles_all":
-		// Эти шаблоны (по твоим файлам) используют {{q}}
 		paramName = "q"
-
 	default:
 		paramName = "q"
 	}
 
-	log.Printf("💾 Storage searching via [%s] | Param=[%s] | Value=[%s]", templateID, paramName, req.Query)
-
+	// Формируем тело запроса
 	osReqBody := map[string]interface{}{
 		"id": templateID,
 		"params": map[string]interface{}{
@@ -60,6 +57,9 @@ func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRe
 	jsonData, _ := json.Marshal(osReqBody)
 	targetURL := fmt.Sprintf("%s/%s/_search/template", s.osBaseURL, s.indexName)
 
+	// 🔥 DEBUG: Логируем запрос (если включен режим или всегда, для надежности сейчас оставим всегда)
+	log.Printf("📤 [OS-REQ] URL: %s | BODY: %s", targetURL, string(jsonData))
+
 	resp, err := http.Post(targetURL, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		log.Printf("❌ Storage connection error: %v", err)
@@ -69,6 +69,14 @@ func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRe
 
 	body, _ := io.ReadAll(resp.Body)
 	
+	// 🔥 DEBUG: Логируем ответ
+	// Обрезаем ответ, если он слишком огромный, чтобы не засорять консоль совсем уж жестко
+	debugBody := string(body)
+	if len(debugBody) > 1000 {
+		debugBody = debugBody[:1000] + "... (truncated)"
+	}
+	log.Printf("📥 [OS-RESP] %s", debugBody)
+
 	var osResp struct {
 		Hits struct {
 			Total struct { Value int32 `json:"value"` } `json:"total"`
@@ -106,6 +114,9 @@ func main() {
 
 	osBaseURL := viper.GetString("datamanager.opensearch_url")
 	indexName := viper.GetString("datamanager.index_name")
+	
+	// Проверяем ENV переменную DEBUG
+	debug := os.Getenv("DEBUG") != ""
 
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil { log.Fatalf("failed to listen: %v", err) }
@@ -115,8 +126,9 @@ func main() {
 	libraryv1.RegisterStorageServiceServer(s, &storageServer{
 		osBaseURL: osBaseURL,
 		indexName: indexName,
+		debug:     debug,
 	})
 
-	log.Println("💾 DataManager (Storage) started on :50051")
+	log.Println("💾 DataManager (Storage) started on :50051 (Debug Logs Enabled)")
 	s.Serve(lis)
 }

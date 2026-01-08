@@ -1,35 +1,46 @@
 #!/bin/bash
 
-# ЖЕСТКАЯ ПРИВЯЗКА К IP
+# Настройки
 OS_HOST="192.168.1.179:9200"
 TEMPLATE_DIR="./opensearch/templates"
 
-echo "🚀 Updating OpenSearch templates on $OS_HOST..."
+# Цвета для красоты
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
 
-# Проверка доступности OpenSearch перед началом
-if ! curl -s "http://$OS_HOST" > /dev/null; then
-    echo "❌ Ошибка: Не могу подключиться к OpenSearch на $OS_HOST"
-    exit 1
+echo -e "🚀 Updating OpenSearch templates on ${GREEN}$OS_HOST${NC}..."
+
+# 1. Проверка доступности сервера
+if ! curl -s --fail "http://$OS_HOST" > /dev/null; then
+  echo -e "${RED}❌ Ошибка: OpenSearch недоступен по адресу $OS_HOST${NC}"
+  echo "   Убедитесь, что IP верный и сервис запущен."
+  exit 1
 fi
 
-for file in $TEMPLATE_DIR/*.json; do
+# 2. Перебор файлов
+for file in "$TEMPLATE_DIR"/*.json; do
   [ -e "$file" ] || continue
   
-  # Имя файла без расширения = ID шаблона
+  # Получаем ID шаблона из имени файла (fl_author_exact.json -> fl_author_exact)
   filename=$(basename -- "$file")
   template_id="${filename%.*}"
   
   echo -n "👉 Uploading $template_id ... "
   
   # Загружаем шаблон
+  # Используем --fail, чтобы curl возвращал ошибку при HTTP 400/500
   response=$(curl -s -X PUT "http://$OS_HOST/_scripts/$template_id" \
        -H "Content-Type: application/json" \
        -d @"$file")
        
+  # Проверяем ответ
   if echo "$response" | grep -q '"acknowledged":true'; then
-    echo "✅ OK"
+    echo -e "${GREEN}✅ OK${NC}"
   else
-    echo "❌ FAIL"
+    echo -e "${RED}❌ FAIL${NC}"
     echo "   Response: $response"
   fi
 done
+
+echo "🏁 Done."

@@ -1,29 +1,31 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"ebusta/api/proto/v1"
+	"github.com/peterh/liner"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-var debugMode bool
+var (
+	debugMode   bool
+	historyPath = filepath.Join(os.TempDir(), ".ebusta_history")
+)
 
 func main() {
-	// 0. Проверяем режим отладки
 	if os.Getenv("DEBUG") != "" {
 		debugMode = true
 		log.Println("🐞 DEBUG MODE: ENABLED")
 	}
 
-	// 1. Подключение к Orchestrator
 	conn, err := grpc.Dial("localhost:50054", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("❌ Failed to connect to Orchestrator: %v", err)
@@ -32,37 +34,57 @@ func main() {
 
 	client := libraryv1.NewOrchestratorServiceClient(conn)
 
-	// 2. Логика запуска: Аргументы VS Интерактив
 	if len(os.Args) > 1 {
-		// --- One-Shot Mode (для скриптов) ---
 		query := strings.Join(os.Args[1:], " ")
 		runSearch(client, query)
 	} else {
-		// --- Interactive Mode (для людей) ---
 		runInteractiveLoop(client)
 	}
 }
 
 func runInteractiveLoop(client libraryv1.OrchestratorServiceClient) {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("🚀 Ebusta CLI Interactive Mode")
-	fmt.Println("Type 'exit' or 'quit' to stop.")
+	line := liner.NewLiner()
+	defer line.Close()
+
+	line.SetCtrlCAborts(true)
+
+	// Загружаем историю из файла, если он есть
+	if f, err := os.Open(historyPath); err == nil {
+		line.ReadHistory(f)
+		f.Close()
+	}
+
+	fmt.Println("🚀 Ebusta CLI Interactive Mode (with History Support)")
+	fmt.Println("Use UP/DOWN arrows for history. Type 'exit' to stop.")
 	fmt.Println("---------------------------------")
 
 	for {
-		fmt.Print("ebusta> ")
-		text, _ := reader.ReadString('\n')
-		text = strings.TrimSpace(text)
+		if text, err := line.Prompt("ebusta> "); err == nil {
+			text = strings.TrimSpace(text)
+			if text == "" {
+				continue
+			}
+			if text == "exit" || text == "quit" {
+				fmt.Println("Bye!")
+				break
+			}
 
-		if text == "" {
-			continue
-		}
-		if text == "exit" || text == "quit" {
-			fmt.Println("Bye!")
+			// Добавляем в историю и сохраняем
+			line.AppendHistory(text)
+			runSearch(client, text)
+
+			// Сохраняем историю после каждого успешного ввода
+			if f, err := os.Create(historyPath); err == nil {
+				line.WriteHistory(f)
+				f.Close()
+			}
+		} else if err == liner.ErrPromptAborted {
+			fmt.Println("Aborted")
+			break
+		} else {
+			log.Print("Error reading line: ", err)
 			break
 		}
-
-		runSearch(client, text)
 	}
 }
 
@@ -74,10 +96,9 @@ func runSearch(client libraryv1.OrchestratorServiceClient, query string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	resp, err := client.HandleInput(ctx, &libraryv1.UserRequest{
-		RawInput: query,
-		UserId:   "cli-user",
-		Platform: "cli",
+	resp, err := client.Search(ctx, &libraryv1.SearchRequest{
+		Query:   query,
+		TraceId: "cli-user",
 	})
 
 	if err != nil {
@@ -85,29 +106,27 @@ func runSearch(client libraryv1.OrchestratorServiceClient, query string) {
 		return
 	}
 
-	if resp.TotalFound == 0 {
+	if resp.Total == 0 {
 		fmt.Println("No results found.")
 		return
 	}
 
-	// Вывод заголовка
 	fmt.Printf("%-40s | %-40s | %s\n", "ID", "Title", "Authors")
 	fmt.Println(strings.Repeat("-", 100))
 
-	// Вывод строк
 	for _, b := range resp.Books {
-		title := truncate(b.Title, 38)
-		authors := truncate(strings.Join(b.Authors, ", "), 30)
-		fmt.Printf("%-40s | %-40s | %s\n", b.Id, title, authors)
-	}
-	if debugMode {
-		fmt.Printf("\n[Total: %d]\n", resp.TotalFound)
+		fmt.Printf("%-40s | %-40s | %s\n", 
+			b.Id, 
+			truncate(b.Title, 38), 
+			truncate(strings.Join(b.Authors, ", "), 30),
+		)
 	}
 }
 
 func truncate(s string, max int) string {
-	if len([]rune(s)) > max {
-		return string([]rune(s)[:max]) + "..."
+	runes := []rune(s)
+	if len(runes) > max {
+		return string(runes[:max]) + "..."
 	}
 	return s
 }
