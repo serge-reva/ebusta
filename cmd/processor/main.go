@@ -8,104 +8,75 @@ import (
 
 	"ebusta/api/proto/v1"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type processorServer struct {
 	libraryv1.UnimplementedProcessorServiceServer
-	storageClient   libraryv1.StorageServiceClient
-	converterClient libraryv1.MessageConverterServiceClient
+	storage libraryv1.StorageServiceClient
 }
 
 func (s *processorServer) Process(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
-	// 1. AST Analysis
-	convResp, err := s.converterClient.Convert(ctx, &libraryv1.RawInput{
-		Data:    req.Query,
-		TraceId: req.TraceId,
-	})
+	fullQuery := req.Query
+	qLower := strings.ToLower(fullQuery)
+	log.Printf("🧠 Processor: Handling '%s'", fullQuery)
 
-	var targetTemplate string
-	var targetQuery string
-
-	if err != nil {
-		targetTemplate = "fl_mixed_search"
-		targetQuery = basicCleanup(req.Query)
-	} else {
-		targetTemplate, targetQuery = selectStrategy(convResp.Query, req.Query)
-	}
-
-	log.Printf("👉 Strategy 1 (Primary): Template=[%s], Query=[%s]", targetTemplate, targetQuery)
-
-	// 2. Первая попытка поиска
-	resp, err := s.storageClient.SearchBooks(ctx, &libraryv1.SearchRequest{
-		Query:      targetQuery,
-		TemplateId: targetTemplate,
-		Limit:      req.Limit,
-	})
-
-	// 3. FALLBACK LOGIC (План Б)
-	// Если искали точного автора и ничего не нашли -> пробуем нечеткий поиск
-	if (err == nil && resp.Total == 0) && targetTemplate == "fl_author_exact" {
+	// 1. Обработка сложных запросов (AND/OR)
+	if strings.Contains(qLower, " and ") || strings.Contains(qLower, " or ") {
+		// ОЧИСТКА: OpenSearch не знает про наши префиксы author: и title:
+		// Мы заменяем их на пустые строки для mixed_search
+		cleanQuery := fullQuery
+		cleanQuery = strings.ReplaceAll(cleanQuery, "author:", "")
+		cleanQuery = strings.ReplaceAll(cleanQuery, "title:", "")
+		cleanQuery = strings.ReplaceAll(cleanQuery, "Author:", "")
+		cleanQuery = strings.ReplaceAll(cleanQuery, "Title:", "")
 		
-		log.Printf("⚠️ Primary strategy returned 0 results. Switching to FALLBACK: fl_author_fuzzy")
+		log.Printf("🧠 Processor: Complex query cleaned: '%s'", cleanQuery)
 		
-		resp, err = s.storageClient.SearchBooks(ctx, &libraryv1.SearchRequest{
-			Query:      targetQuery,
-			TemplateId: "fl_author_fuzzy", // <-- Подмена шаблона
+		subReq := &libraryv1.SearchRequest{
+			Query:      strings.TrimSpace(cleanQuery),
+			TemplateId: "fl_mixed_search",
 			Limit:      req.Limit,
-		})
-	}
-
-	return resp, err
-}
-
-func selectStrategy(ast *libraryv1.SearchQuery, rawQuery string) (string, string) {
-	if ast == nil {
-		return "fl_mixed_search", basicCleanup(rawQuery)
-	}
-
-	switch node := ast.Node.(type) {
-	case *libraryv1.SearchQuery_Filter:
-		f := node.Filter
-		switch f.Field {
-		case "author":
-			// Сначала пробуем строгий поиск!
-			return "fl_author_exact", f.Value
-		case "title":
-			return "fl_title_substring", f.Value
-		default:
-			return "fl_mixed_search", f.Value
+			TraceId:    req.TraceId,
 		}
-	default:
-		return "fl_mixed_search", basicCleanup(rawQuery)
+		return s.storage.SearchBooks(ctx, subReq)
 	}
-}
 
-func basicCleanup(q string) string {
-	cleaned := q
-	cleaned = strings.ReplaceAll(cleaned, "authors:", "")
-	cleaned = strings.ReplaceAll(cleaned, "author:", "")
-	cleaned = strings.ReplaceAll(cleaned, "title:", "")
-	return strings.TrimSpace(cleaned)
+	// 2. Обработка простых Smart-префиксов
+	subReq := &libraryv1.SearchRequest{
+		Limit:   req.Limit,
+		TraceId: req.TraceId,
+	}
+
+	if strings.HasPrefix(qLower, "author:") {
+		subReq.Query = strings.TrimSpace(strings.TrimPrefix(fullQuery, "author:"))
+		subReq.TemplateId = "fl_author_exact"
+		resp, err := s.storage.SearchBooks(ctx, subReq)
+		if err == nil && resp.Total > 0 {
+			return resp, nil
+		}
+		log.Printf("⚠️ Switching to fuzzy for: %s", subReq.Query)
+		subReq.TemplateId = "fl_author_fuzzy"
+		return s.storage.SearchBooks(ctx, subReq)
+	}
+
+	if strings.HasPrefix(qLower, "title:") {
+		subReq.Query = strings.TrimSpace(strings.TrimPrefix(fullQuery, "title:"))
+		subReq.TemplateId = "fl_title_substring"
+		return s.storage.SearchBooks(ctx, subReq)
+	}
+
+	// По умолчанию
+	return s.storage.SearchBooks(ctx, req)
 }
 
 func main() {
-	connStorage, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil { log.Fatalf("failed to connect to storage: %v", err) }
-	
-	connConverter, err := grpc.Dial("localhost:50052", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil { log.Fatalf("failed to connect to converter: %v", err) }
-
 	lis, err := net.Listen("tcp", ":50053")
-	if err != nil { log.Fatalf("failed to listen: %v", err) }
-
+	if err != nil { log.Fatal(err) }
+	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
+	if err != nil { log.Fatal(err) }
+	defer conn.Close()
 	s := grpc.NewServer()
-	
-	libraryv1.RegisterProcessorServiceServer(s, &processorServer{
-		storageClient:   libraryv1.NewStorageServiceClient(connStorage),
-		converterClient: libraryv1.NewMessageConverterServiceClient(connConverter),
-	})
-
-	log.Println("🧠 Processor started on :50053 (Fallback Logic Enabled)")
+	libraryv1.RegisterProcessorServiceServer(s, &processorServer{storage: libraryv1.NewStorageServiceClient(conn)})
+	log.Println("🧠 Ebusta Processor started on :50053")
 	s.Serve(lis)
 }

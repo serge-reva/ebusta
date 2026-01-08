@@ -1,7 +1,7 @@
 #!/bin/bash
 # Настройки для хоста yuno
 BASE="http://192.168.1.179:9200"
-INDEX="flibusta_merged_index"
+INDEX="ebusta_merged_index"
 
 echo "🧪 Running Smoke Tests for Search Templates..."
 echo "--------------------------------------------"

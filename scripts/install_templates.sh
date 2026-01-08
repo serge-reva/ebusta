@@ -18,7 +18,7 @@ fi
 # 1. Сначала собираем список имен шаблонов на основе файлов в папке
 INSTALLED_NAMES=()
 for f in "${TPL_DIR}"/*.json; do
-  [[ "$(basename "$f")" == "flibusta_merged_index"* ]] && continue
+  [[ "$(basename "$f")" == "ebusta_merged_index"* ]] && continue
   INSTALLED_NAMES+=("$(basename "$f" .json)")
 done
 
@@ -30,7 +30,7 @@ done
 
 # 3. Установка
 for f in "${TPL_DIR}"/*.json; do
-  [[ "$(basename "$f")" == "flibusta_merged_index"* ]] && continue
+  [[ "$(basename "$f")" == "ebusta_merged_index"* ]] && continue
   name="$(basename "$f" .json)"
   echo "Installing template: ${name}"
   

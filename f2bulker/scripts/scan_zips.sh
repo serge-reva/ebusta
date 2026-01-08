@@ -21,7 +21,8 @@ SLEEP_TIME=${SLEEP_TIME:-0}
 mkdir -p "$OUT_DIR"
 
 shopt -s nullglob
-for zipfile in "$SRC_DIR"/*.zip; do
+for zipfile in "$SRC_DIR"/f.*.zip "$SRC_DIR"/d.*.zip "$SRC_DIR"/fb2-*.zip; do
+    [ -e "$zipfile" ] || continue	
     base=$(basename "$zipfile")
     echo "--- [$(date +%H:%M:%S)] Container: $base ---"
     

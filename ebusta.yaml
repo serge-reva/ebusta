@@ -1,12 +1,11 @@
-gateway:
-  url: "http://localhost:8080"
-  timeout: 2s
-
 datamanager:
-  # The IP of your OpenSearch server
   opensearch_url: "http://192.168.1.179:9200"
   index_name: "flibusta_merged_index"
+  debug: true
 
-ui:
-  show_trace: true
-  colors: true
+orchestrator:
+  storage_addr: "localhost:50051"
+  processor_addr: "localhost:50053"
+
+web:
+  port: 8080

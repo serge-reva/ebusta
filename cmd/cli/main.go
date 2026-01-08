@@ -106,7 +106,7 @@ func runSearch(client libraryv1.OrchestratorServiceClient, query string) {
 		return
 	}
 
-	if resp.Total == 0 {
+	if resp.Total == 0 && len(resp.Books) == 0 {
 		fmt.Println("No results found.")
 		return
 	}

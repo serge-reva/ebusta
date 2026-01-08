@@ -10,7 +10,7 @@ type Config struct {
 	OSScheme    string        `env:"OS_SCHEME" default:"http"`
 	OSHost      string        `env:"OS_HOST" default:"mercury"`
 	OSPort      string        `env:"OS_PORT" default:"9200"`
-	OSIndex     string        `env:"OS_INDEX" default:"flibusta"`
+	OSIndex     string        `env:"OS_INDEX" default:"ebusta"`
 	ESUser      string        `env:"ES_USER"`
 	ESPass      string        `env:"ES_PASS"`
 	HTTPTimeout time.Duration `env:"HTTP_TIMEOUT" default:"5s"`

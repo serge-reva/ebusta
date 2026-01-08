@@ -2,12 +2,12 @@ opensearch:
   index_name: "flibusta_merged_index"
 
 paths:
-  source_dir: "./data/src"
-  output_dir: "./data/out"
   warn_dir: "./data/warn"
+  output_dir: "./data/out"
+  source_dir: "/mnt/fb2/fb2.Flibusta.Net"
 
 processing:
-  threads: 8
+  threads: 4
 
 logging:
   log_path: "f2bulker.log"
@@ -16,4 +16,4 @@ metrics:
   pushgateway_url: "http://localhost:9091"
 
 # Пауза в секундах между архивами, чтобы сервер остыл
-sleep_between_zips: 60
+sleep_between_zips: 120
