@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
@@ -11,52 +12,102 @@ import (
 	"ebusta/api/proto/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 )
 
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: ebusta-cli \"query\"")
-		os.Exit(1)
-	}
-	
-	query := os.Args[1]
-	debugMode := os.Getenv("DEBUG")
-	if debugMode == "" { debugMode = "0" }
+var debugMode bool
 
-	// CLI -> Orchestrator
+func main() {
+	// 0. Проверяем режим отладки
+	if os.Getenv("DEBUG") != "" {
+		debugMode = true
+		log.Println("🐞 DEBUG MODE: ENABLED")
+	}
+
+	// 1. Подключение к Orchestrator
 	conn, err := grpc.Dial("localhost:50054", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		log.Fatalf("❌ Failed to connect to Orchestrator: %v", err)
 	}
 	defer conn.Close()
 
-	c := libraryv1.NewOrchestratorServiceClient(conn)
+	client := libraryv1.NewOrchestratorServiceClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	// 2. Логика запуска: Аргументы VS Интерактив
+	if len(os.Args) > 1 {
+		// --- One-Shot Mode (для скриптов) ---
+		query := strings.Join(os.Args[1:], " ")
+		runSearch(client, query)
+	} else {
+		// --- Interactive Mode (для людей) ---
+		runInteractiveLoop(client)
+	}
+}
+
+func runInteractiveLoop(client libraryv1.OrchestratorServiceClient) {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("🚀 Ebusta CLI Interactive Mode")
+	fmt.Println("Type 'exit' or 'quit' to stop.")
+	fmt.Println("---------------------------------")
+
+	for {
+		fmt.Print("ebusta> ")
+		text, _ := reader.ReadString('\n')
+		text = strings.TrimSpace(text)
+
+		if text == "" {
+			continue
+		}
+		if text == "exit" || text == "quit" {
+			fmt.Println("Bye!")
+			break
+		}
+
+		runSearch(client, text)
+	}
+}
+
+func runSearch(client libraryv1.OrchestratorServiceClient, query string) {
+	if debugMode {
+		log.Printf("📡 Sending query: '%s'", query)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	md := metadata.Pairs("x-debug", debugMode)
-	ctx = metadata.NewOutgoingContext(ctx, md)
+	resp, err := client.HandleInput(ctx, &libraryv1.UserRequest{
+		RawInput: query,
+		UserId:   "cli-user",
+		Platform: "cli",
+	})
 
-	r, err := c.Search(ctx, &libraryv1.SearchRequest{Query: query})
 	if err != nil {
-		fmt.Printf("API Error: %v\n", err)
+		log.Printf("❌ Error: %v", err)
 		return
 	}
 
-	if len(r.Books) == 0 {
+	if resp.TotalFound == 0 {
 		fmt.Println("No results found.")
 		return
 	}
 
+	// Вывод заголовка
 	fmt.Printf("%-40s | %-40s | %s\n", "ID", "Title", "Authors")
 	fmt.Println(strings.Repeat("-", 100))
-	for _, b := range r.Books {
-		authors := strings.Join(b.Authors, ", ")
-		title := b.Title
-		if len(title) > 38 { title = title[:35] + "..." }
-		if len(authors) > 30 { authors = authors[:27] + "..." }
+
+	// Вывод строк
+	for _, b := range resp.Books {
+		title := truncate(b.Title, 38)
+		authors := truncate(strings.Join(b.Authors, ", "), 30)
 		fmt.Printf("%-40s | %-40s | %s\n", b.Id, title, authors)
 	}
+	if debugMode {
+		fmt.Printf("\n[Total: %d]\n", resp.TotalFound)
+	}
+}
+
+func truncate(s string, max int) string {
+	if len([]rune(s)) > max {
+		return string([]rune(s)[:max]) + "..."
+	}
+	return s
 }
