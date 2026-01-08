@@ -18,39 +18,69 @@ type processorServer struct {
 }
 
 func (s *processorServer) Process(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
-	log.Printf("🧠 Processor received raw: '%s'", req.Query)
-
-	// ШАГ 1: Обращаемся к "Мозгам" (Message Converter)
-	// Мы отправляем сырой текст, чтобы получить AST
+	// 1. AST Analysis
 	convResp, err := s.converterClient.Convert(ctx, &libraryv1.RawInput{
 		Data:    req.Query,
 		TraceId: req.TraceId,
 	})
 
-	var finalQuery string
+	var targetTemplate string
+	var targetQuery string
 
 	if err != nil {
-		log.Printf("⚠️ Converter failed (fallback to basic): %v", err)
-		// Fallback: старая логика, если конвертер упал
-		finalQuery = basicCleanup(req.Query)
+		targetTemplate = "fl_mixed_search"
+		targetQuery = basicCleanup(req.Query)
 	} else {
-		// УСПЕХ: Мы получили AST!
-		// Пока что мы просто логируем план запроса, чтобы убедиться, что Plan B работает.
-		log.Printf("🧩 AST Analysis Success! Plan: %s", convResp.Meta.AstPlan)
-		
-		// В будущем здесь будет сложная логика трансформации AST -> Elastic Query
-		// Пока берем каноническую форму или просто очищенный запрос
-		finalQuery = basicCleanup(req.Query) 
+		targetTemplate, targetQuery = selectStrategy(convResp.Query, req.Query)
 	}
 
-	// ШАГ 2: Отправляем в Хранилище (Storage)
-	return s.storageClient.SearchBooks(ctx, &libraryv1.SearchRequest{
-		Query: finalQuery,
-		Limit: req.Limit, // Пробрасываем лимит от клиента
+	log.Printf("👉 Strategy 1 (Primary): Template=[%s], Query=[%s]", targetTemplate, targetQuery)
+
+	// 2. Первая попытка поиска
+	resp, err := s.storageClient.SearchBooks(ctx, &libraryv1.SearchRequest{
+		Query:      targetQuery,
+		TemplateId: targetTemplate,
+		Limit:      req.Limit,
 	})
+
+	// 3. FALLBACK LOGIC (План Б)
+	// Если искали точного автора и ничего не нашли -> пробуем нечеткий поиск
+	if (err == nil && resp.Total == 0) && targetTemplate == "fl_author_exact" {
+		
+		log.Printf("⚠️ Primary strategy returned 0 results. Switching to FALLBACK: fl_author_fuzzy")
+		
+		resp, err = s.storageClient.SearchBooks(ctx, &libraryv1.SearchRequest{
+			Query:      targetQuery,
+			TemplateId: "fl_author_fuzzy", // <-- Подмена шаблона
+			Limit:      req.Limit,
+		})
+	}
+
+	return resp, err
 }
 
-// Простая функция очистки (как было раньше)
+func selectStrategy(ast *libraryv1.SearchQuery, rawQuery string) (string, string) {
+	if ast == nil {
+		return "fl_mixed_search", basicCleanup(rawQuery)
+	}
+
+	switch node := ast.Node.(type) {
+	case *libraryv1.SearchQuery_Filter:
+		f := node.Filter
+		switch f.Field {
+		case "author":
+			// Сначала пробуем строгий поиск!
+			return "fl_author_exact", f.Value
+		case "title":
+			return "fl_title_substring", f.Value
+		default:
+			return "fl_mixed_search", f.Value
+		}
+	default:
+		return "fl_mixed_search", basicCleanup(rawQuery)
+	}
+}
+
 func basicCleanup(q string) string {
 	cleaned := q
 	cleaned = strings.ReplaceAll(cleaned, "authors:", "")
@@ -60,25 +90,14 @@ func basicCleanup(q string) string {
 }
 
 func main() {
-	// 1. Подключаемся к STORAGE (:50051)
 	connStorage, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("failed to connect to storage: %v", err)
-	}
-	defer connStorage.Close()
-
-	// 2. Подключаемся к CONVERTER (:50052)
+	if err != nil { log.Fatalf("failed to connect to storage: %v", err) }
+	
 	connConverter, err := grpc.Dial("localhost:50052", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("failed to connect to converter: %v", err)
-	}
-	defer connConverter.Close()
+	if err != nil { log.Fatalf("failed to connect to converter: %v", err) }
 
-	// 3. Запускаем сервер PROCESSOR (:50053)
 	lis, err := net.Listen("tcp", ":50053")
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
+	if err != nil { log.Fatalf("failed to listen: %v", err) }
 
 	s := grpc.NewServer()
 	
@@ -87,6 +106,6 @@ func main() {
 		converterClient: libraryv1.NewMessageConverterServiceClient(connConverter),
 	})
 
-	log.Println("🧠 Processor started on :50053 (with Brains connected)")
+	log.Println("🧠 Processor started on :50053 (Fallback Logic Enabled)")
 	s.Serve(lis)
 }

@@ -22,18 +22,37 @@ type storageServer struct {
 }
 
 func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
-	template := "fl_mixed_search"
-	log.Printf("💾 Storage searching: %s", req.Query)
+	templateID := req.TemplateId
+	if templateID == "" {
+		templateID = "fl_mixed_search"
+	}
+	
+	// === ЛОГИКА ВЫБОРА ПАРАМЕТРА ===
+	var paramName string
+	switch templateID {
+	// Добавили fl_author_fuzzy в список
+	case "fl_author_exact", "fl_author_fuzzy":
+		paramName = "author"
+	
+	case "fl_title_substring", "fl_titles_all":
+		// Эти шаблоны (по твоим файлам) используют {{q}}
+		paramName = "q"
+
+	default:
+		paramName = "q"
+	}
+
+	log.Printf("💾 Storage searching via [%s] | Param=[%s] | Value=[%s]", templateID, paramName, req.Query)
 
 	osReqBody := map[string]interface{}{
-		"id": template,
+		"id": templateID,
 		"params": map[string]interface{}{
-			"q":    req.Query,
-			"from": 0,
-			"size": req.Limit,
+			paramName: req.Query,
+			"from":    0,
+			"size":    req.Limit,
 		},
 	}
-	// Default limit override
+	
 	if osReqBody["params"].(map[string]interface{})["size"] == int32(0) {
 		osReqBody["params"].(map[string]interface{})["size"] = 10
 	}
@@ -64,8 +83,8 @@ func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRe
 	}
 
 	if err := json.Unmarshal(body, &osResp); err != nil {
-		log.Printf("❌ Storage parse error: %v", err)
-		return &libraryv1.SearchResponse{}, nil
+		log.Printf("❌ Storage parse error: %v | Body: %s", err, string(body))
+		return &libraryv1.SearchResponse{Status: "error"}, nil
 	}
 
 	res := &libraryv1.SearchResponse{Total: osResp.Hits.Total.Value}
