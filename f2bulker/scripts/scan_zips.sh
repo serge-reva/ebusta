@@ -10,29 +10,21 @@ get_cfg_val() {
 }
 
 SRC_DIR=$(get_cfg_val "source_dir")
-OUT_DIR=$(get_cfg_val "output_dir")
 SLEEP_TIME=$(get_cfg_val "sleep_between_zips")
 SLEEP_TIME=${SLEEP_TIME:-0}
 
-# Конвертация путей
 [[ "$SRC_DIR" == ./* ]] && SRC_DIR="$BASE_DIR/${SRC_DIR#./}"
-[[ "$OUT_DIR" == ./* ]] && OUT_DIR="$BASE_DIR/${OUT_DIR#./}"
-
-mkdir -p "$OUT_DIR"
 
 shopt -s nullglob
 for zipfile in "$SRC_DIR"/f.*.zip "$SRC_DIR"/d.*.zip "$SRC_DIR"/fb2-*.zip; do
-    [ -e "$zipfile" ] || continue	
+    [ -e "$zipfile" ] || continue
     base=$(basename "$zipfile")
     echo "--- [$(date +%H:%M:%S)] Container: $base ---"
     
-    # Запуск
-    "$BASE_DIR/bin/f2bulker" $RESCAN_FLAG -config "$CONFIG" -src "$zipfile" -out "$OUT_DIR/${base}.jsonl"
+    "$BASE_DIR/bin/f2bulker" $RESCAN_FLAG -config "$CONFIG" -container "$base"
     EXIT_CODE=$?
     
-    if [ $EXIT_CODE -eq 10 ]; then
-        echo ">>> All files skipped. Skipping cool-down."
-    elif [ $EXIT_CODE -eq 0 ] && [ "$SLEEP_TIME" -gt 0 ]; then
+    if [ $EXIT_CODE -eq 0 ] && [ "$SLEEP_TIME" -gt 0 ]; then
         echo ">>> Work done. Cooling down for $SLEEP_TIME sec..."
         sleep "$SLEEP_TIME"
     fi
