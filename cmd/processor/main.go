@@ -20,52 +20,62 @@ func (s *processorServer) Process(ctx context.Context, req *libraryv1.SearchRequ
 	qLower := strings.ToLower(fullQuery)
 	log.Printf("🧠 Processor: Handling '%s'", fullQuery)
 
-	// 1. Обработка сложных запросов (AND/OR)
+	// 1. Сложные запросы (AND/OR)
 	if strings.Contains(qLower, " and ") || strings.Contains(qLower, " or ") {
-		// ОЧИСТКА: OpenSearch не знает про наши префиксы author: и title:
-		// Мы заменяем их на пустые строки для mixed_search
 		cleanQuery := fullQuery
-		cleanQuery = strings.ReplaceAll(cleanQuery, "author:", "")
-		cleanQuery = strings.ReplaceAll(cleanQuery, "title:", "")
-		cleanQuery = strings.ReplaceAll(cleanQuery, "Author:", "")
-		cleanQuery = strings.ReplaceAll(cleanQuery, "Title:", "")
-		
+		for _, prefix := range []string{"author:", "title:", "Author:", "Title:"} {
+			cleanQuery = strings.ReplaceAll(cleanQuery, prefix, "")
+		}
 		log.Printf("🧠 Processor: Complex query cleaned: '%s'", cleanQuery)
-		
-		subReq := &libraryv1.SearchRequest{
+		return s.storage.SearchBooks(ctx, &libraryv1.SearchRequest{
 			Query:      strings.TrimSpace(cleanQuery),
 			TemplateId: "fl_mixed_search",
 			Limit:      req.Limit,
 			TraceId:    req.TraceId,
+		})
+	}
+
+	// 2. Обработка префикса title: (Каскадный поиск)
+	if strings.HasPrefix(qLower, "title:") {
+		cleanTitle := strings.TrimSpace(strings.TrimPrefix(fullQuery, "title:"))
+		
+		// Попытка 1: Строгий substring
+		subReq := &libraryv1.SearchRequest{
+			Query:      cleanTitle,
+			TemplateId: "fl_title_substring",
+			Limit:      req.Limit,
+			TraceId:    req.TraceId,
 		}
+		resp, err := s.storage.SearchBooks(ctx, subReq)
+		
+		if err == nil && resp.Total > 0 {
+			return resp, nil
+		}
+
+		// Попытка 2: Умный Match (анализатор разберется с регистром)
+		log.Printf("⚠️ Substring search found 0, switching to fl_title_match for: %s", cleanTitle)
+		subReq.TemplateId = "fl_title_match"
 		return s.storage.SearchBooks(ctx, subReq)
 	}
 
-	// 2. Обработка простых Smart-префиксов
-	subReq := &libraryv1.SearchRequest{
-		Limit:   req.Limit,
-		TraceId: req.TraceId,
-	}
-
+	// 3. Обработка префикса author: (уже настроена)
 	if strings.HasPrefix(qLower, "author:") {
-		subReq.Query = strings.TrimSpace(strings.TrimPrefix(fullQuery, "author:"))
-		subReq.TemplateId = "fl_author_exact"
+		cleanAuthor := strings.TrimSpace(strings.TrimPrefix(fullQuery, "author:"))
+		subReq := &libraryv1.SearchRequest{
+			Query:      cleanAuthor,
+			TemplateId: "fl_author_exact",
+			Limit:      req.Limit,
+			TraceId:    req.TraceId,
+		}
 		resp, err := s.storage.SearchBooks(ctx, subReq)
 		if err == nil && resp.Total > 0 {
 			return resp, nil
 		}
-		log.Printf("⚠️ Switching to fuzzy for: %s", subReq.Query)
+		log.Printf("⚠️ Switching to fuzzy for: %s", cleanAuthor)
 		subReq.TemplateId = "fl_author_fuzzy"
 		return s.storage.SearchBooks(ctx, subReq)
 	}
 
-	if strings.HasPrefix(qLower, "title:") {
-		subReq.Query = strings.TrimSpace(strings.TrimPrefix(fullQuery, "title:"))
-		subReq.TemplateId = "fl_title_substring"
-		return s.storage.SearchBooks(ctx, subReq)
-	}
-
-	// По умолчанию
 	return s.storage.SearchBooks(ctx, req)
 }
 

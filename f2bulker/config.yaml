@@ -16,4 +16,4 @@ metrics:
   pushgateway_url: "http://localhost:9091"
 
 # Пауза в секундах между архивами, чтобы сервер остыл
-sleep_between_zips: 120
+sleep_between_zips: 600 
