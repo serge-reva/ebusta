@@ -1,5 +1,6 @@
 opensearch:
   index_name: "flibusta_merged_index"
+  url: "http://192.168.1.179:9200"
 
 paths:
   warn_dir: "./data/warn"
@@ -17,3 +18,8 @@ metrics:
 
 # Пауза в секундах между архивами, чтобы сервер остыл
 sleep_between_zips: 600 
+
+
+uploading:
+  log_path: "uploader.log"
+  sleep_between_uploads: 30
