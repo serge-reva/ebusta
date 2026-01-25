@@ -1,0 +1,10 @@
+opensearch:
+  url: "http://cloud-1:9200"
+  index_name: "flibusta_merged_index"
+
+paths:
+  index_file: "./flibusta_merged_index.fixed.json"
+  templates_dir: "./templates"
+
+logging:
+  log_path: "os-setup.log"
