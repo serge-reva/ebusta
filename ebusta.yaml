@@ -1,5 +1,5 @@
 datamanager:
-  opensearch_url: "http://192.168.1.179:9200"
+  opensearch_url: "http://cloud-1:9200"
   index_name: "flibusta_merged_index"
   debug: true
 

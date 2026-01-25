@@ -1,0 +1,5744 @@
+=== EBusta Project Context: Sun Jan 25 03:46:48 AM MSK 2026 ===
+
+--- SECTION: GIT DIFF (LAST 1 HOUR) ---
+--- END SECTION: GIT DIFF ---
+
+--- START_FILE: ./internal/parser/parser_test.go ---
+package parser
+
+import (
+	"ebusta/api/proto/v1"
+	"testing"
+)
+
+func TestParser(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		validate func(*testing.T, *libraryv1.SearchQuery)
+	}{
+		{
+			name:  "Simple Any Search",
+			input: "Unix",
+			validate: func(t *testing.T, q *libraryv1.SearchQuery) {
+				f := q.GetFilter()
+				if f == nil || f.Field != "any" || f.Value != "Unix" {
+					t.Errorf("Expected any:Unix, got %+v", f)
+				}
+			},
+		},
+		{
+			name:  "Field Search",
+			input: "author:Кинг",
+			validate: func(t *testing.T, q *libraryv1.SearchQuery) {
+				f := q.GetFilter()
+				if f == nil || f.Field != "author" || f.Value != "Кинг" {
+					t.Errorf("Expected author:Кинг, got %+v", f)
+				}
+			},
+		},
+		{
+			name:  "Logical AND",
+			input: "author:Кинг AND title:Оно",
+			validate: func(t *testing.T, q *libraryv1.SearchQuery) {
+				l := q.GetLogical()
+				if l == nil || l.Op != libraryv1.LogicalOp_AND || len(l.Nodes) != 2 {
+					t.Errorf("Expected AND with 2 nodes, got %+v", l)
+				}
+			},
+		},
+		{
+			name:  "Negation NOT",
+			input: "NOT title:Куджо",
+			validate: func(t *testing.T, q *libraryv1.SearchQuery) {
+				n := q.GetNegation()
+				if n == nil {
+					t.Fatalf("Expected negation node, got nil")
+				}
+				f := n.Node.GetFilter()
+				if f.Field != "title" || f.Value != "Куджо" {
+					t.Errorf("Expected NOT title:Куджо, got %s:%s", f.Field, f.Value)
+				}
+			},
+		},
+		{
+			name:  "Regex Detection",
+			input: "title:/^Unix.*/",
+			validate: func(t *testing.T, q *libraryv1.SearchQuery) {
+				f := q.GetFilter()
+				if f.Operator != libraryv1.Operator_OP_REGEX {
+					t.Errorf("Expected REGEX operator, got %v", f.Operator)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewParser(tt.input)
+			query := p.Parse()
+			tt.validate(t, query)
+		})
+	}
+}
+
+--- END_FILE: ./internal/parser/parser_test.go ---
+
+--- START_FILE: ./internal/parser/lexer.go ---
+package parser
+
+import (
+	"strings"
+)
+
+// ==========================================
+// LEXER DEFINITIONS
+// ==========================================
+
+type TokenType int
+
+const (
+	TOKEN_EOF TokenType = iota
+	TOKEN_ERROR
+	TOKEN_IDENT     // author, title, Кинг
+	TOKEN_STRING    // "Стивен Кинг"
+	TOKEN_COLON     // :
+	TOKEN_AND       // AND
+	TOKEN_OR        // OR
+	TOKEN_NOT       // NOT, -
+	TOKEN_LPAREN    // (
+	TOKEN_RPAREN    // )
+	TOKEN_EQUALS    // =
+	TOKEN_CONTAINS  // ~
+)
+
+type Token struct {
+	Type  TokenType
+	Value string
+	Pos   int
+}
+
+type Lexer struct {
+	input  string
+	pos    int
+	start  int
+	width  int
+	tokens []Token
+}
+
+// newLexer создает лексер (используется в parser.go)
+func newLexer(input string) *Lexer {
+	return &Lexer{input: input}
+}
+
+// NextToken возвращает следующий токен (используется в parser.go)
+func (l *Lexer) NextToken() Token {
+	l.skipWhitespace()
+	if l.pos >= len(l.input) {
+		return Token{Type: TOKEN_EOF}
+	}
+
+	ch := l.input[l.pos]
+
+	switch {
+	case isLetter(ch):
+		return l.scanIdentifier()
+	case ch == '"':
+		return l.scanString()
+	case ch == ':':
+		l.pos++
+		return Token{Type: TOKEN_COLON, Value: ":"}
+	case ch == '(':
+		l.pos++
+		return Token{Type: TOKEN_LPAREN, Value: "("}
+	case ch == ')':
+		l.pos++
+		return Token{Type: TOKEN_RPAREN, Value: ")"}
+	case ch == '-': // Минус как NOT
+		l.pos++
+		return Token{Type: TOKEN_NOT, Value: "-"}
+	case ch == '=':
+		l.pos++
+		return Token{Type: TOKEN_EQUALS, Value: "="}
+	case ch == '~':
+		l.pos++
+		return Token{Type: TOKEN_CONTAINS, Value: "~"}
+	}
+
+	return Token{Type: TOKEN_ERROR, Value: string(ch)}
+}
+
+func (l *Lexer) skipWhitespace() {
+	for l.pos < len(l.input) && (l.input[l.pos] == ' ' || l.input[l.pos] == '\t') {
+		l.pos++
+	}
+}
+
+func (l *Lexer) scanIdentifier() Token {
+	start := l.pos
+	for l.pos < len(l.input) && isLetter(l.input[l.pos]) {
+		l.pos++
+	}
+	lit := l.input[start:l.pos]
+	
+	switch strings.ToUpper(lit) {
+	case "AND":
+		return Token{Type: TOKEN_AND, Value: lit}
+	case "OR":
+		return Token{Type: TOKEN_OR, Value: lit}
+	case "NOT":
+		return Token{Type: TOKEN_NOT, Value: lit}
+	}
+	return Token{Type: TOKEN_IDENT, Value: lit}
+}
+
+func (l *Lexer) scanString() Token {
+	l.pos++ // skip opening quote
+	start := l.pos
+	for l.pos < len(l.input) && l.input[l.pos] != '"' {
+		l.pos++
+	}
+	lit := l.input[start:l.pos]
+	if l.pos < len(l.input) {
+		l.pos++ // skip closing quote
+	}
+	return Token{Type: TOKEN_STRING, Value: lit}
+}
+
+func isLetter(ch byte) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch > 127 || ch == '_' || ch == '.'
+}
+
+--- END_FILE: ./internal/parser/lexer.go ---
+
+--- START_FILE: ./internal/parser/parser.go ---
+package parser
+
+import (
+	"fmt"
+	"ebusta/api/proto/v1"
+)
+
+// ==========================================
+// PUBLIC API
+// ==========================================
+
+// Parse - точка входа. Создает лексер и парсер.
+func Parse(input string) *libraryv1.SearchQuery {
+	l := newLexer(input)
+	p := newParser(l)
+	return p.parseSearchQuery()
+}
+
+// ==========================================
+// PARSER LOGIC
+// ==========================================
+
+type Parser struct {
+	l       *Lexer
+	curTok  Token
+	peekTok Token
+}
+
+func newParser(l *Lexer) *Parser {
+	p := &Parser{l: l}
+	p.nextToken()
+	p.nextToken()
+	return p
+}
+
+func (p *Parser) nextToken() {
+	p.curTok = p.peekTok
+	p.peekTok = p.l.NextToken()
+}
+
+// Expression -> Term { OR Term }
+func (p *Parser) parseSearchQuery() *libraryv1.SearchQuery {
+	if p.curTok.Type == TOKEN_EOF {
+		return nil
+	}
+	return p.parseExpression()
+}
+
+func (p *Parser) parseExpression() *libraryv1.SearchQuery {
+	left := p.parseTerm()
+
+	for p.curTok.Type == TOKEN_OR {
+		p.nextToken() // eat OR
+		right := p.parseTerm()
+		left = &libraryv1.SearchQuery{
+			Node: &libraryv1.SearchQuery_Logical{
+				Logical: &libraryv1.LogicalNode{
+					Op:    libraryv1.LogicalOp_OR,
+					Nodes: []*libraryv1.SearchQuery{left, right},
+				},
+			},
+		}
+	}
+	return left
+}
+
+// Term -> Factor { AND Factor }
+func (p *Parser) parseTerm() *libraryv1.SearchQuery {
+	left := p.parseFactor()
+
+	for p.curTok.Type == TOKEN_AND {
+		p.nextToken() // eat AND
+		right := p.parseFactor()
+		left = &libraryv1.SearchQuery{
+			Node: &libraryv1.SearchQuery_Logical{
+				Logical: &libraryv1.LogicalNode{
+					Op:    libraryv1.LogicalOp_AND,
+					Nodes: []*libraryv1.SearchQuery{left, right},
+				},
+			},
+		}
+	}
+	return left
+}
+
+// Factor -> ( Expr ) | NOT Factor | Filter
+func (p *Parser) parseFactor() *libraryv1.SearchQuery {
+	switch p.curTok.Type {
+	case TOKEN_LPAREN:
+		p.nextToken() // eat (
+		exp := p.parseExpression()
+		if p.curTok.Type != TOKEN_RPAREN {
+			fmt.Println("Error: expected )") 
+		}
+		p.nextToken() // eat )
+		return exp
+
+	case TOKEN_NOT:
+		p.nextToken() // eat NOT
+		right := p.parseFactor()
+		return &libraryv1.SearchQuery{
+			Node: &libraryv1.SearchQuery_Negation{
+				Negation: &libraryv1.NotNode{
+					Node: right,
+				},
+			},
+		}
+	
+	default:
+		return p.parseFilter()
+	}
+}
+
+// Filter -> IDENT [OP] VALUE
+func (p *Parser) parseFilter() *libraryv1.SearchQuery {
+	if p.curTok.Type == TOKEN_IDENT && (p.peekTok.Type == TOKEN_COLON || p.peekTok.Type == TOKEN_EQUALS || p.peekTok.Type == TOKEN_CONTAINS) {
+		field := p.curTok.Value
+		p.nextToken() // eat field
+		
+		var op libraryv1.Operator
+		switch p.curTok.Type {
+		case TOKEN_COLON:    op = libraryv1.Operator_OP_CONTAINS
+		case TOKEN_EQUALS:   op = libraryv1.Operator_OP_EQUALS
+		case TOKEN_CONTAINS: op = libraryv1.Operator_OP_CONTAINS
+		}
+		
+		p.nextToken() // eat op
+		
+		value := p.curTok.Value
+		p.nextToken() // eat value
+
+		return &libraryv1.SearchQuery{
+			Node: &libraryv1.SearchQuery_Filter{
+				Filter: &libraryv1.FilterNode{
+					Field:    field,
+					Value:    value,
+					Operator: op,
+				},
+			},
+		}
+	}
+
+	// Implicit "any" search
+	val := p.curTok.Value
+	p.nextToken()
+	
+	return &libraryv1.SearchQuery{
+		Node: &libraryv1.SearchQuery_Filter{
+			Filter: &libraryv1.FilterNode{
+				Field:    "any",
+				Value:    val,
+				Operator: libraryv1.Operator_OP_CONTAINS,
+			},
+		},
+	}
+}
+
+--- END_FILE: ./internal/parser/parser.go ---
+
+--- START_FILE: ./internal/logger/logger.go ---
+package logger
+
+import (
+	"context"
+	"time"
+	"github.com/sirupsen/logrus"
+)
+
+type ctxKey string
+const RequestIDKey ctxKey = "requestId"
+
+func init() {
+	logrus.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "15:04:05",
+		ForceColors:     true,
+		DisableColors:   false,
+	})
+}
+
+func For(ctx context.Context) *logrus.Entry {
+	id, ok := ctx.Value(RequestIDKey).(string)
+	if !ok {
+		return logrus.NewEntry(logrus.StandardLogger())
+	}
+	return logrus.WithField("request_id", id)
+}
+
+func ContextWithID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, RequestIDKey, id)
+}
+
+func Track(ctx context.Context, msg string) func() {
+	start := time.Now()
+	return func() {
+		dur := time.Since(start)
+		entry := For(ctx).WithField("duration", dur.String())
+		
+		if dur > 500*time.Millisecond {
+			entry.Warnf("%s completed (SLOW)", msg)
+		} else {
+			entry.Infof("%s completed", msg)
+		}
+	}
+}
+
+--- END_FILE: ./internal/logger/logger.go ---
+
+--- START_FILE: ./internal/metrics/metrics.go ---
+package metrics
+
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	HttpRequestsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "ebusta_gateway_requests_total",
+		Help: "Total number of HTTP requests to gateway",
+	}, []string{"method", "path", "status"})
+
+	HttpRequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "ebusta_gateway_request_duration_seconds",
+		Help:    "Duration of HTTP requests in seconds",
+		Buckets: prometheus.DefBuckets,
+	}, []string{"path"})
+)
+
+--- END_FILE: ./internal/metrics/metrics.go ---
+
+--- START_FILE: ./internal/storage/datamanager/config/config.go ---
+package config
+
+import (
+	"time"
+	"github.com/kelseyhightower/envconfig"
+)
+
+type Config struct {
+	BindAddr    string        `env:"BIND_ADDR" default:":8082"`
+	OSScheme    string        `env:"OS_SCHEME" default:"http"`
+	OSHost      string        `env:"OS_HOST" default:"mercury"`
+	OSPort      string        `env:"OS_PORT" default:"9200"`
+	OSIndex     string        `env:"OS_INDEX" default:"ebusta"`
+	ESUser      string        `env:"ES_USER"`
+	ESPass      string        `env:"ES_PASS"`
+	HTTPTimeout time.Duration `env:"HTTP_TIMEOUT" default:"5s"`
+	LogJSON     bool          `env:"LOG_JSON" default:"false"`
+	LogLevel    string        `env:"LOG_LEVEL" default:"INFO"`
+	LogPath     string        `env:"LOG_PATH"` // Default is empty, logs to stdout
+}
+
+func (c *Config) Validate() error {
+	if c.BindAddr == "" {
+		return ErrInvalid("bind address is required")
+	}
+	if c.OSHost == "" || c.OSPort == "" || c.OSIndex == "" {
+		return ErrInvalid("OS_HOST/OS_PORT/OS_INDEX are required")
+	}
+	return nil
+}
+
+type invalidErr string
+func (e invalidErr) Error() string { return string(e) }
+func ErrInvalid(msg string) error { return invalidErr(msg) }
+
+func Load() (Config, error) {
+	var cfg Config
+	if err := envconfig.Process("", &cfg); err != nil {
+		return cfg, err
+	}
+	return cfg, cfg.Validate()
+}
+
+--- END_FILE: ./internal/storage/datamanager/config/config.go ---
+
+--- START_FILE: ./internal/storage/datamanager/delivery/grpc.go ---
+package delivery
+
+import (
+	"context"
+	"ebusta/api/proto/v1"
+	"ebusta/internal/logger"
+)
+
+type DataManagerServer struct {
+	libraryv1.UnimplementedLibraryServiceServer
+}
+
+// ИСПРАВЛЕНИЕ: Метод должен называться SearchBooks, чтобы соответствовать интерфейсу
+func (s *DataManagerServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
+	// Если логгер еще не настроен, используем простой принт или заглушку
+	if logger.For(ctx) != nil {
+		defer logger.Track(ctx, "Storage: DB Search Operation")()
+	}
+
+	// Моковые данные для теста
+	books := []*libraryv1.Book{
+		{
+			Id:      "101",
+			Title:   "The Art of Unix Programming",
+			Authors: []string{"Eric S. Raymond"},
+		},
+	}
+
+	return &libraryv1.SearchResponse{
+		Books: books,
+		Total: int32(len(books)),
+	}, nil
+}
+
+func (s *DataManagerServer) GetAuthors(ctx context.Context, req *libraryv1.ListRequest) (*libraryv1.ListResponse, error) {
+	return &libraryv1.ListResponse{Items: []string{"King", "Tolkien"}}, nil
+}
+
+--- END_FILE: ./internal/storage/datamanager/delivery/grpc.go ---
+
+--- START_FILE: ./internal/storage/datamanager/delivery/handlers.go ---
+package delivery
+
+import (
+	"ebusta/api/proto/v1"
+	"encoding/json"
+	"log"
+)
+
+func MapOSResponseToGrpc(body []byte) ([]*libraryv1.Book, int32) {
+	// Total выносим в interface{}, так как OS может вернуть и число, и объект
+	var raw struct {
+		Hits struct {
+			Total interface{} `json:"total"`
+			Hits  []struct {
+				ID     string `json:"_id"`
+				Source struct {
+					Title   string   `json:"title"`
+					Authors []string `json:"authors"`
+				} `json:"_source"`
+			} `json:"hits"`
+		} `json:"hits"`
+	}
+
+	if err := json.Unmarshal(body, &raw); err != nil {
+		log.Printf("❌ DataManager Parsing Error: %v", err)
+		return nil, 0
+	}
+
+	var totalValue int32
+	// Гибкое извлечение Total (поддержка объекта и числа)
+	switch v := raw.Hits.Total.(type) {
+	case float64:
+		totalValue = int32(v)
+	case map[string]interface{}:
+		if val, ok := v["value"].(float64); ok {
+			totalValue = int32(val)
+		}
+	}
+
+	var books []*libraryv1.Book
+	for _, h := range raw.Hits.Hits {
+		// Защита от пустых авторов
+		authors := h.Source.Authors
+		if authors == nil {
+			authors = []string{"Unknown"}
+		}
+		
+		books = append(books, &libraryv1.Book{
+			Id:      h.ID,
+			Title:   h.Source.Title,
+			Authors: authors,
+		})
+	}
+
+	// Если хиты есть, а total 0 (бывает при определенных настройках OS)
+	if totalValue == 0 && len(books) > 0 {
+		totalValue = int32(len(books))
+	}
+
+	return books, totalValue
+}
+
+--- END_FILE: ./internal/storage/datamanager/delivery/handlers.go ---
+
+--- START_FILE: ./internal/storage/datamanager/shaping/shaping.go ---
+package shaping
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+// --- Search shaping ---
+type searchHit struct {
+	Source struct {
+		Title   string   `json:"title"`
+		Authors []string `json:"authors"`
+		FileInfo struct {
+			Container string `json:"container"`
+			Filename  string `json:"filename"`
+		} `json:"fileInfo"`
+	} `json:"_source"`
+}
+type searchResp struct {
+	Hits struct {
+		Total struct{ Value int `json:"value"` } `json:"total"`
+		Hits  []searchHit `json:"hits"`
+	} `json:"hits"`
+}
+
+// ShapeSearch flattens OpenSearch hits into a smaller payload.
+func ShapeSearch(data []byte, from, size int) ([]byte, error) {
+	var r searchResp
+	if err := json.Unmarshal(data, &r); err != nil {
+		return nil, fmt.Errorf("decode hits: %w", err)
+	}
+	type item struct {
+		Title    string   `json:"title"`
+		Authors  []string `json:"authors"`
+		Download string   `json:"download,omitempty"`
+	}
+	out := struct {
+		Total    int    `json:"total"`
+		From     int    `json:"from"`
+		Size     int    `json:"size"`
+		NextFrom int    `json:"next_from"`
+		Items    []item `json:"items"`
+	}{
+		Total:    r.Hits.Total.Value,
+		From:     from,
+		Size:     size,
+		NextFrom: from + size,
+		Items:    make([]item, 0, len(r.Hits.Hits)), // ensure [] not null
+	}
+	for _, h := range r.Hits.Hits {
+		dl := ""
+		if h.Source.FileInfo.Container != "" && h.Source.FileInfo.Filename != "" {
+			dl = h.Source.FileInfo.Container + "/" + h.Source.FileInfo.Filename
+		}
+		out.Items = append(out.Items, item{
+			Title:    h.Source.Title,
+			Authors:  h.Source.Authors,
+			Download: dl,
+		})
+	}
+	return json.MarshalIndent(out, "", "  ")
+}
+
+// --- Composite/aggregation shaping (best-effort generic) ---
+type composite struct {
+	AfterKey any `json:"after_key"`
+	Buckets  any `json:"buckets"`
+}
+type aggResp struct {
+	Aggregations map[string]composite `json:"aggregations"`
+}
+
+func ShapeComposite(data []byte) ([]byte, error) {
+	var r aggResp
+	if err := json.Unmarshal(data, &r); err != nil {
+		return nil, fmt.Errorf("decode aggregations: %w", err)
+	}
+	if len(r.Aggregations) == 0 {
+		// pass-through
+		return data, nil
+	}
+	// pick first aggregation
+	for name, c := range r.Aggregations {
+		out := map[string]any{
+			"name":       name,
+			"buckets":    c.Buckets,
+			"after_key":  c.AfterKey,
+		}
+		return json.MarshalIndent(out, "", "  ")
+	}
+	return data, nil
+}
+
+--- END_FILE: ./internal/storage/datamanager/shaping/shaping.go ---
+
+--- START_FILE: ./internal/storage/datamanager/shaping/shaping_test.go ---
+package shaping
+
+import "testing"
+
+func TestShapeSearch(t *testing.T) {
+	jsonIn := []byte(`{"hits":{"total":{"value":2},"hits":[{"_source":{"title":"A","authors":["X"],"fileInfo":{"container":"c","filename":"a.fb2"}}},{"_source":{"title":"B","authors":["Y"],"fileInfo":{"container":"d","filename":"b.fb2"}}}]}}`)
+	out, err := ShapeSearch(jsonIn, 0, 10)
+	if err != nil { t.Fatalf("unexpected error: %v", err) }
+	mustContain(t, string(out), `"total": 2`)
+	mustContain(t, string(out), `"items": [`)
+	mustContain(t, string(out), `"download": "c/a.fb2"`)
+}
+
+func mustContain(t *testing.T, s, sub string) {
+	t.Helper()
+	if !contains(s, sub) { t.Fatalf("expected substring %q in %s", sub, s) }
+}
+
+func contains(s, sub string) bool { return len(s) >= len(sub) && (s == sub || (len(sub) > 0 && (stringIndex(s, sub) >= 0))) }
+func stringIndex(s, sub string) int {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub { return i }
+	}
+	return -1
+}
+
+--- END_FILE: ./internal/storage/datamanager/shaping/shaping_test.go ---
+
+--- START_FILE: ./internal/storage/datamanager/proxy/proxy.go ---
+package proxy
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/sirupsen/logrus"
+
+	"ebusta/internal/storage/datamanager/config"
+)
+
+type Proxy struct {
+	cfg     config.Config
+	client  *http.Client
+	logger  *logrus.Logger
+	baseURL string
+	once    sync.Once
+}
+
+func New(cfg config.Config, logger *logrus.Logger) *Proxy {
+	return &Proxy{
+		cfg:    cfg,
+		logger: logger,
+		client: newHTTPClient(cfg),
+	}
+}
+
+func newHTTPClient(cfg config.Config) *http.Client {
+	t := &http.Transport{
+		MaxIdleConns:        100,
+		IdleConnTimeout:     90 * time.Second,
+		DisableCompression:  false,
+		ForceAttemptHTTP2:   true,
+	}
+	return &http.Client{Transport: t, Timeout: cfg.HTTPTimeout}
+}
+
+func (p *Proxy) BaseURL() string {
+	p.once.Do(func() {
+		p.baseURL = fmt.Sprintf("%s://%s:%s/%s/_search/template", p.cfg.OSScheme, p.cfg.OSHost, p.cfg.OSPort, p.cfg.OSIndex)
+	})
+	return p.baseURL
+}
+
+// Structured error envelope
+type ErrorEnvelope struct {
+	Error ErrorBody `json:"error"`
+}
+type ErrorBody struct {
+	Code    string      `json:"code"`
+	Message string      `json:"message"`
+	Details interface{} `json:"details,omitempty"`
+}
+
+func WriteError(w http.ResponseWriter, status int, code, message string, details interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(ErrorEnvelope{
+		Error: ErrorBody{Code: code, Message: message, Details: details},
+	})
+}
+
+// DoTemplate executes a stored template by id with params.
+func (p *Proxy) DoTemplate(ctx context.Context, id string, params map[string]any) ([]byte, int, error) {
+	body := map[string]any{
+		"id":     id,
+		"params": params,
+	}
+	
+	// This now only logs if LOG_LEVEL=DEBUG
+	if p.logger.IsLevelEnabled(logrus.DebugLevel) {
+		p.logger.WithFields(logrus.Fields{
+			"template": id,
+			"params":   params,
+		}).Debug("os.request") // Changed from Info to Debug
+	}
+	
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, 0, fmt.Errorf("marshal body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.BaseURL(), bytes.NewReader(buf))
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if p.cfg.ESUser != "" || p.cfg.ESPass != "" {
+		req.SetBasicAuth(p.cfg.ESUser, p.cfg.ESPass)
+	}
+
+	res, err := p.client.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("upstream do: %w", err)
+	}
+	defer res.Body.Close()
+
+	data, _ := io.ReadAll(res.Body)
+	
+	// This now only logs if LOG_LEVEL=DEBUG
+	if p.logger.IsLevelEnabled(logrus.DebugLevel) {
+		p.logger.WithFields(logrus.Fields{
+			"template": id,
+			"status": res.StatusCode,
+			"response_body": string(data),
+		}).Debug("os.response")
+	}
+	
+	return data, res.StatusCode, nil
+}
+
+// DecodeAfter supports raw JSON or base64(JSON).
+func DecodeAfter(s string) (any, error) {
+	if s == "" {
+		return nil, nil
+	}
+	// try raw JSON first
+	var v any
+	if json.Unmarshal([]byte(s), &v) == nil {
+		return v, nil
+	}
+	// try base64
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("invalid after (not json or base64): %w", err)
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return nil, fmt.Errorf("invalid after (bad json): %w", err)
+	}
+	return v, nil
+}
+
+--- END_FILE: ./internal/storage/datamanager/proxy/proxy.go ---
+
+--- START_FILE: ./internal/middleware/logging.go ---
+package middleware
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/sirupsen/logrus"
+)
+
+// RequestLogger logs incoming requests at the INFO level.
+func RequestLogger(log *logrus.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			
+			// Serve the request
+			next.ServeHTTP(w, r)
+			
+			// Log the request
+			log.WithFields(logrus.Fields{
+				"method": r.Method,
+				"path":   r.URL.Path,
+//				"query":  r.URL.RawQuery,
+				"query":  r.URL.Query(),
+				"remote": r.RemoteAddr,
+				"agent":  r.UserAgent(),
+				"took":   time.Since(start),
+			}).Info("http.request")
+		})
+	}
+}
+
+--- END_FILE: ./internal/middleware/logging.go ---
+
+--- START_FILE: ./internal/middleware/middleware.go ---
+package middleware
+
+import (
+	"net/http"
+	"strings"
+)
+
+// CORS allows basic CORS for browser apps.
+func CORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
+		if strings.ToUpper(r.Method) == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+--- END_FILE: ./internal/middleware/middleware.go ---
+
+--- START_FILE: ./ebusta.yaml ---
+datamanager:
+  opensearch_url: "http://192.168.1.179:9200"
+  index_name: "flibusta_merged_index"
+  debug: true
+
+orchestrator:
+  storage_addr: "localhost:50051"
+  processor_addr: "localhost:50053"
+
+web:
+  port: 8080
+
+--- END_FILE: ./ebusta.yaml ---
+
+--- START_FILE: ./api/proto/v1/auth.proto ---
+syntax = "proto3";
+
+package libraryv1;
+
+option go_package = "ebusta/api/proto/v1;libraryv1";
+
+service AuthService {
+  // Проверка доступа пользователя
+  rpc CheckAccess (AccessRequest) returns (AccessResponse);
+}
+
+message AccessRequest {
+  string user_id = 1;      // ID (например, Telegram UID или ник в BBS)
+  string platform = 2;     // Источник (web, telegram, cli, bbs)
+  string trace_id = 3;     // Для сквозного логирования
+}
+
+message AccessResponse {
+  bool allowed = 1;        // Разрешен ли вход
+  string reason = 2;       // Причина отказа
+  string user_role = 3;    // Роль пользователя (admin, family, guest)
+}
+
+--- END_FILE: ./api/proto/v1/auth.proto ---
+
+--- START_FILE: ./api/proto/v1/library_grpc.pb.go ---
+// Code generated by protoc-gen-go-grpc. DO NOT EDIT.
+// versions:
+// - protoc-gen-go-grpc v1.6.0
+// - protoc             v3.21.12
+// source: api/proto/v1/library.proto
+
+package libraryv1
+
+import (
+	context "context"
+	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
+)
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the grpc package it is being compiled against.
+// Requires gRPC-Go v1.64.0 or later.
+const _ = grpc.SupportPackageIsVersion9
+
+const (
+	OrchestratorService_Search_FullMethodName = "/libraryv1.OrchestratorService/Search"
+)
+
+// OrchestratorServiceClient is the client API for OrchestratorService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type OrchestratorServiceClient interface {
+	Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
+}
+
+type orchestratorServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewOrchestratorServiceClient(cc grpc.ClientConnInterface) OrchestratorServiceClient {
+	return &orchestratorServiceClient{cc}
+}
+
+func (c *orchestratorServiceClient) Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchResponse)
+	err := c.cc.Invoke(ctx, OrchestratorService_Search_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// OrchestratorServiceServer is the server API for OrchestratorService service.
+// All implementations must embed UnimplementedOrchestratorServiceServer
+// for forward compatibility.
+type OrchestratorServiceServer interface {
+	Search(context.Context, *SearchRequest) (*SearchResponse, error)
+	mustEmbedUnimplementedOrchestratorServiceServer()
+}
+
+// UnimplementedOrchestratorServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedOrchestratorServiceServer struct{}
+
+func (UnimplementedOrchestratorServiceServer) Search(context.Context, *SearchRequest) (*SearchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Search not implemented")
+}
+func (UnimplementedOrchestratorServiceServer) mustEmbedUnimplementedOrchestratorServiceServer() {}
+func (UnimplementedOrchestratorServiceServer) testEmbeddedByValue()                             {}
+
+// UnsafeOrchestratorServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to OrchestratorServiceServer will
+// result in compilation errors.
+type UnsafeOrchestratorServiceServer interface {
+	mustEmbedUnimplementedOrchestratorServiceServer()
+}
+
+func RegisterOrchestratorServiceServer(s grpc.ServiceRegistrar, srv OrchestratorServiceServer) {
+	// If the following call panics, it indicates UnimplementedOrchestratorServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&OrchestratorService_ServiceDesc, srv)
+}
+
+func _OrchestratorService_Search_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrchestratorServiceServer).Search(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrchestratorService_Search_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrchestratorServiceServer).Search(ctx, req.(*SearchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// OrchestratorService_ServiceDesc is the grpc.ServiceDesc for OrchestratorService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var OrchestratorService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "libraryv1.OrchestratorService",
+	HandlerType: (*OrchestratorServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Search",
+			Handler:    _OrchestratorService_Search_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/v1/library.proto",
+}
+
+const (
+	ProcessorService_Process_FullMethodName = "/libraryv1.ProcessorService/Process"
+)
+
+// ProcessorServiceClient is the client API for ProcessorService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type ProcessorServiceClient interface {
+	Process(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
+}
+
+type processorServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewProcessorServiceClient(cc grpc.ClientConnInterface) ProcessorServiceClient {
+	return &processorServiceClient{cc}
+}
+
+func (c *processorServiceClient) Process(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchResponse)
+	err := c.cc.Invoke(ctx, ProcessorService_Process_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ProcessorServiceServer is the server API for ProcessorService service.
+// All implementations must embed UnimplementedProcessorServiceServer
+// for forward compatibility.
+type ProcessorServiceServer interface {
+	Process(context.Context, *SearchRequest) (*SearchResponse, error)
+	mustEmbedUnimplementedProcessorServiceServer()
+}
+
+// UnimplementedProcessorServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedProcessorServiceServer struct{}
+
+func (UnimplementedProcessorServiceServer) Process(context.Context, *SearchRequest) (*SearchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Process not implemented")
+}
+func (UnimplementedProcessorServiceServer) mustEmbedUnimplementedProcessorServiceServer() {}
+func (UnimplementedProcessorServiceServer) testEmbeddedByValue()                          {}
+
+// UnsafeProcessorServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ProcessorServiceServer will
+// result in compilation errors.
+type UnsafeProcessorServiceServer interface {
+	mustEmbedUnimplementedProcessorServiceServer()
+}
+
+func RegisterProcessorServiceServer(s grpc.ServiceRegistrar, srv ProcessorServiceServer) {
+	// If the following call panics, it indicates UnimplementedProcessorServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ProcessorService_ServiceDesc, srv)
+}
+
+func _ProcessorService_Process_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessorServiceServer).Process(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProcessorService_Process_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessorServiceServer).Process(ctx, req.(*SearchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// ProcessorService_ServiceDesc is the grpc.ServiceDesc for ProcessorService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ProcessorService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "libraryv1.ProcessorService",
+	HandlerType: (*ProcessorServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Process",
+			Handler:    _ProcessorService_Process_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/v1/library.proto",
+}
+
+const (
+	StorageService_SearchBooks_FullMethodName = "/libraryv1.StorageService/SearchBooks"
+)
+
+// StorageServiceClient is the client API for StorageService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type StorageServiceClient interface {
+	SearchBooks(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
+}
+
+type storageServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewStorageServiceClient(cc grpc.ClientConnInterface) StorageServiceClient {
+	return &storageServiceClient{cc}
+}
+
+func (c *storageServiceClient) SearchBooks(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchResponse)
+	err := c.cc.Invoke(ctx, StorageService_SearchBooks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// StorageServiceServer is the server API for StorageService service.
+// All implementations must embed UnimplementedStorageServiceServer
+// for forward compatibility.
+type StorageServiceServer interface {
+	SearchBooks(context.Context, *SearchRequest) (*SearchResponse, error)
+	mustEmbedUnimplementedStorageServiceServer()
+}
+
+// UnimplementedStorageServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedStorageServiceServer struct{}
+
+func (UnimplementedStorageServiceServer) SearchBooks(context.Context, *SearchRequest) (*SearchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchBooks not implemented")
+}
+func (UnimplementedStorageServiceServer) mustEmbedUnimplementedStorageServiceServer() {}
+func (UnimplementedStorageServiceServer) testEmbeddedByValue()                        {}
+
+// UnsafeStorageServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to StorageServiceServer will
+// result in compilation errors.
+type UnsafeStorageServiceServer interface {
+	mustEmbedUnimplementedStorageServiceServer()
+}
+
+func RegisterStorageServiceServer(s grpc.ServiceRegistrar, srv StorageServiceServer) {
+	// If the following call panics, it indicates UnimplementedStorageServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&StorageService_ServiceDesc, srv)
+}
+
+func _StorageService_SearchBooks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StorageServiceServer).SearchBooks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StorageService_SearchBooks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StorageServiceServer).SearchBooks(ctx, req.(*SearchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// StorageService_ServiceDesc is the grpc.ServiceDesc for StorageService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var StorageService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "libraryv1.StorageService",
+	HandlerType: (*StorageServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "SearchBooks",
+			Handler:    _StorageService_SearchBooks_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/v1/library.proto",
+}
+
+const (
+	AuthService_CheckAccess_FullMethodName = "/libraryv1.AuthService/CheckAccess"
+)
+
+// AuthServiceClient is the client API for AuthService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type AuthServiceClient interface {
+	CheckAccess(ctx context.Context, in *AccessRequest, opts ...grpc.CallOption) (*AccessResponse, error)
+}
+
+type authServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewAuthServiceClient(cc grpc.ClientConnInterface) AuthServiceClient {
+	return &authServiceClient{cc}
+}
+
+func (c *authServiceClient) CheckAccess(ctx context.Context, in *AccessRequest, opts ...grpc.CallOption) (*AccessResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AccessResponse)
+	err := c.cc.Invoke(ctx, AuthService_CheckAccess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AuthServiceServer is the server API for AuthService service.
+// All implementations must embed UnimplementedAuthServiceServer
+// for forward compatibility.
+type AuthServiceServer interface {
+	CheckAccess(context.Context, *AccessRequest) (*AccessResponse, error)
+	mustEmbedUnimplementedAuthServiceServer()
+}
+
+// UnimplementedAuthServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedAuthServiceServer struct{}
+
+func (UnimplementedAuthServiceServer) CheckAccess(context.Context, *AccessRequest) (*AccessResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CheckAccess not implemented")
+}
+func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
+func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
+
+// UnsafeAuthServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to AuthServiceServer will
+// result in compilation errors.
+type UnsafeAuthServiceServer interface {
+	mustEmbedUnimplementedAuthServiceServer()
+}
+
+func RegisterAuthServiceServer(s grpc.ServiceRegistrar, srv AuthServiceServer) {
+	// If the following call panics, it indicates UnimplementedAuthServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&AuthService_ServiceDesc, srv)
+}
+
+func _AuthService_CheckAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CheckAccess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_CheckAccess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CheckAccess(ctx, req.(*AccessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var AuthService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "libraryv1.AuthService",
+	HandlerType: (*AuthServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CheckAccess",
+			Handler:    _AuthService_CheckAccess_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/v1/library.proto",
+}
+
+const (
+	MessageConverterService_Convert_FullMethodName = "/libraryv1.MessageConverterService/Convert"
+)
+
+// MessageConverterServiceClient is the client API for MessageConverterService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type MessageConverterServiceClient interface {
+	Convert(ctx context.Context, in *RawInput, opts ...grpc.CallOption) (*UnmarshaledMessage, error)
+}
+
+type messageConverterServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewMessageConverterServiceClient(cc grpc.ClientConnInterface) MessageConverterServiceClient {
+	return &messageConverterServiceClient{cc}
+}
+
+func (c *messageConverterServiceClient) Convert(ctx context.Context, in *RawInput, opts ...grpc.CallOption) (*UnmarshaledMessage, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnmarshaledMessage)
+	err := c.cc.Invoke(ctx, MessageConverterService_Convert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MessageConverterServiceServer is the server API for MessageConverterService service.
+// All implementations must embed UnimplementedMessageConverterServiceServer
+// for forward compatibility.
+type MessageConverterServiceServer interface {
+	Convert(context.Context, *RawInput) (*UnmarshaledMessage, error)
+	mustEmbedUnimplementedMessageConverterServiceServer()
+}
+
+// UnimplementedMessageConverterServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedMessageConverterServiceServer struct{}
+
+func (UnimplementedMessageConverterServiceServer) Convert(context.Context, *RawInput) (*UnmarshaledMessage, error) {
+	return nil, status.Error(codes.Unimplemented, "method Convert not implemented")
+}
+func (UnimplementedMessageConverterServiceServer) mustEmbedUnimplementedMessageConverterServiceServer() {
+}
+func (UnimplementedMessageConverterServiceServer) testEmbeddedByValue() {}
+
+// UnsafeMessageConverterServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MessageConverterServiceServer will
+// result in compilation errors.
+type UnsafeMessageConverterServiceServer interface {
+	mustEmbedUnimplementedMessageConverterServiceServer()
+}
+
+func RegisterMessageConverterServiceServer(s grpc.ServiceRegistrar, srv MessageConverterServiceServer) {
+	// If the following call panics, it indicates UnimplementedMessageConverterServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&MessageConverterService_ServiceDesc, srv)
+}
+
+func _MessageConverterService_Convert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RawInput)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MessageConverterServiceServer).Convert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MessageConverterService_Convert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MessageConverterServiceServer).Convert(ctx, req.(*RawInput))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// MessageConverterService_ServiceDesc is the grpc.ServiceDesc for MessageConverterService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var MessageConverterService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "libraryv1.MessageConverterService",
+	HandlerType: (*MessageConverterServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Convert",
+			Handler:    _MessageConverterService_Convert_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/v1/library.proto",
+}
+
+const (
+	LibraryService_SearchBooks_FullMethodName = "/libraryv1.LibraryService/SearchBooks"
+	LibraryService_GetAuthors_FullMethodName  = "/libraryv1.LibraryService/GetAuthors"
+)
+
+// LibraryServiceClient is the client API for LibraryService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Legacy
+type LibraryServiceClient interface {
+	SearchBooks(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
+	GetAuthors(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
+}
+
+type libraryServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewLibraryServiceClient(cc grpc.ClientConnInterface) LibraryServiceClient {
+	return &libraryServiceClient{cc}
+}
+
+func (c *libraryServiceClient) SearchBooks(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchResponse)
+	err := c.cc.Invoke(ctx, LibraryService_SearchBooks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *libraryServiceClient) GetAuthors(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListResponse)
+	err := c.cc.Invoke(ctx, LibraryService_GetAuthors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// LibraryServiceServer is the server API for LibraryService service.
+// All implementations must embed UnimplementedLibraryServiceServer
+// for forward compatibility.
+//
+// Legacy
+type LibraryServiceServer interface {
+	SearchBooks(context.Context, *SearchRequest) (*SearchResponse, error)
+	GetAuthors(context.Context, *ListRequest) (*ListResponse, error)
+	mustEmbedUnimplementedLibraryServiceServer()
+}
+
+// UnimplementedLibraryServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedLibraryServiceServer struct{}
+
+func (UnimplementedLibraryServiceServer) SearchBooks(context.Context, *SearchRequest) (*SearchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchBooks not implemented")
+}
+func (UnimplementedLibraryServiceServer) GetAuthors(context.Context, *ListRequest) (*ListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAuthors not implemented")
+}
+func (UnimplementedLibraryServiceServer) mustEmbedUnimplementedLibraryServiceServer() {}
+func (UnimplementedLibraryServiceServer) testEmbeddedByValue()                        {}
+
+// UnsafeLibraryServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to LibraryServiceServer will
+// result in compilation errors.
+type UnsafeLibraryServiceServer interface {
+	mustEmbedUnimplementedLibraryServiceServer()
+}
+
+func RegisterLibraryServiceServer(s grpc.ServiceRegistrar, srv LibraryServiceServer) {
+	// If the following call panics, it indicates UnimplementedLibraryServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&LibraryService_ServiceDesc, srv)
+}
+
+func _LibraryService_SearchBooks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LibraryServiceServer).SearchBooks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LibraryService_SearchBooks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LibraryServiceServer).SearchBooks(ctx, req.(*SearchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LibraryService_GetAuthors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LibraryServiceServer).GetAuthors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LibraryService_GetAuthors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LibraryServiceServer).GetAuthors(ctx, req.(*ListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// LibraryService_ServiceDesc is the grpc.ServiceDesc for LibraryService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var LibraryService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "libraryv1.LibraryService",
+	HandlerType: (*LibraryServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "SearchBooks",
+			Handler:    _LibraryService_SearchBooks_Handler,
+		},
+		{
+			MethodName: "GetAuthors",
+			Handler:    _LibraryService_GetAuthors_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/v1/library.proto",
+}
+
+--- END_FILE: ./api/proto/v1/library_grpc.pb.go ---
+
+--- START_FILE: ./api/proto/v1/library.pb.go ---
+// Code generated by protoc-gen-go. DO NOT EDIT.
+// versions:
+// 	protoc-gen-go v1.36.11
+// 	protoc        v3.21.12
+// source: api/proto/v1/library.proto
+
+package libraryv1
+
+import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	reflect "reflect"
+	sync "sync"
+	unsafe "unsafe"
+)
+
+const (
+	// Verify that this generated code is sufficiently up-to-date.
+	_ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
+	// Verify that runtime/protoimpl is sufficiently up-to-date.
+	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
+)
+
+type LogicalOp int32
+
+const (
+	LogicalOp_AND LogicalOp = 0
+	LogicalOp_OR  LogicalOp = 1
+	LogicalOp_NOT LogicalOp = 2
+)
+
+// Enum value maps for LogicalOp.
+var (
+	LogicalOp_name = map[int32]string{
+		0: "AND",
+		1: "OR",
+		2: "NOT",
+	}
+	LogicalOp_value = map[string]int32{
+		"AND": 0,
+		"OR":  1,
+		"NOT": 2,
+	}
+)
+
+func (x LogicalOp) Enum() *LogicalOp {
+	p := new(LogicalOp)
+	*p = x
+	return p
+}
+
+func (x LogicalOp) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (LogicalOp) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_proto_v1_library_proto_enumTypes[0].Descriptor()
+}
+
+func (LogicalOp) Type() protoreflect.EnumType {
+	return &file_api_proto_v1_library_proto_enumTypes[0]
+}
+
+func (x LogicalOp) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use LogicalOp.Descriptor instead.
+func (LogicalOp) EnumDescriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{0}
+}
+
+type Operator int32
+
+const (
+	Operator_OP_EQUALS   Operator = 0
+	Operator_OP_CONTAINS Operator = 1
+	Operator_OP_REGEX    Operator = 2
+)
+
+// Enum value maps for Operator.
+var (
+	Operator_name = map[int32]string{
+		0: "OP_EQUALS",
+		1: "OP_CONTAINS",
+		2: "OP_REGEX",
+	}
+	Operator_value = map[string]int32{
+		"OP_EQUALS":   0,
+		"OP_CONTAINS": 1,
+		"OP_REGEX":    2,
+	}
+)
+
+func (x Operator) Enum() *Operator {
+	p := new(Operator)
+	*p = x
+	return p
+}
+
+func (x Operator) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Operator) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_proto_v1_library_proto_enumTypes[1].Descriptor()
+}
+
+func (Operator) Type() protoreflect.EnumType {
+	return &file_api_proto_v1_library_proto_enumTypes[1]
+}
+
+func (x Operator) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Operator.Descriptor instead.
+func (Operator) EnumDescriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{1}
+}
+
+type SearchRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	TemplateId    string                 `protobuf:"bytes,2,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	TraceId       string                 `protobuf:"bytes,5,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchRequest) Reset() {
+	*x = SearchRequest{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchRequest) ProtoMessage() {}
+
+func (x *SearchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchRequest.ProtoReflect.Descriptor instead.
+func (*SearchRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *SearchRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *SearchRequest) GetTemplateId() string {
+	if x != nil {
+		return x.TemplateId
+	}
+	return ""
+}
+
+func (x *SearchRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *SearchRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *SearchRequest) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+type SearchResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Books         []*Book                `protobuf:"bytes,3,rep,name=books,proto3" json:"books,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchResponse) Reset() {
+	*x = SearchResponse{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchResponse) ProtoMessage() {}
+
+func (x *SearchResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchResponse.ProtoReflect.Descriptor instead.
+func (*SearchResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SearchResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *SearchResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *SearchResponse) GetBooks() []*Book {
+	if x != nil {
+		return x.Books
+	}
+	return nil
+}
+
+type Book struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Authors       []string               `protobuf:"bytes,3,rep,name=authors,proto3" json:"authors,omitempty"`
+	Container     string                 `protobuf:"bytes,4,opt,name=container,proto3" json:"container,omitempty"`
+	Filename      string                 `protobuf:"bytes,5,opt,name=filename,proto3" json:"filename,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Book) Reset() {
+	*x = Book{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Book) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Book) ProtoMessage() {}
+
+func (x *Book) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Book.ProtoReflect.Descriptor instead.
+func (*Book) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Book) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Book) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *Book) GetAuthors() []string {
+	if x != nil {
+		return x.Authors
+	}
+	return nil
+}
+
+func (x *Book) GetContainer() string {
+	if x != nil {
+		return x.Container
+	}
+	return ""
+}
+
+func (x *Book) GetFilename() string {
+	if x != nil {
+		return x.Filename
+	}
+	return ""
+}
+
+type ListRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRequest) Reset() {
+	*x = ListRequest{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRequest) ProtoMessage() {}
+
+func (x *ListRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRequest.ProtoReflect.Descriptor instead.
+func (*ListRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ListRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+type ListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []string               `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListResponse) Reset() {
+	*x = ListResponse{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListResponse) ProtoMessage() {}
+
+func (x *ListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListResponse.ProtoReflect.Descriptor instead.
+func (*ListResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ListResponse) GetItems() []string {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type AccessRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Platform      string                 `protobuf:"bytes,2,opt,name=platform,proto3" json:"platform,omitempty"`
+	TraceId       string                 `protobuf:"bytes,3,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccessRequest) Reset() {
+	*x = AccessRequest{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccessRequest) ProtoMessage() {}
+
+func (x *AccessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccessRequest.ProtoReflect.Descriptor instead.
+func (*AccessRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *AccessRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *AccessRequest) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *AccessRequest) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+type AccessResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Allowed       bool                   `protobuf:"varint,1,opt,name=allowed,proto3" json:"allowed,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	UserRole      string                 `protobuf:"bytes,3,opt,name=user_role,json=userRole,proto3" json:"user_role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccessResponse) Reset() {
+	*x = AccessResponse{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccessResponse) ProtoMessage() {}
+
+func (x *AccessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccessResponse.ProtoReflect.Descriptor instead.
+func (*AccessResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *AccessResponse) GetAllowed() bool {
+	if x != nil {
+		return x.Allowed
+	}
+	return false
+}
+
+func (x *AccessResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *AccessResponse) GetUserRole() string {
+	if x != nil {
+		return x.UserRole
+	}
+	return ""
+}
+
+type RawInput struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Исправлено: переименовано в 'data', чтобы появился метод GetData(), который ждет message-converter
+	Data          string `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	TraceId       string `protobuf:"bytes,2,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RawInput) Reset() {
+	*x = RawInput{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RawInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RawInput) ProtoMessage() {}
+
+func (x *RawInput) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RawInput.ProtoReflect.Descriptor instead.
+func (*RawInput) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *RawInput) GetData() string {
+	if x != nil {
+		return x.Data
+	}
+	return ""
+}
+
+func (x *RawInput) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+type MessageMeta struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TraceId       string                 `protobuf:"bytes,1,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	CanonicalForm string                 `protobuf:"bytes,2,opt,name=canonical_form,json=canonicalForm,proto3" json:"canonical_form,omitempty"`
+	Platform      string                 `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"`
+	UserId        string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Исправлено: добавлено поле, которое требует message-converter
+	AstPlan       string `protobuf:"bytes,5,opt,name=ast_plan,json=astPlan,proto3" json:"ast_plan,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MessageMeta) Reset() {
+	*x = MessageMeta{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MessageMeta) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MessageMeta) ProtoMessage() {}
+
+func (x *MessageMeta) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MessageMeta.ProtoReflect.Descriptor instead.
+func (*MessageMeta) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *MessageMeta) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+func (x *MessageMeta) GetCanonicalForm() string {
+	if x != nil {
+		return x.CanonicalForm
+	}
+	return ""
+}
+
+func (x *MessageMeta) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *MessageMeta) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *MessageMeta) GetAstPlan() string {
+	if x != nil {
+		return x.AstPlan
+	}
+	return ""
+}
+
+type UnmarshaledMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Meta          *MessageMeta           `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
+	Query         *SearchQuery           `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnmarshaledMessage) Reset() {
+	*x = UnmarshaledMessage{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnmarshaledMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnmarshaledMessage) ProtoMessage() {}
+
+func (x *UnmarshaledMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnmarshaledMessage.ProtoReflect.Descriptor instead.
+func (*UnmarshaledMessage) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *UnmarshaledMessage) GetMeta() *MessageMeta {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
+}
+
+func (x *UnmarshaledMessage) GetQuery() *SearchQuery {
+	if x != nil {
+		return x.Query
+	}
+	return nil
+}
+
+type Response struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	Books         []*Book                `protobuf:"bytes,2,rep,name=books,proto3" json:"books,omitempty"`
+	Meta          *ResponseMeta          `protobuf:"bytes,3,opt,name=meta,proto3" json:"meta,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Response) Reset() {
+	*x = Response{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Response) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Response) ProtoMessage() {}
+
+func (x *Response) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Response.ProtoReflect.Descriptor instead.
+func (*Response) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *Response) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *Response) GetBooks() []*Book {
+	if x != nil {
+		return x.Books
+	}
+	return nil
+}
+
+func (x *Response) GetMeta() *ResponseMeta {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
+}
+
+type ResponseMeta struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TraceId       string                 `protobuf:"bytes,1,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	CanonicalForm string                 `protobuf:"bytes,2,opt,name=canonical_form,json=canonicalForm,proto3" json:"canonical_form,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResponseMeta) Reset() {
+	*x = ResponseMeta{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResponseMeta) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResponseMeta) ProtoMessage() {}
+
+func (x *ResponseMeta) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResponseMeta.ProtoReflect.Descriptor instead.
+func (*ResponseMeta) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ResponseMeta) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+func (x *ResponseMeta) GetCanonicalForm() string {
+	if x != nil {
+		return x.CanonicalForm
+	}
+	return ""
+}
+
+type SearchQuery struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Node:
+	//
+	//	*SearchQuery_Filter
+	//	*SearchQuery_Logical
+	//	*SearchQuery_Negation
+	Node          isSearchQuery_Node `protobuf_oneof:"node"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchQuery) Reset() {
+	*x = SearchQuery{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchQuery) ProtoMessage() {}
+
+func (x *SearchQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchQuery.ProtoReflect.Descriptor instead.
+func (*SearchQuery) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SearchQuery) GetNode() isSearchQuery_Node {
+	if x != nil {
+		return x.Node
+	}
+	return nil
+}
+
+func (x *SearchQuery) GetFilter() *FilterNode {
+	if x != nil {
+		if x, ok := x.Node.(*SearchQuery_Filter); ok {
+			return x.Filter
+		}
+	}
+	return nil
+}
+
+func (x *SearchQuery) GetLogical() *LogicalNode {
+	if x != nil {
+		if x, ok := x.Node.(*SearchQuery_Logical); ok {
+			return x.Logical
+		}
+	}
+	return nil
+}
+
+func (x *SearchQuery) GetNegation() *NotNode {
+	if x != nil {
+		if x, ok := x.Node.(*SearchQuery_Negation); ok {
+			return x.Negation
+		}
+	}
+	return nil
+}
+
+type isSearchQuery_Node interface {
+	isSearchQuery_Node()
+}
+
+type SearchQuery_Filter struct {
+	Filter *FilterNode `protobuf:"bytes,1,opt,name=filter,proto3,oneof"`
+}
+
+type SearchQuery_Logical struct {
+	Logical *LogicalNode `protobuf:"bytes,2,opt,name=logical,proto3,oneof"`
+}
+
+type SearchQuery_Negation struct {
+	Negation *NotNode `protobuf:"bytes,3,opt,name=negation,proto3,oneof"`
+}
+
+func (*SearchQuery_Filter) isSearchQuery_Node() {}
+
+func (*SearchQuery_Logical) isSearchQuery_Node() {}
+
+func (*SearchQuery_Negation) isSearchQuery_Node() {}
+
+type FilterNode struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Field         string                 `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
+	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Operator      Operator               `protobuf:"varint,3,opt,name=operator,proto3,enum=libraryv1.Operator" json:"operator,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FilterNode) Reset() {
+	*x = FilterNode{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FilterNode) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FilterNode) ProtoMessage() {}
+
+func (x *FilterNode) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FilterNode.ProtoReflect.Descriptor instead.
+func (*FilterNode) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *FilterNode) GetField() string {
+	if x != nil {
+		return x.Field
+	}
+	return ""
+}
+
+func (x *FilterNode) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *FilterNode) GetOperator() Operator {
+	if x != nil {
+		return x.Operator
+	}
+	return Operator_OP_EQUALS
+}
+
+type LogicalNode struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Op            LogicalOp              `protobuf:"varint,1,opt,name=op,proto3,enum=libraryv1.LogicalOp" json:"op,omitempty"`
+	Nodes         []*SearchQuery         `protobuf:"bytes,2,rep,name=nodes,proto3" json:"nodes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LogicalNode) Reset() {
+	*x = LogicalNode{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LogicalNode) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LogicalNode) ProtoMessage() {}
+
+func (x *LogicalNode) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LogicalNode.ProtoReflect.Descriptor instead.
+func (*LogicalNode) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *LogicalNode) GetOp() LogicalOp {
+	if x != nil {
+		return x.Op
+	}
+	return LogicalOp_AND
+}
+
+func (x *LogicalNode) GetNodes() []*SearchQuery {
+	if x != nil {
+		return x.Nodes
+	}
+	return nil
+}
+
+type NotNode struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Важно: имя поля 'node' генерирует поле 'Node' в Go структуре, что нужно парсеру
+	Node          *SearchQuery `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NotNode) Reset() {
+	*x = NotNode{}
+	mi := &file_api_proto_v1_library_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NotNode) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NotNode) ProtoMessage() {}
+
+func (x *NotNode) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_library_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NotNode.ProtoReflect.Descriptor instead.
+func (*NotNode) Descriptor() ([]byte, []int) {
+	return file_api_proto_v1_library_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *NotNode) GetNode() *SearchQuery {
+	if x != nil {
+		return x.Node
+	}
+	return nil
+}
+
+var File_api_proto_v1_library_proto protoreflect.FileDescriptor
+
+const file_api_proto_v1_library_proto_rawDesc = "" +
+	"\n" +
+	"\x1aapi/proto/v1/library.proto\x12\tlibraryv1\"\x8f\x01\n" +
+	"\rSearchRequest\x12\x14\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12\x1f\n" +
+	"\vtemplate_id\x18\x02 \x01(\tR\n" +
+	"templateId\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\x12\x19\n" +
+	"\btrace_id\x18\x05 \x01(\tR\atraceId\"e\n" +
+	"\x0eSearchResponse\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12%\n" +
+	"\x05books\x18\x03 \x03(\v2\x0f.libraryv1.BookR\x05books\"\x80\x01\n" +
+	"\x04Book\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
+	"\aauthors\x18\x03 \x03(\tR\aauthors\x12\x1c\n" +
+	"\tcontainer\x18\x04 \x01(\tR\tcontainer\x12\x1a\n" +
+	"\bfilename\x18\x05 \x01(\tR\bfilename\"#\n" +
+	"\vListRequest\x12\x14\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\"$\n" +
+	"\fListResponse\x12\x14\n" +
+	"\x05items\x18\x01 \x03(\tR\x05items\"_\n" +
+	"\rAccessRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
+	"\bplatform\x18\x02 \x01(\tR\bplatform\x12\x19\n" +
+	"\btrace_id\x18\x03 \x01(\tR\atraceId\"_\n" +
+	"\x0eAccessResponse\x12\x18\n" +
+	"\aallowed\x18\x01 \x01(\bR\aallowed\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x1b\n" +
+	"\tuser_role\x18\x03 \x01(\tR\buserRole\"9\n" +
+	"\bRawInput\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\tR\x04data\x12\x19\n" +
+	"\btrace_id\x18\x02 \x01(\tR\atraceId\"\x9f\x01\n" +
+	"\vMessageMeta\x12\x19\n" +
+	"\btrace_id\x18\x01 \x01(\tR\atraceId\x12%\n" +
+	"\x0ecanonical_form\x18\x02 \x01(\tR\rcanonicalForm\x12\x1a\n" +
+	"\bplatform\x18\x03 \x01(\tR\bplatform\x12\x17\n" +
+	"\auser_id\x18\x04 \x01(\tR\x06userId\x12\x19\n" +
+	"\bast_plan\x18\x05 \x01(\tR\aastPlan\"n\n" +
+	"\x12UnmarshaledMessage\x12*\n" +
+	"\x04meta\x18\x01 \x01(\v2\x16.libraryv1.MessageMetaR\x04meta\x12,\n" +
+	"\x05query\x18\x02 \x01(\v2\x16.libraryv1.SearchQueryR\x05query\"v\n" +
+	"\bResponse\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12%\n" +
+	"\x05books\x18\x02 \x03(\v2\x0f.libraryv1.BookR\x05books\x12+\n" +
+	"\x04meta\x18\x03 \x01(\v2\x17.libraryv1.ResponseMetaR\x04meta\"P\n" +
+	"\fResponseMeta\x12\x19\n" +
+	"\btrace_id\x18\x01 \x01(\tR\atraceId\x12%\n" +
+	"\x0ecanonical_form\x18\x02 \x01(\tR\rcanonicalForm\"\xac\x01\n" +
+	"\vSearchQuery\x12/\n" +
+	"\x06filter\x18\x01 \x01(\v2\x15.libraryv1.FilterNodeH\x00R\x06filter\x122\n" +
+	"\alogical\x18\x02 \x01(\v2\x16.libraryv1.LogicalNodeH\x00R\alogical\x120\n" +
+	"\bnegation\x18\x03 \x01(\v2\x12.libraryv1.NotNodeH\x00R\bnegationB\x06\n" +
+	"\x04node\"i\n" +
+	"\n" +
+	"FilterNode\x12\x14\n" +
+	"\x05field\x18\x01 \x01(\tR\x05field\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\x12/\n" +
+	"\boperator\x18\x03 \x01(\x0e2\x13.libraryv1.OperatorR\boperator\"a\n" +
+	"\vLogicalNode\x12$\n" +
+	"\x02op\x18\x01 \x01(\x0e2\x14.libraryv1.LogicalOpR\x02op\x12,\n" +
+	"\x05nodes\x18\x02 \x03(\v2\x16.libraryv1.SearchQueryR\x05nodes\"5\n" +
+	"\aNotNode\x12*\n" +
+	"\x04node\x18\x01 \x01(\v2\x16.libraryv1.SearchQueryR\x04node*%\n" +
+	"\tLogicalOp\x12\a\n" +
+	"\x03AND\x10\x00\x12\x06\n" +
+	"\x02OR\x10\x01\x12\a\n" +
+	"\x03NOT\x10\x02*8\n" +
+	"\bOperator\x12\r\n" +
+	"\tOP_EQUALS\x10\x00\x12\x0f\n" +
+	"\vOP_CONTAINS\x10\x01\x12\f\n" +
+	"\bOP_REGEX\x10\x022T\n" +
+	"\x13OrchestratorService\x12=\n" +
+	"\x06Search\x12\x18.libraryv1.SearchRequest\x1a\x19.libraryv1.SearchResponse2R\n" +
+	"\x10ProcessorService\x12>\n" +
+	"\aProcess\x12\x18.libraryv1.SearchRequest\x1a\x19.libraryv1.SearchResponse2T\n" +
+	"\x0eStorageService\x12B\n" +
+	"\vSearchBooks\x12\x18.libraryv1.SearchRequest\x1a\x19.libraryv1.SearchResponse2Q\n" +
+	"\vAuthService\x12B\n" +
+	"\vCheckAccess\x12\x18.libraryv1.AccessRequest\x1a\x19.libraryv1.AccessResponse2X\n" +
+	"\x17MessageConverterService\x12=\n" +
+	"\aConvert\x12\x13.libraryv1.RawInput\x1a\x1d.libraryv1.UnmarshaledMessage2\x93\x01\n" +
+	"\x0eLibraryService\x12B\n" +
+	"\vSearchBooks\x12\x18.libraryv1.SearchRequest\x1a\x19.libraryv1.SearchResponse\x12=\n" +
+	"\n" +
+	"GetAuthors\x12\x16.libraryv1.ListRequest\x1a\x17.libraryv1.ListResponseB\x1fZ\x1debusta/api/proto/v1;libraryv1b\x06proto3"
+
+var (
+	file_api_proto_v1_library_proto_rawDescOnce sync.Once
+	file_api_proto_v1_library_proto_rawDescData []byte
+)
+
+func file_api_proto_v1_library_proto_rawDescGZIP() []byte {
+	file_api_proto_v1_library_proto_rawDescOnce.Do(func() {
+		file_api_proto_v1_library_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_proto_v1_library_proto_rawDesc), len(file_api_proto_v1_library_proto_rawDesc)))
+	})
+	return file_api_proto_v1_library_proto_rawDescData
+}
+
+var file_api_proto_v1_library_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_api_proto_v1_library_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_api_proto_v1_library_proto_goTypes = []any{
+	(LogicalOp)(0),             // 0: libraryv1.LogicalOp
+	(Operator)(0),              // 1: libraryv1.Operator
+	(*SearchRequest)(nil),      // 2: libraryv1.SearchRequest
+	(*SearchResponse)(nil),     // 3: libraryv1.SearchResponse
+	(*Book)(nil),               // 4: libraryv1.Book
+	(*ListRequest)(nil),        // 5: libraryv1.ListRequest
+	(*ListResponse)(nil),       // 6: libraryv1.ListResponse
+	(*AccessRequest)(nil),      // 7: libraryv1.AccessRequest
+	(*AccessResponse)(nil),     // 8: libraryv1.AccessResponse
+	(*RawInput)(nil),           // 9: libraryv1.RawInput
+	(*MessageMeta)(nil),        // 10: libraryv1.MessageMeta
+	(*UnmarshaledMessage)(nil), // 11: libraryv1.UnmarshaledMessage
+	(*Response)(nil),           // 12: libraryv1.Response
+	(*ResponseMeta)(nil),       // 13: libraryv1.ResponseMeta
+	(*SearchQuery)(nil),        // 14: libraryv1.SearchQuery
+	(*FilterNode)(nil),         // 15: libraryv1.FilterNode
+	(*LogicalNode)(nil),        // 16: libraryv1.LogicalNode
+	(*NotNode)(nil),            // 17: libraryv1.NotNode
+}
+var file_api_proto_v1_library_proto_depIdxs = []int32{
+	4,  // 0: libraryv1.SearchResponse.books:type_name -> libraryv1.Book
+	10, // 1: libraryv1.UnmarshaledMessage.meta:type_name -> libraryv1.MessageMeta
+	14, // 2: libraryv1.UnmarshaledMessage.query:type_name -> libraryv1.SearchQuery
+	4,  // 3: libraryv1.Response.books:type_name -> libraryv1.Book
+	13, // 4: libraryv1.Response.meta:type_name -> libraryv1.ResponseMeta
+	15, // 5: libraryv1.SearchQuery.filter:type_name -> libraryv1.FilterNode
+	16, // 6: libraryv1.SearchQuery.logical:type_name -> libraryv1.LogicalNode
+	17, // 7: libraryv1.SearchQuery.negation:type_name -> libraryv1.NotNode
+	1,  // 8: libraryv1.FilterNode.operator:type_name -> libraryv1.Operator
+	0,  // 9: libraryv1.LogicalNode.op:type_name -> libraryv1.LogicalOp
+	14, // 10: libraryv1.LogicalNode.nodes:type_name -> libraryv1.SearchQuery
+	14, // 11: libraryv1.NotNode.node:type_name -> libraryv1.SearchQuery
+	2,  // 12: libraryv1.OrchestratorService.Search:input_type -> libraryv1.SearchRequest
+	2,  // 13: libraryv1.ProcessorService.Process:input_type -> libraryv1.SearchRequest
+	2,  // 14: libraryv1.StorageService.SearchBooks:input_type -> libraryv1.SearchRequest
+	7,  // 15: libraryv1.AuthService.CheckAccess:input_type -> libraryv1.AccessRequest
+	9,  // 16: libraryv1.MessageConverterService.Convert:input_type -> libraryv1.RawInput
+	2,  // 17: libraryv1.LibraryService.SearchBooks:input_type -> libraryv1.SearchRequest
+	5,  // 18: libraryv1.LibraryService.GetAuthors:input_type -> libraryv1.ListRequest
+	3,  // 19: libraryv1.OrchestratorService.Search:output_type -> libraryv1.SearchResponse
+	3,  // 20: libraryv1.ProcessorService.Process:output_type -> libraryv1.SearchResponse
+	3,  // 21: libraryv1.StorageService.SearchBooks:output_type -> libraryv1.SearchResponse
+	8,  // 22: libraryv1.AuthService.CheckAccess:output_type -> libraryv1.AccessResponse
+	11, // 23: libraryv1.MessageConverterService.Convert:output_type -> libraryv1.UnmarshaledMessage
+	3,  // 24: libraryv1.LibraryService.SearchBooks:output_type -> libraryv1.SearchResponse
+	6,  // 25: libraryv1.LibraryService.GetAuthors:output_type -> libraryv1.ListResponse
+	19, // [19:26] is the sub-list for method output_type
+	12, // [12:19] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
+}
+
+func init() { file_api_proto_v1_library_proto_init() }
+func file_api_proto_v1_library_proto_init() {
+	if File_api_proto_v1_library_proto != nil {
+		return
+	}
+	file_api_proto_v1_library_proto_msgTypes[12].OneofWrappers = []any{
+		(*SearchQuery_Filter)(nil),
+		(*SearchQuery_Logical)(nil),
+		(*SearchQuery_Negation)(nil),
+	}
+	type x struct{}
+	out := protoimpl.TypeBuilder{
+		File: protoimpl.DescBuilder{
+			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_v1_library_proto_rawDesc), len(file_api_proto_v1_library_proto_rawDesc)),
+			NumEnums:      2,
+			NumMessages:   16,
+			NumExtensions: 0,
+			NumServices:   6,
+		},
+		GoTypes:           file_api_proto_v1_library_proto_goTypes,
+		DependencyIndexes: file_api_proto_v1_library_proto_depIdxs,
+		EnumInfos:         file_api_proto_v1_library_proto_enumTypes,
+		MessageInfos:      file_api_proto_v1_library_proto_msgTypes,
+	}.Build()
+	File_api_proto_v1_library_proto = out.File
+	file_api_proto_v1_library_proto_goTypes = nil
+	file_api_proto_v1_library_proto_depIdxs = nil
+}
+
+--- END_FILE: ./api/proto/v1/library.pb.go ---
+
+--- START_FILE: ./api/proto/v1/library.proto ---
+syntax = "proto3";
+
+package libraryv1;
+
+option go_package = "ebusta/api/proto/v1;libraryv1";
+
+// ==========================================
+// 1. SERVICES
+// ==========================================
+
+service OrchestratorService {
+  rpc Search (SearchRequest) returns (SearchResponse);
+}
+
+service ProcessorService {
+  rpc Process (SearchRequest) returns (SearchResponse);
+}
+
+service StorageService {
+  rpc SearchBooks (SearchRequest) returns (SearchResponse);
+}
+
+service AuthService {
+  rpc CheckAccess (AccessRequest) returns (AccessResponse);
+}
+
+service MessageConverterService {
+  rpc Convert (RawInput) returns (UnmarshaledMessage);
+}
+
+// Legacy
+service LibraryService {
+  rpc SearchBooks (SearchRequest) returns (SearchResponse);
+  rpc GetAuthors (ListRequest) returns (ListResponse);
+}
+
+// ==========================================
+// 2. MESSAGES
+// ==========================================
+
+message SearchRequest {
+  string query = 1;
+  string template_id = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+  string trace_id = 5;
+}
+
+message SearchResponse {
+  string status = 1;
+  int32 total = 2;
+  repeated Book books = 3;
+}
+
+message Book {
+  string id = 1;
+  string title = 2;
+  repeated string authors = 3;
+  string container = 4;
+  string filename = 5;
+}
+
+message ListRequest {
+  string query = 1;
+}
+
+message ListResponse {
+  repeated string items = 1;
+}
+
+// --- AUTH ---
+
+message AccessRequest {
+  string user_id = 1;
+  string platform = 2;
+  string trace_id = 3;
+}
+
+message AccessResponse {
+  bool allowed = 1;
+  string reason = 2;
+  string user_role = 3;
+}
+
+// ==========================================
+// 3. CONVERTER & AST (Fixed for existing code)
+// ==========================================
+
+message RawInput {
+  // Исправлено: переименовано в 'data', чтобы появился метод GetData(), который ждет message-converter
+  string data = 1; 
+  string trace_id = 2;
+}
+
+message MessageMeta {
+  string trace_id = 1;
+  string canonical_form = 2;
+  string platform = 3;
+  string user_id = 4;
+  // Исправлено: добавлено поле, которое требует message-converter
+  string ast_plan = 5; 
+}
+
+message UnmarshaledMessage {
+  MessageMeta meta = 1;
+  SearchQuery query = 2;
+}
+
+message Response {
+  string status = 1;
+  repeated Book books = 2;
+  ResponseMeta meta = 3;
+}
+
+message ResponseMeta {
+  string trace_id = 1;
+  string canonical_form = 2;
+}
+
+// --- AST NODES (Strictly for parser.go) ---
+
+enum LogicalOp {
+  AND = 0;
+  OR = 1;
+  NOT = 2;
+}
+
+enum Operator {
+  OP_EQUALS = 0;
+  OP_CONTAINS = 1;
+  OP_REGEX = 2;
+}
+
+message SearchQuery {
+  oneof node {
+    FilterNode filter = 1;
+    LogicalNode logical = 2;
+    NotNode negation = 3;
+  }
+}
+
+message FilterNode {
+  string field = 1;
+  string value = 2;
+  Operator operator = 3;
+}
+
+message LogicalNode {
+  LogicalOp op = 1;
+  repeated SearchQuery nodes = 2;
+}
+
+message NotNode {
+  // Важно: имя поля 'node' генерирует поле 'Node' в Go структуре, что нужно парсеру
+  SearchQuery node = 1; 
+}
+
+--- END_FILE: ./api/proto/v1/library.proto ---
+
+--- START_FILE: ./opensearch/templates/fl_authors_all.json ---
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"size\": 0,\n  \"aggs\": {\n    \"authors\": {\n      \"composite\": {\n        \"size\": {{size}},\n        \"sources\": [ { \"a\": { \"terms\": { \"field\": \"authors.kw\" } } } ]{{#after}},\n        \"after\": {{after}}{{/after}}\n      }\n    }\n  }\n}\n"
+  }
+}
+
+
+--- END_FILE: ./opensearch/templates/fl_authors_all.json ---
+
+--- START_FILE: ./opensearch/templates/fl_author_fuzzy.json ---
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "match": {
+          "authors": {
+            "query": "{{author}}",
+            "operator": "and"
+          }
+        }
+      },
+      "size": "{{size}}",
+      "from": "{{from}}",
+      "_source": ["title", "authors", "fileInfo.container", "fileInfo.filename"],
+      "track_total_hits": false
+    }
+  }
+}
+
+--- END_FILE: ./opensearch/templates/fl_author_fuzzy.json ---
+
+--- START_FILE: ./opensearch/templates/fl_author_exact.json ---
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": { "term": { "authors.kw": "{{author}}" } },
+      "collapse": { "field": "title.kw", "inner_hits": { "name": "best", "size": 1, "sort": [{"fileInfo.size": "desc"}] } },
+      "size": "{{size}}{{^size}}20{{/size}}"
+    }
+  }
+}
+
+--- END_FILE: ./opensearch/templates/fl_author_exact.json ---
+
+--- START_FILE: ./opensearch/templates/fl_names_token_prefix.json ---
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"query\": {\n    \"bool\": {\n      \"should\": [\n        { \"multi_match\": { \"query\": \"{{q}}\", \"type\": \"phrase_prefix\", \"fields\": [\"authors^3\",\"title^1\"] } },\n        { \"match\": { \"authors.prefix\": { \"query\": \"{{q}}\", \"boost\": 4 } } },\n        { \"match\": { \"title.prefix\":   { \"query\": \"{{q}}\", \"boost\": 2 } } }\n      ],\n      \"minimum_should_match\": 1\n    }\n  },\n  \"size\": {{size}},\n  \"from\": {{from}},\n  \"sort\": [{ \"title.kw\": { \"order\": \"asc\" } }],\n  \"track_total_hits\": false,\n  \"_source\": [\"title\",\"authors\",\"fileInfo.container\",\"fileInfo.filename\"],\n  \"highlight\": { \"fields\": { \"authors\": {}, \"title\": {} } }\n}"
+  }
+}
+--- END_FILE: ./opensearch/templates/fl_names_token_prefix.json ---
+
+--- START_FILE: ./opensearch/templates/fl_title_match.json ---
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "match": {
+          "title": {
+            "query": "{{q}}",
+            "operator": "and"
+          }
+        }
+      },
+      "from": "{{from}}",
+      "size": "{{size}}"
+    }
+  }
+}
+
+--- END_FILE: ./opensearch/templates/fl_title_match.json ---
+
+--- START_FILE: ./opensearch/templates/fl_title_substring.json ---
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"from\": 0,\n  \"size\": {{size}},\n  \"query\": {\n    \"query_string\": {\n      \"query\": \"*{{q}}*\",\n      \"fields\": [\"title.kw\", \"authors.kw\"],\n      \"analyze_wildcard\": true,\n      \"default_operator\": \"and\"\n    }\n  },\n  \"_source\": [\"title\", \"authors\", \"year\", \"fileInfo.container\", \"fileInfo.filename\"]\n}\n"
+  }
+}
+
+
+--- END_FILE: ./opensearch/templates/fl_title_substring.json ---
+
+--- START_FILE: ./opensearch/templates/fl_title_prefix.json ---
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"query\": {\n    \"bool\": {\n      \"should\": [\n        { \"match\": { \"title.prefix\": { \"query\": \"{{q}}\", \"boost\": 5 } } },\n        { \"match_phrase_prefix\": { \"title\": { \"query\": \"{{q}}\", \"boost\": 2 } } },\n        { \"term\": { \"title.kw\": { \"value\": \"{{q}}\", \"boost\": 20 } } }\n      ],\n      \"minimum_should_match\": 1\n    }\n  },\n  \"size\": {{size}},\n  \"from\": {{from}},\n  \"sort\": [{ \"title.kw\": { \"order\": \"asc\" } }],\n  \"track_total_hits\": false,\n  \"_source\": [\"title\",\"authors\",\"fileInfo.container\",\"fileInfo.filename\"],\n  \"highlight\": { \"fields\": { \"title\": {} } }\n}"
+  }
+}
+--- END_FILE: ./opensearch/templates/fl_title_prefix.json ---
+
+--- START_FILE: ./opensearch/templates/fl_mixed_search.json ---
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "multi_match": {
+          "query": "{{query}}",
+          "fields": ["title^3", "authors", "annotation"],
+          "type": "best_fields",
+          "fuzziness": "AUTO"
+        }
+      },
+      "collapse": {
+        "field": "title.kw",
+        "inner_hits": { "name": "best", "size": 1, "sort": [{"fileInfo.size": "desc"}] }
+      },
+      "from": "{{from}}{{^from}}0{{/from}}",
+      "size": "{{size}}{{^size}}10{{/size}}"
+    }
+  }
+}
+
+--- END_FILE: ./opensearch/templates/fl_mixed_search.json ---
+
+--- START_FILE: ./opensearch/templates/fl_titles_all.json ---
+{
+  "script": {
+    "lang": "mustache",
+    "source": "{\n  \"size\": 0,\n  \"aggs\": {\n    \"titles\": {\n      \"composite\": {\n        \"size\": {{size}},\n        \"sources\": [ { \"t\": { \"terms\": { \"field\": \"title.kw\" } } } ]{{#after}},\n        \"after\": {{after}}{{/after}}\n      }\n    }\n  }\n}\n"
+  }
+}
+
+
+--- END_FILE: ./opensearch/templates/fl_titles_all.json ---
+
+--- START_FILE: ./opensearch/flibusta_merged_index.fixed.json ---
+{
+  "settings": {
+    "index": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "refresh_interval": "1s"
+    },
+    "analysis": {
+      "filter": {
+        "ru_stop": {
+          "type": "stop",
+          "stopwords": "_russian_"
+        },
+        "ru_stemmer": {
+          "type": "stemmer",
+          "language": "russian"
+        },
+        "en_stop": {
+          "type": "stop",
+          "stopwords": "_english_"
+        },
+        "en_stemmer": {
+          "type": "stemmer",
+          "language": "english"
+        },
+        "shingle_2_3": {
+          "type": "shingle",
+          "min_shingle_size": 2,
+          "max_shingle_size": 3
+        }
+      },
+      "char_filter": {
+        "quotes": {
+          "type": "mapping",
+          "mappings": [
+            "“=>\"",
+            "”=>\"",
+            "‘=>'",
+            "’=>'"
+          ]
+        }
+      },
+      "normalizer": {
+        "lc_ascii": {
+          "type": "custom",
+          "filter": [
+            "lowercase",
+            "asciifolding"
+          ]
+        }
+      },
+      "analyzer": {
+        "mixed_text": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "char_filter": [
+            "quotes"
+          ],
+          "filter": [
+            "lowercase",
+            "ru_stop",
+            "ru_stemmer",
+            "en_stop",
+            "en_stemmer"
+          ]
+        },
+        "autocomplete": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase"
+          ]
+        },
+        "autocomplete_edge": {
+          "type": "custom",
+          "tokenizer": "edge_ngram_tokenizer",
+          "filter": [
+            "lowercase"
+          ]
+        },
+        "shingled": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "shingle_2_3"
+          ]
+        }
+      },
+      "tokenizer": {
+        "edge_ngram_tokenizer": {
+          "type": "edge_ngram",
+          "min_gram": 2,
+          "max_gram": 20,
+          "token_chars": [
+            "letter",
+            "digit"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "docId": {
+        "type": "keyword"
+      },
+      "source": {
+        "type": "keyword"
+      },
+      "ingestedAt": {
+        "type": "date"
+      },
+      "title": {
+        "type": "text",
+        "analyzer": "mixed_text",
+        "fields": {
+          "kw": {
+            "type": "keyword",
+            "normalizer": "lc_ascii"
+          },
+          "ac": {
+            "type": "text",
+            "analyzer": "autocomplete_edge",
+            "search_analyzer": "autocomplete"
+          },
+          "sh": {
+            "type": "text",
+            "analyzer": "shingled"
+          }
+        }
+      },
+      "authors": {
+        "type": "text",
+        "analyzer": "mixed_text",
+        "fields": {
+          "kw": {
+            "type": "keyword",
+            "normalizer": "lc_ascii"
+          },
+          "ac": {
+            "type": "text",
+            "analyzer": "autocomplete_edge",
+            "search_analyzer": "autocomplete"
+          }
+        }
+      },
+      "genres": {
+        "type": "keyword",
+        "normalizer": "lc_ascii"
+      },
+      "languages": {
+        "type": "keyword",
+        "normalizer": "lc_ascii"
+      },
+      "year": {
+        "type": "integer"
+      },
+      "annotation": {
+        "type": "text",
+        "analyzer": "mixed_text"
+      },
+      "sequences": {
+        "type": "nested",
+        "properties": {
+          "name": {
+            "type": "text",
+            "analyzer": "mixed_text",
+            "fields": {
+              "kw": {
+                "type": "keyword",
+                "normalizer": "lc_ascii"
+              },
+              "ac": {
+                "type": "text",
+                "analyzer": "autocomplete_edge",
+                "search_analyzer": "autocomplete"
+              }
+            }
+          },
+          "number": {
+            "type": "float"
+          }
+        }
+      },
+      "fileInfo": {
+        "type": "object",
+        "properties": {
+          "container": {
+            "type": "keyword"
+          },
+          "filename": {
+            "type": "keyword"
+          },
+          "size": {
+            "type": "long"
+          },
+          "sha1": {
+            "type": "keyword"
+          }
+        }
+      },
+      "suggest_title": {
+        "type": "completion"
+      },
+      "suggest_author": {
+        "type": "completion"
+      }
+    }
+  }
+}
+--- END_FILE: ./opensearch/flibusta_merged_index.fixed.json ---
+
+--- START_FILE: ./opensearch/os-setup-config.yaml ---
+opensearch:
+  url: "http://cloud-1:9200"
+  index_name: "flibusta_merged_index"
+
+paths:
+  index_file: "./flibusta_merged_index.fixed.json"
+  templates_dir: "./templates"
+
+logging:
+  log_path: "os-setup.log"
+
+--- END_FILE: ./opensearch/os-setup-config.yaml ---
+
+--- START_FILE: ./cmd/datamanager/main.go ---
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"net/http"
+	"os"
+
+	"ebusta/api/proto/v1"
+	"github.com/spf13/viper"
+	"google.golang.org/grpc"
+)
+
+type storageServer struct {
+	libraryv1.UnimplementedStorageServiceServer
+	osBaseURL string
+	indexName string
+	debug     bool
+}
+
+func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
+	templateID := req.TemplateId
+	if templateID == "" {
+		templateID = "fl_mixed_search"
+	}
+	
+	var paramName string
+	switch templateID {
+	case "fl_author_exact", "fl_author_fuzzy":
+		paramName = "author"
+	case "fl_title_substring", "fl_titles_all":
+		paramName = "q"
+	default:
+		paramName = "q"
+	}
+
+	osReqBody := map[string]interface{}{
+		"id": templateID,
+		"params": map[string]interface{}{
+			paramName: req.Query,
+			"from":    0,
+			"size":    req.Limit,
+		},
+	}
+	
+	if val, ok := osReqBody["params"].(map[string]interface{})["size"].(int32); ok && val == 0 {
+		osReqBody["params"].(map[string]interface{})["size"] = 10
+	}
+
+	jsonData, _ := json.Marshal(osReqBody)
+	targetURL := fmt.Sprintf("%s/%s/_search/template", s.osBaseURL, s.indexName)
+	log.Printf("📤 [OS-REQ] URL: %s | BODY: %s", targetURL, string(jsonData))
+
+	resp, err := http.Post(targetURL, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	
+	// ГИБКИЙ ПАРСИНГ: Total может быть числом, объектом или отсутствовать
+	var osRaw struct {
+		Hits struct {
+			Total interface{} `json:"total"`
+			Hits  []struct {
+				Source struct {
+					Title   string   `json:"title"`
+					Authors []string `json:"authors"`
+				} `json:"_source"`
+				ID string `json:"_id"`
+			} `json:"hits"`
+		} `json:"hits"`
+	}
+
+	if err := json.Unmarshal(body, &osRaw); err != nil {
+		log.Printf("❌ Storage parse error: %v", err)
+		return &libraryv1.SearchResponse{Status: "error"}, nil
+	}
+
+	var totalValue int32
+	switch v := osRaw.Hits.Total.(type) {
+	case float64:
+		totalValue = int32(v)
+	case map[string]interface{}:
+		if val, ok := v["value"].(float64); ok {
+			totalValue = int32(val)
+		}
+	}
+
+	res := &libraryv1.SearchResponse{}
+	for _, hit := range osRaw.Hits.Hits {
+		res.Books = append(res.Books, &libraryv1.Book{
+			Id:      hit.ID,
+			Title:   hit.Source.Title,
+			Authors: hit.Source.Authors,
+		})
+	}
+
+	// FALLBACK: Если хиты есть, а total 0 или не распарсился
+	if totalValue == 0 && len(res.Books) > 0 {
+		totalValue = int32(len(res.Books))
+	}
+	res.Total = totalValue
+
+	log.Printf("📥 [OS-RESP] Found: %d books", totalValue)
+	return res, nil
+}
+
+func main() {
+	viper.SetConfigName("ebusta")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(".")
+	viper.ReadInConfig()
+
+	osBaseURL := viper.GetString("datamanager.opensearch_url")
+	indexName := viper.GetString("datamanager.index_name")
+	debug := os.Getenv("DEBUG") != ""
+
+	lis, err := net.Listen("tcp", ":50051")
+	if err != nil { log.Fatalf("failed to listen: %v", err) }
+
+	s := grpc.NewServer()
+	libraryv1.RegisterStorageServiceServer(s, &storageServer{
+		osBaseURL: osBaseURL,
+		indexName: indexName,
+		debug:     debug,
+	})
+
+	log.Println("💾 DataManager (Storage) started on :50051")
+	s.Serve(lis)
+}
+
+--- END_FILE: ./cmd/datamanager/main.go ---
+
+--- START_FILE: ./cmd/bulker/main.go ---
+package main
+
+import (
+	"archive/zip"
+	"bufio"
+	"bytes"
+	"crypto/sha1"
+	"encoding/hex"
+	"encoding/json"
+	"encoding/xml"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/schollz/progressbar/v3"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/unicode"
+	"gopkg.in/yaml.v3"
+)
+
+type Config struct {
+	OpenSearch struct {
+		IndexName string `yaml:"index_name"`
+	} `yaml:"opensearch"`
+	Paths struct {
+		WarnDir   string `yaml:"warn_dir"`
+		OutputDir string `yaml:"output_dir"`
+		SourceDir string `yaml:"source_dir"`
+	} `yaml:"paths"`
+	Processing struct {
+		Threads int `yaml:"threads"`
+	} `yaml:"processing"`
+}
+
+type docOut struct {
+	Title      string    `json:"title"`
+	Authors    []string  `json:"authors,omitempty"`
+	IngestedAt time.Time `json:"ingestedAt"`
+	FileInfo   struct {
+		Container string `json:"container"`
+		Filename  string `json:"filename"`
+		Sha1      string `json:"sha1"`
+		Size      int64  `json:"size"`
+	} `json:"fileInfo"`
+}
+
+var (
+	cfg          Config
+	log          = logrus.New()
+	outFile      *os.File
+	outMu        sync.Mutex
+	bar          *progressbar.ProgressBar
+	rescuedCount int32
+	// Флаги управления
+	flagRescan  *bool
+	flagVerbose *bool
+)
+
+func main() {
+	configPath := flag.String("config", "./config.yaml", "Path to config file")
+	container := flag.String("container", "", "Process only this specific ZIP from source_dir")
+	rescue := flag.Bool("rescue", false, "Rescue mode")
+	flagRescan = flag.Bool("rescan", false, "Force rescan all files ignoring existing output")
+	flagVerbose = flag.Bool("verbose", false, "Detailed check by hashing every file")
+	flag.Parse()
+
+	cFile, err := os.ReadFile(*configPath)
+	if err != nil {
+		fmt.Printf("Error: Cannot read config file at %s\n", *configPath)
+		os.Exit(1)
+	}
+	_ = yaml.Unmarshal(cFile, &cfg)
+
+	log.SetFormatter(&logrus.TextFormatter{FullTimestamp: true, ForceColors: true})
+	_ = os.MkdirAll(cfg.Paths.OutputDir, 0755)
+
+	if *rescue {
+		runRescueMode()
+		fmt.Printf("\n🏁 Rescue Finished. Successfully processed: %d files.\n", atomic.LoadInt32(&rescuedCount))
+	} else if *container != "" {
+		fullPath := filepath.Join(cfg.Paths.SourceDir, *container)
+		dstPath := filepath.Join(cfg.Paths.OutputDir, *container+".jsonl")
+		processSingleZip(fullPath, dstPath)
+	} else {
+		archives, _ := filepath.Glob(filepath.Join(cfg.Paths.SourceDir, "*.zip"))
+		for _, zipPath := range archives {
+			dstPath := filepath.Join(cfg.Paths.OutputDir, filepath.Base(zipPath)+".jsonl")
+			processSingleZip(zipPath, dstPath)
+		}
+	}
+}
+
+// Нормализация файла: удаление дубликатов и перезапись
+func normalizeJSONL(path string) (int, error) {
+	baseName := filepath.Base(path)
+	log.Infof("[%s] Normalization started: scanning for unique IDs...", baseName)
+
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	tmpPath := path + ".tmp"
+	tmpFile, err := os.Create(tmpPath)
+	if err != nil {
+		return 0, err
+	}
+	defer tmpFile.Close()
+
+	hashes := make(map[string]bool)
+	scanner := bufio.NewScanner(f)
+	re := regexp.MustCompile(`"_id":"([a-fA-F0-9]+)"`)
+	count := 0
+
+	for scanner.Scan() {
+		line1 := scanner.Text()
+		if strings.Contains(line1, `"_index"`) {
+			match := re.FindStringSubmatch(line1)
+			if len(match) > 1 {
+				id := match[1]
+				if scanner.Scan() {
+					line2 := scanner.Text()
+					if !hashes[id] {
+						hashes[id] = true
+						_, _ = tmpFile.WriteString(line1 + "\n")
+						_, _ = tmpFile.WriteString(line2 + "\n")
+						count++
+					}
+				}
+			}
+		}
+	}
+
+	log.Infof("[%s] Writing normalized file to disk (%d unique records)...", baseName, count)
+
+	f.Close()
+	tmpFile.Close()
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		return 0, err
+	}
+
+	log.Infof("[%s] Normalization finished successfully.", baseName)
+	return count, nil
+}
+
+func countExistingDocs(path string) int {
+	count := 0
+	f, err := os.Open(path)
+	if err != nil { return 0 }
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if strings.Contains(scanner.Text(), `"_index"`) { count++ }
+	}
+	return count
+}
+
+func loadExistingHashes(path string) map[string]bool {
+	hashes := make(map[string]bool)
+	f, err := os.Open(path)
+	if err != nil { return hashes }
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	re := regexp.MustCompile(`"_id":"([a-fA-F0-9]+)"`)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, `"_index"`) {
+			match := re.FindStringSubmatch(line)
+			if len(match) > 1 { hashes[match[1]] = true }
+		}
+	}
+	return hashes
+}
+
+func processSingleZip(zipPath, dstPath string) {
+	containerName := filepath.Base(zipPath)
+	z, err := zip.OpenReader(zipPath)
+	if err != nil {
+		log.Errorf("Failed to open zip %s: %v", zipPath, err)
+		return
+	}
+	defer z.Close()
+
+	zipFb2Count := 0
+	for _, f := range z.File {
+		if strings.HasSuffix(strings.ToLower(f.Name), ".fb2") { zipFb2Count++ }
+	}
+
+	// 1. Быстрая проверка и интеграция нормализации
+	if !*flagRescan && !*flagVerbose {
+		jsonlDocCount := countExistingDocs(dstPath)
+		if jsonlDocCount > 0 {
+			if zipFb2Count == jsonlDocCount {
+				log.Infof("[%s] Quick check: counts match (%d). Skipping container.", containerName, zipFb2Count)
+				z.Close()
+				os.Exit(10)
+			} else {
+				log.Infof("[%s] Count mismatch (ZIP: %d, JSONL: %d). Starting normalization...", containerName, zipFb2Count, jsonlDocCount)
+				
+				newCount, err := normalizeJSONL(dstPath)
+				
+				// Новая проверка после нормализации
+				log.Infof("[%s] New check after normalization: count is %d.", containerName, newCount)
+				
+				if err == nil {
+					if newCount == zipFb2Count {
+						log.Infof("[%s] Result: Counts match! Skipping container.", containerName)
+						z.Close()
+						os.Exit(10)
+					} else {
+						log.Infof("[%s] Result: Still mismatch. Proceeding to detailed check.", containerName)
+					}
+				} else {
+					log.Errorf("[%s] Normalization failed: %v. Proceeding to detailed check.", containerName, err)
+				}
+			}
+		}
+	}
+
+	existingHashes := make(map[string]bool)
+	if !*flagRescan {
+		existingHashes = loadExistingHashes(dstPath)
+		if len(existingHashes) > 0 && *flagVerbose {
+			log.Infof("[%s] Found %d already processed documents.", containerName, len(existingHashes))
+		}
+	}
+
+	type workItem struct {
+		file *zip.File
+		raw  []byte
+		sha  string
+	}
+	var tasks []workItem
+
+	for _, f := range z.File {
+		if !strings.HasSuffix(strings.ToLower(f.Name), ".fb2") { continue }
+		rc, err := f.Open()
+		if err != nil {
+			log.Errorf("Read error %s: %v", f.Name, err)
+			continue
+		}
+		raw, _ := io.ReadAll(rc)
+		rc.Close()
+		sum := sha1.Sum(raw)
+		sha := hex.EncodeToString(sum[:])
+		if existingHashes[sha] {
+			if *flagVerbose { log.Infof("Skipping %s (already exists in output)", f.Name) }
+			continue
+		}
+		tasks = append(tasks, workItem{file: f, raw: raw, sha: sha})
+	}
+
+	if len(tasks) == 0 {
+		log.Infof("Container %s is fully processed. Nothing new.", containerName)
+		z.Close()
+		os.Exit(10)
+	}
+
+	openOutputFile(dstPath)
+	defer outFile.Close()
+	bar = progressbar.Default(int64(len(tasks)), "🚢 "+containerName)
+	jobs := make(chan workItem)
+	var wg sync.WaitGroup
+	for i := 0; i < cfg.Processing.Threads; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for item := range jobs {
+				doc, err := parseResilient(item.raw)
+				if err != nil {
+					log.Errorf("FAILED: %s | %v", item.file.Name, err)
+					saveToWarn(item.file.Name, item.raw, err)
+				} else {
+					saveToOutputWithSha(item.file.Name, containerName, item.raw, item.sha, doc)
+				}
+				_ = bar.Add(1)
+			}
+		}()
+	}
+	for _, task := range tasks { jobs <- task }
+	close(jobs)
+	wg.Wait()
+}
+
+func runRescueMode() {
+	files, _ := filepath.Glob(filepath.Join(cfg.Paths.WarnDir, "*fb2"))
+	if len(files) == 0 { return }
+	dstPath := filepath.Join(cfg.Paths.OutputDir, "rescued_items.jsonl")
+	openOutputFile(dstPath)
+	defer outFile.Close()
+	bar = progressbar.Default(int64(len(files)), "🩹 Rescuing")
+	jobs := make(chan string)
+	var wg sync.WaitGroup
+	for i := 0; i < cfg.Processing.Threads; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for path := range jobs {
+				data, err := os.ReadFile(path)
+				if err != nil || len(data) == 0 {
+					_ = os.Remove(path)
+					_ = os.Remove(path + ".log")
+					_ = bar.Add(1)
+					continue
+				}
+				doc, err := parseResilient(data)
+				if err == nil {
+					if saveToOutput(filepath.Base(path), "rescued", data, doc) {
+						_ = os.Remove(path)
+						_ = os.Remove(path + ".log")
+						atomic.AddInt32(&rescuedCount, 1)
+					}
+				} else { log.Errorf("FAILED: %s | %v", filepath.Base(path), err) }
+				_ = bar.Add(1)
+			}
+		}()
+	}
+	for _, f := range files { jobs <- f }
+	close(jobs)
+	wg.Wait()
+}
+
+func parseResilient(data []byte) (*docOut, error) {
+	if len(data) == 0 { return nil, fmt.Errorf("empty file") }
+	utf8Data := convertToUTF8(data)
+	doc, err := parseFB2(utf8Data)
+	if err == nil { return doc, nil }
+	return parseWithRegex(utf8Data)
+}
+
+func convertToUTF8(data []byte) []byte {
+	if len(data) < 2 { return data }
+	if (data[0] == 0xFF && data[1] == 0xFE) || (data[0] == 0xFE && data[1] == 0xFF) {
+		dec := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder()
+		out, _ := dec.Bytes(data)
+		return out
+	}
+	if len(data) > 10 && data[1] == 0 && data[3] == 0 {
+		dec := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
+		out, _ := dec.Bytes(data)
+		return out
+	}
+	header := string(data[:min(len(data), 500)])
+	if strings.Contains(strings.ToLower(header), "windows-1251") {
+		out, _ := charmap.Windows1251.NewDecoder().Bytes(data)
+		return out
+	}
+	return bytes.ToValidUTF8(data, []byte(" "))
+}
+
+func parseWithRegex(data []byte) (*docOut, error) {
+	doc := &docOut{}
+	reTitle := regexp.MustCompile(`(?is)<book-title[^>]*>(.*?)</book-title>`)
+	if m := reTitle.FindSubmatch(data); len(m) > 1 { doc.Title = strings.TrimSpace(string(m[1])) }
+	reAuthor := regexp.MustCompile(`(?is)<author[^>]*>(.*?)</author>`)
+	reFirst := regexp.MustCompile(`(?is)<first-name[^>]*>(.*?)</first-name>`)
+	reLast := regexp.MustCompile(`(?is)<last-name[^>]*>(.*?)</last-name>`)
+	authors := reAuthor.FindAllSubmatch(data, -1)
+	for _, a := range authors {
+		fn, ln := reFirst.FindSubmatch(a[1]), reLast.FindSubmatch(a[1])
+		name := ""
+		if len(fn) > 1 { name += string(fn[1]) + " " }
+		if len(ln) > 1 { name += string(ln[1]) }
+		if name = strings.TrimSpace(name); name != "" { doc.Authors = append(doc.Authors, name) }
+	}
+	if doc.Title == "" { return nil, fmt.Errorf("regex failed") }
+	return doc, nil
+}
+
+func openOutputFile(path string) {
+	var err error
+	outFile, err = os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil { log.Fatal(err) }
+}
+
+func saveToOutput(filename, container string, raw []byte, doc *docOut) bool {
+	sum := sha1.Sum(raw)
+	sha := hex.EncodeToString(sum[:])
+	return saveToOutputWithSha(filename, container, raw, sha, doc)
+}
+
+func saveToOutputWithSha(filename, container string, raw []byte, sha string, doc *docOut) bool {
+	doc.FileInfo.Container, doc.FileInfo.Filename, doc.FileInfo.Sha1, doc.FileInfo.Size = container, filename, sha, int64(len(raw))
+	doc.IngestedAt = time.Now()
+	action, _ := json.Marshal(map[string]map[string]any{"index": {"_index": cfg.OpenSearch.IndexName, "_id": sha}})
+	data, _ := json.Marshal(doc)
+	outMu.Lock()
+	defer outMu.Unlock()
+	_, _ = outFile.Write(append(action, '\n'))
+	_, _ = outFile.Write(append(data, '\n'))
+	return true
+}
+
+func saveToWarn(filename string, data []byte, err error) {
+	_ = os.WriteFile(filepath.Join(cfg.Paths.WarnDir, filename), data, 0644)
+	_ = os.WriteFile(filepath.Join(cfg.Paths.WarnDir, filename+".log"), []byte(err.Error()), 0644)
+}
+
+func parseFB2(data []byte) (*docOut, error) {
+	d := xml.NewDecoder(bytes.NewReader(data))
+	d.CharsetReader = func(charset string, input io.Reader) (io.Reader, error) { return input, nil }
+	d.Strict = false
+	var doc docOut
+	var inTitle bool
+	for {
+		t, err := d.Token()
+		if err != nil || t == nil { break }
+		switch se := t.(type) {
+		case xml.StartElement:
+			if se.Name.Local == "title-info" { inTitle = true }
+			if se.Name.Local == "book-title" && inTitle { _ = d.DecodeElement(&doc.Title, &se) }
+			if se.Name.Local == "author" && inTitle {
+				var a struct { First string `xml:"first-name"`; Last string `xml:"last-name"` }
+				_ = d.DecodeElement(&a, &se)
+				if n := strings.TrimSpace(a.First + " " + a.Last); n != "" { doc.Authors = append(doc.Authors, n) }
+			}
+		case xml.EndElement:
+			if se.Name.Local == "title-info" { inTitle = false }
+		}
+	}
+	if doc.Title == "" { return nil, fmt.Errorf("xml: no title") }
+	return &doc, nil
+}
+
+func min(a, b int) int { if a < b { return a }; return b }
+
+--- END_FILE: ./cmd/bulker/main.go ---
+
+--- START_FILE: ./cmd/processor/main.go ---
+package main
+
+import (
+	"context"
+	"log"
+	"net"
+	"strings"
+
+	"ebusta/api/proto/v1"
+	"google.golang.org/grpc"
+)
+
+type processorServer struct {
+	libraryv1.UnimplementedProcessorServiceServer
+	storage libraryv1.StorageServiceClient
+}
+
+func (s *processorServer) Process(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
+	fullQuery := req.Query
+	qLower := strings.ToLower(fullQuery)
+	log.Printf("🧠 Processor: Handling '%s'", fullQuery)
+
+	// 1. Сложные запросы (AND/OR)
+	if strings.Contains(qLower, " and ") || strings.Contains(qLower, " or ") {
+		cleanQuery := fullQuery
+		for _, prefix := range []string{"author:", "title:", "Author:", "Title:"} {
+			cleanQuery = strings.ReplaceAll(cleanQuery, prefix, "")
+		}
+		log.Printf("🧠 Processor: Complex query cleaned: '%s'", cleanQuery)
+		return s.storage.SearchBooks(ctx, &libraryv1.SearchRequest{
+			Query:      strings.TrimSpace(cleanQuery),
+			TemplateId: "fl_mixed_search",
+			Limit:      req.Limit,
+			TraceId:    req.TraceId,
+		})
+	}
+
+	// 2. Обработка префикса title: (Каскадный поиск)
+	if strings.HasPrefix(qLower, "title:") {
+		cleanTitle := strings.TrimSpace(strings.TrimPrefix(fullQuery, "title:"))
+		
+		// Попытка 1: Строгий substring
+		subReq := &libraryv1.SearchRequest{
+			Query:      cleanTitle,
+			TemplateId: "fl_title_substring",
+			Limit:      req.Limit,
+			TraceId:    req.TraceId,
+		}
+		resp, err := s.storage.SearchBooks(ctx, subReq)
+		
+		if err == nil && resp.Total > 0 {
+			return resp, nil
+		}
+
+		// Попытка 2: Умный Match (анализатор разберется с регистром)
+		log.Printf("⚠️ Substring search found 0, switching to fl_title_match for: %s", cleanTitle)
+		subReq.TemplateId = "fl_title_match"
+		return s.storage.SearchBooks(ctx, subReq)
+	}
+
+	// 3. Обработка префикса author: (уже настроена)
+	if strings.HasPrefix(qLower, "author:") {
+		cleanAuthor := strings.TrimSpace(strings.TrimPrefix(fullQuery, "author:"))
+		subReq := &libraryv1.SearchRequest{
+			Query:      cleanAuthor,
+			TemplateId: "fl_author_exact",
+			Limit:      req.Limit,
+			TraceId:    req.TraceId,
+		}
+		resp, err := s.storage.SearchBooks(ctx, subReq)
+		if err == nil && resp.Total > 0 {
+			return resp, nil
+		}
+		log.Printf("⚠️ Switching to fuzzy for: %s", cleanAuthor)
+		subReq.TemplateId = "fl_author_fuzzy"
+		return s.storage.SearchBooks(ctx, subReq)
+	}
+
+	return s.storage.SearchBooks(ctx, req)
+}
+
+func main() {
+	lis, err := net.Listen("tcp", ":50053")
+	if err != nil { log.Fatal(err) }
+	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
+	if err != nil { log.Fatal(err) }
+	defer conn.Close()
+	s := grpc.NewServer()
+	libraryv1.RegisterProcessorServiceServer(s, &processorServer{storage: libraryv1.NewStorageServiceClient(conn)})
+	log.Println("🧠 Ebusta Processor started on :50053")
+	s.Serve(lis)
+}
+
+--- END_FILE: ./cmd/processor/main.go ---
+
+--- START_FILE: ./cmd/cli/main.go ---
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"ebusta/api/proto/v1"
+	"github.com/peterh/liner"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+var (
+	debugMode   bool
+	historyPath = filepath.Join(os.TempDir(), ".ebusta_history")
+)
+
+func main() {
+	if os.Getenv("DEBUG") != "" {
+		debugMode = true
+		log.Println("🐞 DEBUG MODE: ENABLED")
+	}
+
+	conn, err := grpc.Dial("localhost:50054", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("❌ Failed to connect to Orchestrator: %v", err)
+	}
+	defer conn.Close()
+
+	client := libraryv1.NewOrchestratorServiceClient(conn)
+
+	if len(os.Args) > 1 {
+		query := strings.Join(os.Args[1:], " ")
+		runSearch(client, query)
+	} else {
+		runInteractiveLoop(client)
+	}
+}
+
+func runInteractiveLoop(client libraryv1.OrchestratorServiceClient) {
+	line := liner.NewLiner()
+	defer line.Close()
+
+	line.SetCtrlCAborts(true)
+
+	// Загружаем историю из файла, если он есть
+	if f, err := os.Open(historyPath); err == nil {
+		line.ReadHistory(f)
+		f.Close()
+	}
+
+	fmt.Println("🚀 Ebusta CLI Interactive Mode (with History Support)")
+	fmt.Println("Use UP/DOWN arrows for history. Type 'exit' to stop.")
+	fmt.Println("---------------------------------")
+
+	for {
+		if text, err := line.Prompt("ebusta> "); err == nil {
+			text = strings.TrimSpace(text)
+			if text == "" {
+				continue
+			}
+			if text == "exit" || text == "quit" {
+				fmt.Println("Bye!")
+				break
+			}
+
+			// Добавляем в историю и сохраняем
+			line.AppendHistory(text)
+			runSearch(client, text)
+
+			// Сохраняем историю после каждого успешного ввода
+			if f, err := os.Create(historyPath); err == nil {
+				line.WriteHistory(f)
+				f.Close()
+			}
+		} else if err == liner.ErrPromptAborted {
+			fmt.Println("Aborted")
+			break
+		} else {
+			log.Print("Error reading line: ", err)
+			break
+		}
+	}
+}
+
+func runSearch(client libraryv1.OrchestratorServiceClient, query string) {
+	if debugMode {
+		log.Printf("📡 Sending query: '%s'", query)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := client.Search(ctx, &libraryv1.SearchRequest{
+		Query:   query,
+		TraceId: "cli-user",
+	})
+
+	if err != nil {
+		log.Printf("❌ Error: %v", err)
+		return
+	}
+
+	if resp.Total == 0 && len(resp.Books) == 0 {
+		fmt.Println("No results found.")
+		return
+	}
+
+	fmt.Printf("%-40s | %-40s | %s\n", "ID", "Title", "Authors")
+	fmt.Println(strings.Repeat("-", 100))
+
+	for _, b := range resp.Books {
+		fmt.Printf("%-40s | %-40s | %s\n", 
+			b.Id, 
+			truncate(b.Title, 38), 
+			truncate(strings.Join(b.Authors, ", "), 30),
+		)
+	}
+}
+
+func truncate(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) > max {
+		return string(runes[:max]) + "..."
+	}
+	return s
+}
+
+--- END_FILE: ./cmd/cli/main.go ---
+
+--- START_FILE: ./cmd/client/main.go ---
+package main
+
+import (
+	"context"
+	"log"
+	"time"
+
+	"ebusta/api/proto/v1" // Убедись, что модуль называется так же, как в go.mod
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+func main() {
+	// Подключаемся к серверу Data-Manager
+	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
+
+	c := libraryv1.NewLibraryServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	log.Println("--- Ebusta gRPC Client: Sending Search Request ---")
+	
+	// ИСПРАВЛЕНИЕ 1: Метод называется SearchBooks
+	r, err := c.SearchBooks(ctx, &libraryv1.SearchRequest{
+		Query: "Flibusta rules",
+		Limit: 5,
+	})
+	if err != nil {
+		log.Fatalf("could not search: %v", err)
+	}
+
+	// ИСПРАВЛЕНИЕ 2: Используем GetTotal() вместо GetTotalFound()
+	log.Printf("Response from server: Found %d books", r.GetTotal())
+	
+	for _, book := range r.GetBooks() {
+		log.Printf("-> Book: [%s] %s (Authors: %v)", book.GetId(), book.GetTitle(), book.GetAuthors())
+	}
+}
+
+--- END_FILE: ./cmd/client/main.go ---
+
+--- START_FILE: ./cmd/web-adapter/main.go ---
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
+	"ebusta/api/proto/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+func main() {
+	// 1. Подключение к Orchestrator (порт 50054)
+	orchHost := os.Getenv("ORCHESTRATOR_HOST")
+	if orchHost == "" {
+		orchHost = "localhost:50054"
+	}
+
+	conn, err := grpc.Dial(orchHost, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
+
+	// ИСПРАВЛЕНИЕ 1: Правильное имя клиента (OrchestratorServiceClient)
+	client := libraryv1.NewOrchestratorServiceClient(conn)
+
+	http.HandleFunc("/input", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("msg")
+		if query == "" {
+			query = r.URL.Query().Get("q")
+		}
+		
+		if query == "" {
+			http.Error(w, "Please provide 'msg' parameter", http.StatusBadRequest)
+			return
+		}
+
+		log.Printf("🌍 Web Adapter received: %s", query)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// ИСПРАВЛЕНИЕ 2: Используем SearchRequest и метод Search
+		resp, err := client.Search(ctx, &libraryv1.SearchRequest{
+			Query: query,
+		})
+
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error calling Orchestrator: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Форматируем простой текстовый ответ
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		
+		if len(resp.Books) == 0 {
+			fmt.Fprintf(w, "No books found for: %s\n", query)
+			return
+		}
+
+		fmt.Fprintf(w, "Found %d books:\n", len(resp.Books))
+		fmt.Fprintln(w, strings.Repeat("-", 40))
+		for _, b := range resp.Books {
+			authors := strings.Join(b.Authors, ", ")
+			fmt.Fprintf(w, "[%s] %s — %s\n", b.Id, b.Title, authors)
+		}
+	})
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("🌍 Web Adapter started on :%s", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
+}
+
+--- END_FILE: ./cmd/web-adapter/main.go ---
+
+--- START_FILE: ./cmd/auth-manager/whitelist.yaml ---
+users:
+  - id: "serge_dev_cli"
+    platform: "cli"
+    role: "admin"
+  - id: "12345678"
+    platform: "telegram"
+    role: "family"
+
+--- END_FILE: ./cmd/auth-manager/whitelist.yaml ---
+
+--- START_FILE: ./cmd/auth-manager/main.go ---
+package main
+
+import (
+	"context"
+	"log"
+	"net"
+	"os"
+
+	"ebusta/api/proto/v1"
+	"google.golang.org/grpc"
+	"gopkg.in/yaml.v3"
+)
+
+type UserEntry struct {
+	ID       string `yaml:"id"`
+	Platform string `yaml:"platform"`
+	Role     string `yaml:"role"`
+}
+
+type Whitelist struct {
+	Users []UserEntry `yaml:"users"`
+}
+
+type authServer struct {
+	libraryv1.UnimplementedAuthServiceServer
+	whitelist Whitelist
+}
+
+func (s *authServer) CheckAccess(ctx context.Context, req *libraryv1.AccessRequest) (*libraryv1.AccessResponse, error) {
+	log.Printf("[%s] Auth check: user=%s platform=%s", req.TraceId, req.UserId, req.Platform)
+
+	for _, u := range s.whitelist.Users {
+		if u.ID == req.UserId && u.Platform == req.Platform {
+			return &libraryv1.AccessResponse{
+				Allowed:  true,
+				UserRole: u.Role,
+			}, nil
+		}
+	}
+
+	return &libraryv1.AccessResponse{
+		Allowed: false,
+		Reason:  "Access denied: user not in whitelist for this platform",
+	}, nil
+}
+
+func main() {
+	data, err := os.ReadFile("cmd/auth-manager/whitelist.yaml")
+	if err != nil {
+		log.Fatalf("Failed to read whitelist: %v", err)
+	}
+
+	var wl Whitelist
+	if err := yaml.Unmarshal(data, &wl); err != nil {
+		log.Fatalf("Failed to parse whitelist: %v", err)
+	}
+
+	lis, err := net.Listen("tcp", ":50055")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	s := grpc.NewServer()
+	libraryv1.RegisterAuthServiceServer(s, &authServer{whitelist: wl})
+
+	log.Println("🛡  Auth-Manager started on :50055")
+	if err := s.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
+}
+
+--- END_FILE: ./cmd/auth-manager/main.go ---
+
+--- START_FILE: ./cmd/orchestrator/main.go ---
+package main
+
+import (
+	"context"
+	"log"
+	"net"
+
+	"ebusta/api/proto/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+type orchestratorServer struct {
+	libraryv1.UnimplementedOrchestratorServiceServer
+	processorClient libraryv1.ProcessorServiceClient
+}
+
+func (s *orchestratorServer) Search(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
+	log.Printf("🎼 Orchestrator received: %s", req.Query)
+	return s.processorClient.Process(ctx, req)
+}
+
+func main() {
+	// Orchestrator -> Processor
+	conn, err := grpc.Dial("localhost:50053", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("failed to connect to processor: %v", err)
+	}
+
+	lis, err := net.Listen("tcp", ":50054")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	s := grpc.NewServer()
+	libraryv1.RegisterOrchestratorServiceServer(s, &orchestratorServer{
+		processorClient: libraryv1.NewProcessorServiceClient(conn),
+	})
+
+	log.Println("🎼 Orchestrator started on :50054")
+	s.Serve(lis)
+}
+
+--- END_FILE: ./cmd/orchestrator/main.go ---
+
+--- START_FILE: ./cmd/message-converter/main.go ---
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net"
+
+	"ebusta/api/proto/v1"
+	"ebusta/internal/parser"
+	"google.golang.org/grpc"
+)
+
+type server struct {
+	libraryv1.UnimplementedMessageConverterServiceServer
+}
+
+func (s *server) Convert(ctx context.Context, req *libraryv1.RawInput) (*libraryv1.UnmarshaledMessage, error) {
+	log.Printf("🔄 Converter parsing: %s", req.Data)
+
+	// Теперь эта функция существует в internal/parser/parser.go
+	queryAst := parser.Parse(req.Data)
+
+	return &libraryv1.UnmarshaledMessage{
+		Meta: &libraryv1.MessageMeta{
+			TraceId:       req.TraceId,
+			CanonicalForm: req.Data,
+			// Преобразуем структуру AST в строку для логов/отладки
+			AstPlan:       fmt.Sprintf("%v", queryAst),
+		},
+		Query: queryAst,
+	}, nil
+}
+
+func main() {
+	lis, err := net.Listen("tcp", ":50052")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	s := grpc.NewServer()
+	libraryv1.RegisterMessageConverterServiceServer(s, &server{})
+
+	log.Println("🔄 MessageConverter started on :50052")
+	if err := s.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
+}
+
+--- END_FILE: ./cmd/message-converter/main.go ---
+
+--- START_FILE: ./backlog-parser.md ---
+Цель: Перевод Processor на полную поддержку Ebusta Search DSL v1.1 через обход дерева SearchQuery.
++3
+
+1. Рефакторинг контракта взаимодействия
+Изменить логику обработки в cmd/processor/main.go , чтобы сервис извлекал поле query типа SearchQuery из входящего сообщения UnmarshaledMessage.
++4
+
+Обеспечить передачу структурированного объекта SearchQuery от Message-Converter к Processor через gRPC.
++3
+
+2. Реализация компонента AST Walker
+Разработать рекурсивную функцию обхода дерева SearchQuery в internal/processor.
++2
+
+Реализовать обработку узла LogicalNode для поддержки операторов AND и OR.
++1
+
+Реализовать обработку узла NotNode для поддержки инверсии запросов (negation).
++1
+
+3. Маппинг узлов на шаблоны OpenSearch
+Заменить проверку strings.HasPrefix(queryLower, "author:") на извлечение FilterNode с полем field: "author".
++1
+
+Привязать FilterNode  к существующим шаблонам данных:
+
+
+field: "author" -> fl_author_exact / fl_author_fuzzy.
+
+
+field: "title" -> fl_title_substring / fl_title_prefix.
+
+
+field: "any" -> fl_mixed_search.
++1
+
+Интегрировать поддержку Operator:
++1
+
+
+OP_REGEX -> трансляция в регулярные выражения OpenSearch.
+
+
+OP_EQUALS -> точное совпадение.
++1
+
+4. Координация логических условий
+Реализовать трансляцию LogicalNode в структуру bool query (must, should, must_not) для OpenSearch.
++3
+
+Обеспечить соблюдение приоритетов операторов: NOT > AND > OR.
+
+5. Тестирование и верификация
+Добавить интеграционные тесты в tests/smoke_full.sh для проверки цепочки: DSL-строка -> Message-Converter (AST) -> Processor (Walker) -> Data-Manager.
++2
+
+Верифицировать поле meta.canonical_form в ответе для подтверждения корректности разобранного дерева.
++1
+
+Аудит готовности:
+
+
+Переменные: Поля LogicalOp, Operator и SearchQuery уже объявлены в api/proto/v1/library.proto.
++1
+
+
+Функции: Парсер parser.Parse(req.Data) уже интегрирован в cmd/message-converter/main.go.
+
+
+Инфраструктура: Шаблоны OpenSearch (fl_mixed_search, fl_author_exact и др.) готовы к приему структурированных параметров.
+
+--- END_FILE: ./backlog-parser.md ---
+
+--- START_FILE: ./books.json ---
+[
+  {"id": "1", "title": "Оно", "authors": ["Стивен Кинг"]},
+  {"id": "2", "title": "Сияние", "authors": ["Стивен Кинг"]},
+  {"id": "3", "title": "The Hobbit", "authors": ["J.R.R. Tolkien"]}
+]
+
+--- END_FILE: ./books.json ---
+
+--- START_FILE: ./go.mod ---
+module ebusta
+
+go 1.24.0
+
+toolchain go1.24.11
+
+require (
+	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/peterh/liner v1.2.2
+	github.com/prometheus/client_golang v1.23.2
+	github.com/schollz/progressbar/v3 v3.19.0
+	github.com/sirupsen/logrus v1.9.3
+	github.com/spf13/viper v1.21.0
+	golang.org/x/text v0.31.0
+	google.golang.org/grpc v1.78.0
+	google.golang.org/protobuf v1.36.10
+	gopkg.in/yaml.v3 v3.0.1
+)
+
+require (
+	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/fsnotify/fsnotify v1.9.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/mattn/go-runewidth v0.0.16 // indirect
+	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
+	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
+	github.com/prometheus/client_model v0.6.2 // indirect
+	github.com/prometheus/common v0.66.1 // indirect
+	github.com/prometheus/procfs v0.16.1 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/sagikazarmark/locafero v0.11.0 // indirect
+	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
+	github.com/spf13/afero v1.15.0 // indirect
+	github.com/spf13/cast v1.10.0 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/subosito/gotenv v1.6.0 // indirect
+	go.yaml.in/yaml/v2 v2.4.2 // indirect
+	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/term v0.37.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251029180050-ab9386a59fda // indirect
+)
+
+--- END_FILE: ./go.mod ---
+
+--- START_FILE: ./Makefile ---
+BIN_DIR=bin
+PROTO_DIR=api/proto/v1
+
+.PHONY: build run stop clean smoke-test smoke proto tidy
+
+# Главная цель: сначала генерация proto, потом сборка
+build: proto
+	@mkdir -p $(BIN_DIR)
+	@# Создаем скрипт для логирования (вывод в консоль + файл)
+	@printf "#!/bin/bash\ntee -a \$$1" > $(BIN_DIR)/tee.sh && chmod +x $(BIN_DIR)/tee.sh
+	
+	@echo "📦 Tidy root dependencies..."
+	@go mod tidy
+
+	@echo "🏗️  Building Core Services..."
+	@go build -o $(BIN_DIR)/datamanager ./cmd/datamanager
+	@go build -o $(BIN_DIR)/auth-manager ./cmd/auth-manager
+	@go build -o $(BIN_DIR)/message-converter ./cmd/message-converter
+	@go build -o $(BIN_DIR)/processor ./cmd/processor
+	@go build -o $(BIN_DIR)/orchestrator ./cmd/orchestrator
+	@go build -o $(BIN_DIR)/web-adapter ./cmd/web-adapter
+	@go build -o $(BIN_DIR)/ebusta-cli ./cmd/cli
+	@go build -o $(BIN_DIR)/client ./cmd/client
+
+	@echo "🏗️  Building F2Bulker (Nested Module)..."
+	@cd f2bulker && go mod tidy && go build -o ../$(BIN_DIR)/f2bulker ./cmd/bulker
+
+# Генерация gRPC кода
+proto:
+	@echo "🧬 Generating gRPC code..."
+	@protoc --proto_path=. \
+		--go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		$(PROTO_DIR)/library.proto
+
+# Запуск инфраструктуры
+run: stop build
+	@echo "🚀 Starting services..."
+	@./$(BIN_DIR)/datamanager 2>&1 | ./$(BIN_DIR)/tee.sh datamanager.log &
+	@./$(BIN_DIR)/auth-manager 2>&1 | ./$(BIN_DIR)/tee.sh auth-manager.log &
+	@./$(BIN_DIR)/message-converter 2>&1 | ./$(BIN_DIR)/tee.sh message-converter.log &
+	@./$(BIN_DIR)/processor 2>&1 | ./$(BIN_DIR)/tee.sh processor.log &
+	@./$(BIN_DIR)/orchestrator 2>&1 | ./$(BIN_DIR)/tee.sh orchestrator.log &
+	@./$(BIN_DIR)/web-adapter 2>&1 | ./$(BIN_DIR)/tee.sh web-adapter.log &
+	@echo "✅ All systems go! Logs are being written to *.log"
+	@sleep 2
+
+# Остановка (игнорируем ошибки если процесс не найден)
+stop:
+	@echo "🛑 Stopping services..."
+	@-pkill -f $(BIN_DIR)/datamanager > /dev/null 2>&1 || true
+	@-pkill -f $(BIN_DIR)/auth-manager > /dev/null 2>&1 || true
+	@-pkill -f $(BIN_DIR)/message-converter > /dev/null 2>&1 || true
+	@-pkill -f $(BIN_DIR)/processor > /dev/null 2>&1 || true
+	@-pkill -f $(BIN_DIR)/orchestrator > /dev/null 2>&1 || true
+	@-pkill -f $(BIN_DIR)/web-adapter > /dev/null 2>&1 || true
+
+# Быстрый тест CLI
+smoke-test:
+	@echo "🧪 Running CLI Smoke Check..."
+	@./$(BIN_DIR)/ebusta-cli "author:Кинг" | grep -q "Plan" && echo "  ✅ CLI OK" || (echo "  ❌ CLI Failed"; exit 1)
+
+# Запуск скриптовых тестов
+smoke:
+	@echo "🧪 Running Integration Smoke Tests..."
+	@for test in tests/smoke_*.sh; do \
+		echo -n "Running $$test... "; \
+		bash $$test; \
+	done
+
+# Очистка
+clean: stop
+	@echo "🧹 Cleaning up..."
+	rm -rf $(BIN_DIR) *.log
+	# Удаляем сгенерированные pb.go файлы, чтобы гарантировать чистую пересборку
+	find . -name "*.pb.go" -delete
+
+--- END_FILE: ./Makefile ---
+
+--- START_FILE: ./f2bulker/config.yaml ---
+opensearch:
+  index_name: "flibusta_merged_index"
+  url: "http://192.168.1.179:9200"
+
+paths:
+  warn_dir: "./data/warn"
+  output_dir: "./data/out"
+  source_dir: "/mnt/fb2/fb2.Flibusta.Net"
+
+processing:
+  threads: 4
+
+logging:
+  log_path: "f2bulker.log"
+
+metrics:
+  pushgateway_url: "http://localhost:9091"
+
+# Пауза в секундах между архивами, чтобы сервер остыл
+sleep_between_zips: 600 
+
+
+uploading:
+  log_path: "uploader.log"
+  sleep_between_uploads: 30
+
+--- END_FILE: ./f2bulker/config.yaml ---
+
+--- START_FILE: ./f2bulker/cmd/bulker/main.go ---
+package main
+
+import (
+	"archive/zip"
+	"bufio"
+	"bytes"
+	"crypto/sha1"
+	"encoding/hex"
+	"encoding/json"
+	"encoding/xml"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/schollz/progressbar/v3"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/unicode"
+	"gopkg.in/yaml.v3"
+)
+
+type Config struct {
+	OpenSearch struct {
+		IndexName string `yaml:"index_name"`
+	} `yaml:"opensearch"`
+	Paths struct {
+		WarnDir   string `yaml:"warn_dir"`
+		OutputDir string `yaml:"output_dir"`
+		SourceDir string `yaml:"source_dir"`
+	} `yaml:"paths"`
+	Processing struct {
+		Threads int `yaml:"threads"`
+	} `yaml:"processing"`
+}
+
+type docOut struct {
+	Title      string    `json:"title"`
+	Authors    []string  `json:"authors,omitempty"`
+	IngestedAt time.Time `json:"ingestedAt"`
+	FileInfo   struct {
+		Container string `json:"container"`
+		Filename  string `json:"filename"`
+		Sha1      string `json:"sha1"`
+		Size      int64  `json:"size"`
+	} `json:"fileInfo"`
+}
+
+var (
+	cfg           Config
+	log           = logrus.New()
+	outFile       *os.File
+	outMu         sync.Mutex
+	bar           *progressbar.ProgressBar
+	rescuedCount  int32
+	flagRescan    *bool
+	flagVerbose   *bool
+	flagSuperFast *bool
+)
+
+func main() {
+	configPath := flag.String("config", "./config.yaml", "Path to config file")
+	container := flag.String("container", "", "Process specific ZIP")
+	rescue := flag.Bool("rescue", false, "Rescue mode")
+	flagRescan = flag.Bool("rescan", false, "Force rescan all")
+	flagVerbose = flag.Bool("verbose", false, "Detailed check")
+	flagSuperFast = flag.Bool("fast", false, "Ultra-fast skip if output exists")
+	flag.Parse()
+
+	cFile, err := os.ReadFile(*configPath)
+	if err != nil {
+		fmt.Printf("Error reading config: %v\n", err)
+		os.Exit(1)
+	}
+	if err := yaml.Unmarshal(cFile, &cfg); err != nil {
+		fmt.Printf("Error parsing YAML: %v\n", err)
+		os.Exit(1)
+	}
+
+	log.SetFormatter(&logrus.TextFormatter{FullTimestamp: true, ForceColors: true})
+	_ = os.MkdirAll(cfg.Paths.OutputDir, 0755)
+
+	if *rescue {
+		runRescueMode()
+	} else if *container != "" {
+		processSingleZip(filepath.Join(cfg.Paths.SourceDir, *container), filepath.Join(cfg.Paths.OutputDir, *container+".jsonl"))
+	} else {
+		archives, _ := filepath.Glob(filepath.Join(cfg.Paths.SourceDir, "*.zip"))
+		for _, zipPath := range archives {
+			processSingleZip(zipPath, filepath.Join(cfg.Paths.OutputDir, filepath.Base(zipPath)+".jsonl"))
+		}
+	}
+}
+
+func normalizeJSONL(path string) (int, error) {
+	f, err := os.Open(path)
+	if err != nil { return 0, err }
+	defer f.Close()
+	tmpPath := path + ".tmp"
+	tmpFile, err := os.Create(tmpPath)
+	if err != nil { return 0, err }
+	defer tmpFile.Close()
+
+	hashes := make(map[string]bool)
+	scanner := bufio.NewScanner(f)
+	re := regexp.MustCompile(`"_id":"([a-fA-F0-9]+)"`)
+	count := 0
+	for scanner.Scan() {
+		line1 := scanner.Text()
+		if strings.Contains(line1, `"_index"`) {
+			match := re.FindStringSubmatch(line1)
+			if len(match) > 1 {
+				id := match[1]
+				if scanner.Scan() {
+					line2 := scanner.Text()
+					if !hashes[id] {
+						hashes[id] = true
+						_, _ = tmpFile.WriteString(line1 + "\n")
+						_, _ = tmpFile.WriteString(line2 + "\n")
+						count++
+					}
+				}
+			}
+		}
+	}
+	_ = os.Rename(tmpPath, path)
+	return count, nil
+}
+
+func countExistingDocs(path string) int {
+	count := 0
+	f, err := os.Open(path)
+	if err != nil { return 0 }
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if strings.Contains(scanner.Text(), `"_index"`) { count++ }
+	}
+	return count
+}
+
+func loadExistingHashes(path string) map[string]bool {
+	hashes := make(map[string]bool)
+	f, err := os.Open(path)
+	if err != nil { return hashes }
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	re := regexp.MustCompile(`"_id":"([a-fA-F0-9]+)"`)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, `"_index"`) {
+			match := re.FindStringSubmatch(line)
+			if len(match) > 1 { hashes[match[1]] = true }
+		}
+	}
+	return hashes
+}
+
+func processSingleZip(zipPath, dstPath string) {
+	containerName := filepath.Base(zipPath)
+	if *flagSuperFast && !*flagRescan {
+		if info, err := os.Stat(dstPath); err == nil && info.Size() > 0 {
+			log.Infof("[%s] Fast-skip: exists.", containerName)
+			os.Exit(10)
+		}
+	}
+
+	z, err := zip.OpenReader(zipPath)
+	if err != nil { return }
+	defer z.Close()
+
+	fb2Count := 0
+	for _, f := range z.File {
+		if strings.HasSuffix(strings.ToLower(f.Name), ".fb2") { fb2Count++ }
+	}
+
+	if !*flagRescan && !*flagVerbose {
+		if jsonlCount := countExistingDocs(dstPath); jsonlCount > 0 {
+			if fb2Count == jsonlCount {
+				os.Exit(10)
+			} else {
+				newCount, _ := normalizeJSONL(dstPath)
+				if newCount == fb2Count { os.Exit(10) }
+			}
+		}
+	}
+
+	existingHashes := make(map[string]bool)
+	if !*flagRescan { existingHashes = loadExistingHashes(dstPath) }
+
+	type workItem struct {
+		file *zip.File
+		raw  []byte
+		sha  string
+	}
+	var tasks []workItem
+
+	for _, f := range z.File {
+		if !strings.HasSuffix(strings.ToLower(f.Name), ".fb2") { continue }
+		
+		if len(existingHashes) == 0 && !*flagRescan && !*flagVerbose {
+			tasks = append(tasks, workItem{file: f})
+			continue
+		}
+
+		rc, err := f.Open()
+		if err != nil { continue }
+		data, _ := io.ReadAll(rc)
+		rc.Close()
+		sum := sha1.Sum(data)
+		sha := hex.EncodeToString(sum[:])
+		if !existingHashes[sha] {
+			tasks = append(tasks, workItem{file: f, raw: data, sha: sha})
+		}
+	}
+
+	if len(tasks) == 0 { os.Exit(10) }
+
+	openOutputFile(dstPath)
+	defer outFile.Close()
+	bar = progressbar.Default(int64(len(tasks)), "🚢 "+containerName)
+	jobs := make(chan workItem)
+	var wg sync.WaitGroup
+	for i := 0; i < cfg.Processing.Threads; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for item := range jobs {
+				if item.raw == nil {
+					rc, err := item.file.Open()
+					if err == nil {
+						item.raw, _ = io.ReadAll(rc)
+						rc.Close()
+						sum := sha1.Sum(item.raw)
+						item.sha = hex.EncodeToString(sum[:])
+					}
+				}
+				if item.raw != nil {
+					if doc, err := parseResilient(item.raw); err == nil {
+						saveToOutputWithSha(item.file.Name, containerName, item.raw, item.sha, doc)
+					}
+				}
+				_ = bar.Add(1)
+			}
+		}()
+	}
+	for _, t := range tasks { jobs <- t }
+	close(jobs)
+	wg.Wait()
+}
+
+func runRescueMode() {
+	files, _ := filepath.Glob(filepath.Join(cfg.Paths.WarnDir, "*fb2"))
+	if len(files) == 0 { return }
+	dstPath := filepath.Join(cfg.Paths.OutputDir, "rescued_items.jsonl")
+	openOutputFile(dstPath)
+	defer outFile.Close()
+	jobs := make(chan string)
+	var wg sync.WaitGroup
+	for i := 0; i < cfg.Processing.Threads; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for path := range jobs {
+				data, err := os.ReadFile(path)
+				if err != nil { continue }
+				if doc, err := parseResilient(data); err == nil {
+					if saveToOutput(filepath.Base(path), "rescued", data, doc) {
+						_ = os.Remove(path)
+						atomic.AddInt32(&rescuedCount, 1)
+					}
+				}
+			}
+		}()
+	}
+	for _, f := range files { jobs <- f }
+	close(jobs)
+	wg.Wait()
+}
+
+func parseResilient(data []byte) (*docOut, error) {
+	utf8Data := convertToUTF8(data)
+	if doc, err := parseFB2(utf8Data); err == nil { return doc, nil }
+	return parseWithRegex(utf8Data)
+}
+
+func convertToUTF8(data []byte) []byte {
+	if len(data) < 2 { return data }
+	if (data[0] == 0xFF && data[1] == 0xFE) || (data[0] == 0xFE && data[1] == 0xFF) {
+		dec := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder()
+		out, _ := dec.Bytes(data)
+		return out
+	}
+	header := string(data[:min(len(data), 500)])
+	if strings.Contains(strings.ToLower(header), "windows-1251") {
+		out, _ := charmap.Windows1251.NewDecoder().Bytes(data)
+		return out
+	}
+	return bytes.ToValidUTF8(data, []byte(" "))
+}
+
+func parseWithRegex(data []byte) (*docOut, error) {
+	doc := &docOut{}
+	reTitle := regexp.MustCompile(`(?is)<book-title[^>]*>(.*?)</book-title>`)
+	if m := reTitle.FindSubmatch(data); len(m) > 1 { doc.Title = string(m[1]) }
+	if doc.Title == "" { return nil, fmt.Errorf("regex failed") }
+	return doc, nil
+}
+
+func openOutputFile(path string) {
+	var err error
+	outFile, err = os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatalf("Critical: failed to open output file: %v", err)
+	}
+}
+
+func saveToOutput(filename, container string, raw []byte, doc *docOut) bool {
+	sum := sha1.Sum(raw)
+	sha := hex.EncodeToString(sum[:])
+	return saveToOutputWithSha(filename, container, raw, sha, doc)
+}
+
+func saveToOutputWithSha(filename, container string, raw []byte, sha string, doc *docOut) bool {
+	doc.FileInfo.Container, doc.FileInfo.Filename, doc.FileInfo.Sha1, doc.FileInfo.Size = container, filename, sha, int64(len(raw))
+	doc.IngestedAt = time.Now()
+	action, _ := json.Marshal(map[string]map[string]any{"index": {"_index": cfg.OpenSearch.IndexName, "_id": sha}})
+	data, _ := json.Marshal(doc)
+	outMu.Lock()
+	defer outMu.Unlock()
+	_, _ = outFile.Write(append(action, '\n'))
+	_, _ = outFile.Write(append(data, '\n'))
+	return true
+}
+
+func parseFB2(data []byte) (*docOut, error) {
+	var doc docOut
+	d := xml.NewDecoder(bytes.NewReader(data))
+	for {
+		t, _ := d.Token()
+		if t == nil { break }
+		if se, ok := t.(xml.StartElement); ok && se.Name.Local == "book-title" {
+			_ = d.DecodeElement(&doc.Title, &se)
+		}
+	}
+	if doc.Title == "" { return nil, fmt.Errorf("no title") }
+	return &doc, nil
+}
+
+func min(a, b int) int { if a < b { return a }; return b }
+
+--- END_FILE: ./f2bulker/cmd/bulker/main.go ---
+
+--- START_FILE: ./f2bulker/go.mod ---
+module f2bulker
+
+go 1.24.11
+
+require (
+	github.com/schollz/progressbar/v3 v3.19.0
+	github.com/sirupsen/logrus v1.9.3
+	golang.org/x/text v0.32.0
+	gopkg.in/yaml.v3 v3.0.1
+)
+
+require (
+	github.com/kr/pretty v0.3.1 // indirect
+	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/rogpeppe/go-internal v1.10.0 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/term v0.28.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+)
+
+--- END_FILE: ./f2bulker/go.mod ---
+
+--- START_FILE: ./f2bulker/Makefile ---
+BINARY_NAME=f2bulker
+INSTALL_DIR=/opt/f2bulker
+BIN_PATH=$(INSTALL_DIR)/$(BINARY_NAME)
+LOCAL_BIN=./bin/$(BINARY_NAME)
+IS_ROOT = $(shell id -u)
+
+.PHONY: build install clean check-root
+
+build:
+	go mod tidy
+	mkdir -p bin
+	go build -o $(LOCAL_BIN) ./cmd/bulker/main.go
+
+check-root:
+ifneq ($(IS_ROOT), 0)
+	@echo "Error: Run 'sudo make install'"
+	@exit 1
+endif
+
+install: check-root
+	@if [ ! -f $(LOCAL_BIN) ]; then echo "Run 'make build' first"; exit 1; fi
+	mkdir -p $(INSTALL_DIR)
+	mkdir -p $(INSTALL_DIR)/data/src $(INSTALL_DIR)/data/out $(INSTALL_DIR)/data/warn
+	cp $(LOCAL_BIN) $(INSTALL_DIR)/
+	cp ./config.yaml $(INSTALL_DIR)/
+	cp ./scripts/scan_zips.sh $(INSTALL_DIR)/
+	chmod +x $(BIN_PATH)
+	chmod +x $(INSTALL_DIR)/scan_zips.sh
+	@echo "Installed to $(INSTALL_DIR)"
+	@echo "Link: sudo ln -sf $(BIN_PATH) /usr/local/bin/$(BINARY_NAME)"
+
+clean:
+	rm -rf bin
+
+--- END_FILE: ./f2bulker/Makefile ---
+
+--- START_FILE: ./f2bulker/README.md ---
+# f2bulker: Высокопроизводительный индексатор FB2 в OpenSearch
+
+## 1. Спецификация требований (ISO 29148)
+
+Данный раздел формализует требования к системе, обеспечивая их проверяемость и соответствие техническим целям проекта.
+
+### 1.1 Функциональные требования (Functional Requirements)
+* **FR-1: Извлечение из ZIP.** Система должна открывать ZIP-архивы и извлекать файлы формата `.fb2`.
+* **FR-2: Парсинг метаданных.** Программа должна извлекать название книги и список авторов из структуры FB2.
+* **FR-3: Отказоустойчивость.** При ошибках XML-парсинга система должна применять поиск через регулярные выражения.
+* **FR-4: Формат Bulk API.** Вывод должен формироваться в формате JSONL, пригодном для Bulk API OpenSearch, включая строку метаданных индекса и строку документа.
+* **FR-5: Дедупликация.** Система должна рассчитывать SHA1-хеш каждого файла и пропускать уже обработанные объекты на основе анализа выходного файла.
+* **FR-6: Режим Fast-skip.** При установленном флаге `-fast` система должна мгновенно пропускать контейнер, если соответствующий ему `.jsonl` файл существует и не пуст.
+* **FR-7: Управление через CLI.** Программа должна поддерживать флаги `-config`, `-container`, `-rescan`, `-verbose`, `-fast`.
+* **FR-8: Интеграция со скриптами.** Программа должна возвращать код завершения `10` при пропуске обработанного контейнера для корректной работы внешних планировщиков.
+
+### 1.2 Нефункциональные требования (Performance & Quality)
+* **PR-1: Параллелизм.** Обработка должна распределяться между потоками (горутинами) согласно параметру `Threads` в конфигурации.
+* **PR-2: Оптимизация Discovery.** Для новых контейнеров этап подготовки задач не должен включать чтение содержимого файлов в основном потоке.
+* **PR-3: Эффективность памяти.** Содержимое файлов должно очищаться из RAM сразу после записи в выходной файл.
+* **PR-4: Поддержка кодировок.** Система должна корректно обрабатывать UTF-8, UTF-16 и Windows-1251.
+
+---
+
+## 2. Документ технической реализации
+
+### 2.1 Архитектура системы
+Программа построена на модели **Concurrent Worker Pool** (Пул параллельных воркеров).
+
+
+
+#### Компоненты потока управления:
+1.  **Главный поток (Producer):** Сканирует архивы и формирует очередь задач.
+2.  **Канал задач (`jobs`):** Буферизированный канал для передачи структур `workItem`.
+3.  **Воркеры (Consumers):** Набор из N горутин, выполняющих параллельное чтение, хеширование и парсинг.
+4.  **Синхронизатор:** `sync.WaitGroup` для контроля завершения всех процессов перед выходом.
+
+### 2.2 Пошаговая передача управления
+1.  **`main` → `processSingleZip`:** Инициализация параметров конкретного контейнера.
+2.  **Проверка Fast-skip:** Если флаг `-fast` активен, управление через `os.Stat` проверяет наличие файла. При успехе — немедленный выход через `os.Exit(10)`.
+3.  **Discovery (Оптимизированный):** * Если база хешей пуста (новый контейнер), основной поток лишь заполняет список `tasks` ссылками на `zip.File`, минуя вызовы `f.Open` и `io.ReadAll`.
+    * Это устраняет "зависание" программы перед появлением прогресс-бара.
+4.  **Развертывание воркеров:** Основной поток передает задачи в канал. Управление внутри воркера реализует **Lazy Loading**: если данные файла отсутствуют (`item.raw == nil`), воркер сам инициирует чтение и расчет SHA1 параллельно с другими воркерами.
+5.  **Завершение:** После закрытия канала воркеры завершают работу, и управление возвращается в `main` для перехода к следующему ZIP-архиву.
+
+### 2.3 Жизненный цикл переменных
+* **`item.raw` ([]byte):** Данные файла. Память выделяется либо в Discovery, либо в воркере. Ссылка на массив байтов обнуляется сразу после вызова `saveToOutputWithSha`, что позволяет Garbage Collector (GC) освобождать память итеративно.
+* **`existingHashes` (map):** Карта хешей. Загружается один раз в начале обработки ZIP для дедупликации. При ее отсутствии активируется режим ускоренного Discovery.
+* **`err`:** Все переменные ошибок проходят аудит; при критических сбоях (например, невозможность открыть файл вывода) программа завершается через `log.Fatalf`.
+
+### 2.4 Матрица состояний (Аудит логики `-fast`)
+
+| Режим `-fast` | Состояние контейнера | Логика | Результат |
+| :--- | :--- | :--- | :--- |
+| **Установлен** | **Обработан** | `os.Stat` находит файл | Мгновенный выход `Exit(10)`. |
+| **Установлен** | **Не обработан** | `os.Stat` возвращает ошибку | Быстрый Discovery -> Параллельное хеширование. |
+| **Не установлен** | **Обработан** | Сравнение счетчиков файлов | Выход `Exit(10)`, если количество совпадает. |
+| **Не установлен** | **Не обработан** | База хешей пуста | Быстрый Discovery -> Параллельное хеширование. |
+
+---
+
+## 3. Инструкции по эксплуатации
+
+### Сборка
+```bash
+make build
+
+--- END_FILE: ./f2bulker/README.md ---
+
+--- START_FILE: ./f2bulker/backlog.md ---
+# Ebusta Project Backlog
+
+## Ingesting (f2bulker)
+- [ ] **Issue #1**: Ошибка парсинга UTF-16 (BOM ÿþ). Файл `547782.fb2` падает с `XML syntax error: invalid UTF-8`. Необходимо доработать `charsetReader` для корректной десериализации UTF-16 Little Endian. [cite: 440-442]
+- [ ] **Feature**: Поддержка группировки в DSL (скобки). [cite: 141]
+
+## System
+- [ ] **Auth**: Интеграция Auth-Manager в Orchestrator. [cite: 219-220]
+- [ ] **OS**: Переход с мока `books.json` на реальные поисковые шаблоны OpenSearch. [cite: 221]
+
+--- END_FILE: ./f2bulker/backlog.md ---
+
+--- START_FILE: ./README.md ---
+# Ebusta 📚
+
+Микросервисная поисковая система для архивов Flibusta. Позволяет выполнять быстрый поиск по миллионам записей через OpenSearch, используя собственный DSL (Domain Specific Language).
+
+## 🏗 Архитектура системы
+
+Система состоит из нескольких независимых сервисов, взаимодействующих по gRPC:
+
+* **Web-Adapter (The Door)**: Принимает внешние HTTP-запросы и передает их в оркестратор.
+* **Orchestrator**: Координирует работу всех сервисов, управляет Trace-ID.
+* **Message-Converter**: Парсит строку запроса в AST-дерево.
+* **Processor**: Обрабатывает бизнес-логику и выбирает стратегию поиска.
+* **Datamanager**: Слой данных, работающий с OpenSearch.
+* **Auth-Manager**: Проверяет права доступа и управляет whitelist.
+* **Ebusta-CLI**: Интерактивная оболочка для работы с системой.
+
+
+
+## 🚦 Карта портов
+
+| Сервис            | Порт (gRPC) | Функции                          |
+|:------------------|:------------|:---------------------------------|
+| Datamanager       | `:50051`    | Слой данных (OpenSearch)         |
+| Message-Converter | `:50052`    | Парсер (AST)                     |
+| Processor         | `:50053`    | Логика и выбор шаблонов          |
+| Orchestrator      | `:50054`    | Координация                      |
+| Auth-Manager      | `:50055`    | Безопасность (Whitelist)         |
+| Web-Adapter       | `:8080`     | HTTP-вход (REST)                 |
+| Metrics           | `:9091`     | Prometheus метрики (Datamanager) |
+
+## 🚀 Быстрый старт
+
+### Сборка и запуск
+Требуется установленный Go 1.21+ и Protoc.
+
+```bash
+make build   # Генерация Proto и компиляция всех сервисов
+make run     # Запуск всей системы в фоновом режиме
+
+
+--- END_FILE: ./README.md ---
+
+--- START_FILE: ./errors.yaml ---
+# Сообщения для пользователя ("Дятла")
+user_errors:
+  invalid_command: "🥚 Слушай, дятел, я не понял твою команду. Попробуй 'get ID' или просто текст поиска."
+  empty_payload: "🥚 Дятел, ты забыл ввести текст после команды!"
+
+# Сообщения при сбоях системы ("Сорян, братан")
+system_errors:
+  converter_down: "🛠 Сорян, братан, у нас конвертер приуныл. Скоро починим."
+  processor_error: "🛠 Сорян, братан, труба забилась. Мы уже вызвали сантехников."
+  data_layer_down: "📉 Сорян, братан, библиотека закрыта на ремонт. Попробуй позже."
+  generic_error: "🧨 Сорян, братан, что-то пошло совсем не так. RequestID: %s"
+
+--- END_FILE: ./errors.yaml ---
+
+--- START_FILE: ./doc/requirements.md ---
+# Спецификация требований системы "Eboost-Library" (v2.1)
+
+## 1. Основание проекта (Project Foundation)
+
+### 1.1. Описание проблемы
+Владельцы больших личных коллекций электронных книг сталкиваются с проблемой "мертвого груза": книги хранятся локально, но доступ к ним извне (с телефона, в дороге, для друзей) ограничен. Существующие решения либо слишком тяжеловесны, либо привязаны к одному интерфейсу. 
+
+### 1.2. Концепция (Scope)
+Необходима система-посредник, которая абстрагирует хранилище и поиск через единый внутренний протокол, предоставляя доступ через разные каналы коммуникации (Telegram, IRC, CLI) с сохранением контекста пользователя.
+
+---
+
+## 2. Бизнес-требования (Business Requirements)
+
+| ID | Наименование | Описание |
+| :--- | :--- | :--- |
+| **BR-1** | Мультиканальность | Единая точка входа через разные интерфейсы (TG, IRC, CLI). |
+| **BR-2** | Скорость поиска | Time-to-Content не более 3 секунд. |
+| **BR-3** | Изоляция логики | Добавление новых фронтов без изменения Core-компонентов. |
+| **BR-4** | Управляемый доступ | Ограничение доступа только для доверенного круга лиц. |
+| **BR-5** | Поддержка форматов | Обработка и выдача разных расширений (EPUB, PDF, FB2). |
+| **BR-6** | Континуитет сессий | Сохранение состояния поиска и навигации (пагинации). |
+| **BR-7** | Масштабируемость | Стабильная работа при объеме базы до 1 000 000 книг. |
+| **BR-8** | Автономность | Работа с локальными файлами без внешних зависимостей. |
+
+---
+
+## 3. Требования заинтересованных сторон (Stakeholder Requirements)
+
+### 3.1. Группа: Поиск и навигация
+* **UR-1: Поиск по атрибутам.** Пользователь должен иметь возможность найти книгу по автору, названию или серии.
+    * *Трассировка:* [BR-1, BR-7, BR-2]
+* **UR-2: Просмотр результатов.** Пользователь должен иметь возможность листать страницы выдачи (пагинация) без повторного ввода запроса.
+    * *Трассировка:* [BR-6]
+* **UR-3: Уточнение формата.** При выборе книги система должна предлагать список доступных для неё форматов.
+    * *Трассировка:* [BR-5]
+
+### 3.2. Группа: Получение контента
+* **UR-4: Прямая доставка (TG).** В Telegram файл должен приходить документом (до определенного лимита размера).
+    * *Трассировка:* [BR-1, BR-8]
+* **UR-5: Ссылочная доставка (IRC/CLI).** В текстовых интерфейсах пользователь должен получать временную ссылку на скачивание.
+    * *Трассировка:* [BR-1, BR-8]
+
+### 3.3. Группа: Доступ и интерфейс
+* **UR-6: Прозрачная авторизация.** Доступ предоставляется автоматически на основе ID платформы (UID Telegram, Host IRC).
+    * *Трассировка:* [BR-4]
+* **UR-7: Унификация команд.** Командный синтаксис должен быть единообразным для всех адаптеров.
+    * *Трассировка:* [BR-1, BR-3]
+
+### 3.4. Группа: Администрирование
+* **UR-8: Управление белыми списками.** Владелец должен иметь возможность оперативно менять список разрешенных ID.
+    * *Трассировка:* [BR-4]
+
+---
+
+## 4. Глоссарий
+* **UnifiedMessage** — внутренний формат структуры данных, в который преобразуются все входящие запросы.
+* **Whitelist** — список идентификаторов пользователей, имеющих доступ к системе.
+* **OpenSearch** — основной движок полнотекстового поиска.
+
+--- END_FILE: ./doc/requirements.md ---
+
+--- START_FILE: ./doc/architecture-IN.md ---
+cat << 'EOF' > ebusta_arch_spec.md
+# Техническая спецификация: Архитектура Ebusta (Orchestration Model)
+
+**Дата:** 05.01.2026
+**Статус:** Утверждено
+**Модель взаимодействия:** Централизованная оркестрация (Orchestration)
+
+## 1. Обзор архитектуры
+Система строится на базе центрального компонента (**Orchestrator**), который координирует работу «тонких» адаптеров, парсера DSL и сервиса данных на удаленном хосте Mercury.
+
+### Ключевые узлы:
+1. **Adapters (The Door)**: SSH/BBS, Telegram, Web. Принимают ввод, передают его в Core, получают результат и рендерят его.
+2. **Orchestrator (Core)**: Логический центр. Управляет жизненным циклом запроса.
+3. **Parser**: Библиотека для конвертации строки в `libraryv1.SearchQuery`.
+4. **Data Manager (Mercury Proxy)**: gRPC-сервис, транслирующий запросы в OpenSearch (Docker на Mercury).
+
+## 2. Спецификация UnifiedMessage
+`UnifiedMessage` является единым транспортным контейнером внутри системы.
+
+```protobuf
+message UnifiedMessage {
+    string request_id = 1;
+    
+    // Метаданные источника для обратной маршрутизации
+    message Context {
+        string client_id = 1;
+        enum SourceType {
+            BBS = 0;
+            TELEGRAM = 1;
+            WEB = 2;
+        }
+        SourceType source = 2;
+    }
+    Context context = 2;
+
+    // Полезная нагрузка (Payload)
+    oneof content {
+        libraryv1.SearchQuery query = 3;  // Структурированный запрос
+        SearchResult result = 4;          // Результаты из OpenSearch
+        string error = 5;                 // Описание ошибки
+    }
+}
+
+--- END_FILE: ./doc/architecture-IN.md ---
+
+--- START_FILE: ./doc/architecture.md ---
+# Архитектура системы "Eboost-Library" (v2.0)
+
+## 1. Описание проблемы
+[cite_start]Владельцы больших личных коллекций электронных книг часто сталкиваются с проблемой "мертвого груза": книги хранятся локально, но доступ к ним извне (с телефона, в дороге, для друзей) ограничен или неудобен[cite: 1, 3]. Существующие решения либо слишком тяжеловесны, либо привязаны к одному интерфейсу. [cite_start]Необходима система, которая абстрагирует хранилище и поиск, предоставляя единый доступ через разные каналы коммуникации с сохранением контекста пользователя[cite: 3, 39].
+
+## 2. Предметная область (DDD Contexts)
+Согласно принципам Domain-Driven Design, система разделена на следующие ограниченные контексты:
+* [cite_start]**Interaction (Взаимодействие):** Трансформация специфичных протоколов (Telegram, IRC, CLI) в единый бизнес-язык системы `UnifiedMessage`[cite: 4, 14].
+* [cite_start]**Identity & Access (Доступ):** Идентификация пользователей, проверка прав по Bot Token или белым спискам[cite: 6].
+* [cite_start]**Library Core (Ядро):** Оркестрация процессов разбора команд, навигации и формирования ответов[cite: 14, 15].
+* [cite_start]**Catalog (Каталог):** Полнотекстовый поиск и управление метаданными книг в OpenSearch[cite: 19, 21].
+* [cite_start]**Delivery (Доставка):** Извлечение файлов из хранилища и предоставление ссылок или бинарных данных[cite: 25, 27].
+
+## 3. Компоненты системы
+
+### Слой адаптеров (Front-end)
+* [cite_start]**TelegramAdapter:** Реализует интерфейс бота, обрабатывает Webhook/Long Polling[cite: 4].
+* [cite_start]**IrcAdapter:** Микросервис-клиент для подключения к IRC-серверам и каналам[cite: 6, 7].
+* [cite_start]**CliAdapter:** Интерфейс командной строки (Linux CLI) для удаленного обращения к ядру[cite: 10, 11].
+* [cite_start]**Translator (New):** Компонент внутри адаптеров или перед процессором, преобразующий `RawPayload` в `UnifiedMessage`[cite: 30].
+
+### Слой управления и состояния
+* **Auth-Manager (New):** Проверяет UserID на наличие в Allow-листах или внешних провайдерах (Keycloak).
+* **Session-Manager (New):** Прокси к **Redis** для хранения состояния поиска и текущего положения пользователя в каталоге.
+* [cite_start]**Config-Manager:** Централизованный сервис для хранения лимитов, шаблонов ответов и локализации[cite: 22, 23].
+
+### Слой бизнес-логики (Core)
+* [cite_start]**Processor:** Центральный сервис, выполняющий разбор команд (/book, /author) и координирующий другие службы[cite: 14, 15, 17].
+
+### Слой данных и хранилища
+* [cite_start]**Data-Manager:** Прокси-сервис для построения запросов к **OpenSearch**[cite: 19, 21].
+* [cite_start]**Book-Fetcher:** Сервис выдачи файлов по ключу из локального или объектного хранилища[cite: 25, 26, 28].
+
+## 4. Потоки данных
+
+### Поиск книги
+1.  [cite_start]**Адаптер** (TG/IRC/CLI) принимает ввод и через **Translator** создает `UnifiedMessage`[cite: 30].
+2.  **Auth-Manager** подтверждает права пользователя.
+3.  [cite_start]**Processor** запрашивает метаданные у **Data-Manager**[cite: 31].
+4.  **Processor** сохраняет ID результатов в **Session-Manager** (Redis) для поддержки пагинации.
+5.  [cite_start]Формируется ответ и возвращается пользователю через соответствующий адаптер[cite: 32, 33].
+
+### Получение файла
+1.  [cite_start]Пользователь выбирает книгу и формат[cite: 34].
+2.  [cite_start]**Processor** запрашивает файл или ссылку у **Book-Fetcher**[cite: 35, 36].
+3.  [cite_start]**Book-Fetcher** обращается к **Book Storage** и возвращает результат[cite: 37, 38].
+
+## 5. Структура проекта (Go Layout)
+```text
+.
+├── cmd/                # Точки входа (main.go) для каждого адаптера
+├── internal/           # Приватный код приложения
+│   ├── domain/         # Чистые структуры (Book, User, UnifiedMessage)
+│   ├── processor/      # Ядро (бизнес-сценарии)
+│   ├── auth/           # Проверка прав и доступ
+│   ├── session/        # Интеграция с Redis
+│   ├── translator/     # Логика маппинга сообщений
+│   ├── storage/        # Клиенты OpenSearch (Data-Manager) и FS (Fetcher)
+│   └── config/         # Config-Manager и загрузка .env/yaml
+├── pkg/                # Публичные библиотеки
+├── api/                # Протоколы обмена (gRPC/Proto или OpenAPI)
+└── deployments/        # Docker-compose и манифесты
+
+--- END_FILE: ./doc/architecture.md ---
+
+--- START_FILE: ./doc/ARCHITECTURE.md ---
+# Ebusta: Система поиска и доставки контента
+
+## Архитектура системы (Pipeline)
+
+Система построена на принципах микросервисной архитектуры с использованием gRPC для межсервисного взаимодействия. Весь путь сообщения от пользователя до данных разделен на изолированные этапы.
+
+### Схема потока данных (Data Flow)
+`User Input -> Adapter -> MessageConverter -> Processor -> Data-Manager`
+
+---
+
+## Компоненты системы
+
+### 1. Adapters (Входные шлюзы)
+**Пример:** `cmd/web-adapter`
+- **Функция:** Прием сырых данных из внешних интерфейсов (HTTP, TG, IRC).
+- **Ответственность:** Только транспортный уровень. Преобразует внешние запросы в gRPC-вызов `MessageConverter.Convert`.
+
+### 2. MessageConverter (Семантический анализатор)
+**Путь:** `cmd/message-converter`
+- **Функция:** Парсинг и нормализация.
+- **Задача:** Извлекает "Намерение" (Intent) и очищенные данные (Payload).
+- **UnifiedMessage:** Объект, который гарантирует, что `Processor` получит стандартизированные данные независимо от источника.
+
+### 3. Processor (Бизнес-логика / Оркестратор)
+**Путь:** `cmd/processor`
+- **Функция:** Маршрутизация и принятие решений.
+- **Логика:**
+    - Если `Intent == "search"`, запрашивает данные у `Data-Manager`.
+    - Если `Intent == "download"`, инициирует процесс загрузки.
+
+### 4. Data-Manager (Слой данных)
+**Путь:** `cmd/data-manager`
+- **Функция:** Интерфейс к поисковому движку (OpenSearch).
+- **Задача:** Выполнение поисковых запросов и возврат списка объектов `Book`.
+
+---
+
+## Технологический стек
+- **Язык:** Go (Golang)
+- **Связь:** gRPC (Protocol Buffers v3)
+- **Логирование:** Logrus
+- **Сборка:** Makefile
+
+## Порты и адреса (Service Map)
+| Сервис            | Порт   | Протокол |
+|-------------------|--------|----------|
+| Data-Manager      | :50051 | gRPC     |
+| MessageConverter  | :50052 | gRPC     |
+| Processor         | :50053 | gRPC     |
+| Web-Adapter       | :8080  | HTTP     |
+
+## Управление проектом
+- `make run` — Запуск всего пайплайна в фоне.
+- `make stop` — Безопасная остановка всех сервисов (через fuser и pkill).
+- `make proto` — Генерация кода из .proto файлов.
+
+--- END_FILE: ./doc/ARCHITECTURE.md ---
+
+--- START_FILE: ./doc/DSL_REQUIREMENTS.md ---
+# Specification: Ebusta Search DSL (v1.1)
+
+## 1. Goal
+Предоставление человекочитаемого языка запросов для поиска книг, который транслируется в структурированное дерево (AST) для поискового движка Mercury.
+
+## 2. Lexical Atoms (Лексика)
+- **Action**: `get`, `find`, `list`, `read` (зарезервированы)
+- **Field Prefixes**: `title:`, `author:`, `author_id:`, `desc:`
+- **Logic Operators**: `AND`, `OR` (регистронезависимые)
+- **Unary Operators**: `NOT`
+- **Pattern**: `/regex/` (строка, обернутая в косую черту)
+- **Literal**: `"exact phrase"`, `simple_word`, `101`
+
+## 3. Функциональные требования
+
+### UR 1: Базовый поиск
+- **UR 1.1 (Default Search)**: Любой ввод без префикса (например, `Unix`) должен интерпретироваться как поиск по всем полям (`field: any`).
+- **UR 1.2 (Case Insensitivity)**: Поиск по умолчанию нечувствителен к регистру.
+
+### UR 2: Целевой поиск (Scoping)
+- **UR 2.1 (Field Limiting)**: Использование префикса `field:` ограничивает поиск конкретным мета-полем.
+- **UR 2.2 (Regex)**: Если значение обернуто в `/ /`, система должна использовать регулярные выражения (Operator: `OP_REGEX`).
+
+### UR 3: Сложная логика (Boolean)
+- **UR 3.1 (Combination)**: Поддержка операторов `AND` и `OR` для объединения условий.
+- **UR 3.2 (Negation)**: Поддержка оператора `NOT` для исключения результатов из выдачи.
+- **UR 3.3 (Precedence)**: Приоритет операторов: `NOT` > `AND` > `OR`.
+
+### UR 4: Обратная связь (Feedback)
+- **UR 4.1 (Explanation)**: Каждый ответ системы должен содержать поле `meta.canonical_form`, отображающее дерево разбора запроса для верификации пользователем.
+- **UR 4.2 (Request Tracing)**: Каждому запросу присваивается `request_id`, который пробрасывается через всю цепочку (Adapter -> Converter -> Processor -> Mercury).
+
+## 4. Примеры валидных запросов
+- `author:Кинг AND NOT title:Куджо`
+- `title:/^Unix.*/ OR desc:linux`
+- `101` (трактуется как поиск ID или любой поиск по "101")
+
+--- END_FILE: ./doc/DSL_REQUIREMENTS.md ---
+
+--- START_FILE: ./doc/REQUIREMENTS.md ---
+# Software Requirements Specification (SRS) - Ebusta Pipeline
+
+Данный документ определяет технические требования к каждому компоненту конвейера обработки сообщений системы Ebusta.
+
+---
+
+## 1. Web-Adapter (The Gateway)
+**Роль:** Транспортный шлюз для внешних HTTP-запросов.
+
+* **SR-1.1 (Interface):** Должен обеспечивать эндпоинт `GET /input?msg=...` для приема сырых данных.
+* **SR-1.2 (Sanity Check):** Должен возвращать `HTTP 400 Bad Request`, если параметр `msg` пуст или отсутствует.
+* **SR-1.3 (Source Identification):** Обязан при вызове следующего звена передавать метку `source: "web"`.
+* **SR-1.4 (Logic Isolation):** **Запрещено** выполнять парсинг текста, поиск подстрок или любую бизнес-логику.
+* **SR-1.5 (Error Handling):** Должен транслировать gRPC-статусы ошибок в соответствующие HTTP-коды (например, `Unavailable` -> `503 Service Unavailable`).
+
+---
+
+## 2. MessageConverter (The Semantic Brain)
+**Роль:** Семантический разбор и нормализация сообщения.
+
+* **SR-2.1 (Normalization):** Должен выполнять очистку входной строки (удаление лишних пробелов в начале/конце).
+* **SR-2.2 (Intent Recognition):** Должен определять тип намерения (`Intent`) на основе командных префиксов:
+    * `get ` или `download ` -> `intent: "download"`
+    * Остальное -> `intent: "search"`
+* **SR-2.3 (Payload Extraction):** Должен возвращать в поле `Payload` только содержательную часть, очищенную от командных префиксов.
+* **SR-2.4 (Stateless):** Должен быть полностью "без состояния" (stateless) — результат парсинга зависит только от входной строки.
+* **SR-2.5 (Robustness):** Должен корректно обрабатывать пустые строки после удаления префиксов, возвращая ошибку или дефолтный интент.
+
+---
+
+## 3. Processor (The Orchestrator)
+**Роль:** Центр принятия решений и маршрутизации.
+
+* **SR-3.1 (Routing):** Обязан выполнять маршрутизацию запроса строго на основе поля `Intent` из `UnifiedMessage`.
+* **SR-3.2 (Service Coordination):**
+    * При `search`: Вызывает `Data-Manager.Search()`.
+    * При `download`: (Будущее) Вызывает `Download-Manager`.
+* **SR-3.3 (Data Aggregation):** Должен упаковывать ответы от нижестоящих сервисов в единую структуру `ActionResponse`.
+* **SR-3.4 (Resilience):** Должен использовать механизмы `Context Timeout` (не более 5 секунд на запрос) при обращении к другим сервисам.
+* **SR-3.5 (Enrichment):** Имеет право добавлять метаданные к ответу (например, время обработки или статус выполнения).
+
+---
+
+## 4. Data-Manager (The Storage Interface)
+**Роль:** Изолированный слой доступа к данным.
+
+* **SR-4.1 (Contract Compliance):** Должен принимать только структурированные объекты `SearchRequest`.
+* **SR-4.2 (Zero Context):** **Запрещено** иметь информацию об источниках запроса (TG/Web) или командах пользователя.
+* **SR-4.3 (Data Consistency):** Должен возвращать консистентный список объектов `Book`, даже если найден только один результат.
+* **SR-4.4 (Performance):** Должен обеспечивать быстрый поиск по индексу; в случае мока — имитировать задержку сети.
+* **SR-4.5 (Safety):** Должен ограничивать максимальное количество возвращаемых записей (не более 50 за один запрос) для защиты памяти системы.
+
+---
+
+## Общие системные требования (Cross-Cutting)
+1. **Communication:** Все межсервисное взаимодействие осуществляется исключительно через gRPC.
+2. **Observability:** Каждый сервис обязан логировать факт получения запроса и результат его обработки через `logrus`.
+3. **Graceful Shutdown:** Все компоненты должны корректно завершать работу по сигналу `SIGTERM`, закрывая активные соединения.
+
+## 5. UnifiedMessage (The Internal Protocol)
+**Роль:** Единый стандарт данных внутри системы.
+
+* **SR-5.1 (Neutrality):** Объект не должен содержать специфичных для мессенджеров полей (например, `chat_id` или `irc_channel`). Вся метаинформация должна быть нормализована.
+* **SR-5.2 (Intent Categorization):** Поле `Intent` должно быть строго типизировано (строка или enum), определяющее дальнейший путь сообщения:
+    * `search` — запрос на поиск информации.
+    * `download` — запрос на получение файла.
+    * `help` — запрос системной справки.
+    * `meta` — запрос статистики или информации о сервисе.
+* **SR-5.3 (Payload Integrity):** Поле `Payload` обязано содержать только очищенные данные, готовые для передачи в поисковой движок без дополнительной обработки.
+* **SR-5.4 (Traceability):** (Будущее) Должен содержать `CorrelationID` для отслеживания пути конкретного запроса через логи всех микросервисов.
+* **SR-5.5 (Context Enrichment):** Должен включать поле `Source` (откуда пришел запрос), чтобы `Processor` мог принимать решение о лимитах (например, для Web-клиентов лимиты жестче, чем для CLI).
+
+--- END_FILE: ./doc/REQUIREMENTS.md ---
+
+--- START_FILE: ./doc/components.md ---
+Компонент,Роль,Описание,Входящие (In),Исходящие (Out)
+Web-Adapter,API Gateway,"Точка входа. Принимает HTTP-запросы, генерирует Trace-ID и управляет цепочкой вызовов.",HTTP :8080 (/input?msg=...),"gRPC -> Message-Converter, gRPC -> Processor"
+Message-Converter,DSL Parser,Превращает сырой текст в структурированное дерево (AST). Использует internal/parser.,gRPC :50052 (Convert),Нет
+Processor,Orchestrator,"Ядро системы. Реализует логику AST Walker: получает дерево, запрашивает данные и фильтрует их.",gRPC :50053 (HandleCommand),gRPC -> Data-Manager (GetData)
+Data-Manager,Data Provider,Хранилище. Загружает books.json и отдает сырой список книг для дальнейшей фильтрации.,gRPC :50051 (GetData),Файловая система (books.json)
+CLI,UI Client,Интерактивная консоль пользователя с поддержкой истории команд (readline).,User Input,HTTP -> Web-Adapter
+Client,Debug Tool,Утилита для прямой проверки доступности Data-Manager в обход шлюзов.,Manual Run,gRPC -> Data-Manager
+
+--- END_FILE: ./doc/components.md ---

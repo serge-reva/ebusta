@@ -34,9 +34,9 @@ func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRe
 	case "fl_author_exact", "fl_author_fuzzy":
 		paramName = "author"
 	case "fl_title_substring", "fl_titles_all":
-		paramName = "q"
+		paramName = "query"
 	default:
-		paramName = "q"
+		paramName = "query"
 	}
 
 	osReqBody := map[string]interface{}{

@@ -1,6 +1,6 @@
 opensearch:
   index_name: "flibusta_merged_index"
-  url: "http://192.168.1.179:9200"
+  url: "http://cloud-1:9200"
 
 paths:
   warn_dir: "./data/warn"

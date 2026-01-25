@@ -4,7 +4,7 @@
 # CONFIGURATION
 # ==========================================
 # IP адрес OpenSearch (из твоего скрипта)
-OS_HOST="192.168.1.179:9200"
+OS_HOST="cloud-1:9200"
 INDEX="flibusta_merged_index"
 CLI="./bin/ebusta-cli"
 
