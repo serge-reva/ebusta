@@ -1,0 +1,20 @@
+syntax = "proto3";
+package ebusta.library.v1;
+
+message FilterNode {
+  string field = 1;
+  string value = 2;
+  int32 operator = 3;
+}
+
+message LogicalNode {
+  int32 op = 1; // 1: AND, 2: OR
+  repeated SearchRequest nodes = 2; // Теперь здесь SearchRequest для рекурсии
+}
+
+message SearchRequest {
+  oneof query {
+    FilterNode filter = 1;
+    LogicalNode logical = 2;
+  }
+}
