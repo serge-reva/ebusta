@@ -15,6 +15,11 @@
     (cl:defpackage "CL-PROTOBUFS.EBUSTA.LIBRARY.V1" (:use)
                    (:local-nicknames (#:pi #:cl-protobufs.implementation)))))
 
+(cl:eval-when (:compile-toplevel :load-toplevel :execute)
+  (cl:unless (cl:find-package "CL-PROTOBUFS.EBUSTA.LIBRARY.V1-RPC")
+    (cl:defpackage "CL-PROTOBUFS.EBUSTA.LIBRARY.V1-RPC" (:use)
+                   (:local-nicknames (#:pi #:cl-protobufs.implementation)))))
+
 (cl:in-package "CL-PROTOBUFS.EBUSTA.LIBRARY.V1")
 
 (cl:eval-when (:compile-toplevel :load-toplevel :execute)
@@ -26,6 +31,12 @@
 
 
 ;;; Top-Level messages
+
+(pi:define-message convert-request
+    ()
+  ;; Fields
+  (raw-query
+   :index 1 :type cl:string :kind :scalar :label (:optional) :field-presence :implicit :json-name "rawQuery"))
 
 (pi:define-message filter-node
     ()
@@ -43,9 +54,9 @@
   (op
    :index 1 :type cl-protobufs:int32 :kind :scalar :label (:optional) :field-presence :implicit :json-name "op")
   (nodes
-   :index 2 :type search-request :kind :message :label (:repeated :list) :field-presence :implicit :json-name "nodes"))
+   :index 2 :type search-query :kind :message :label (:repeated :list) :field-presence :implicit :json-name "nodes"))
 
-(pi:define-message search-request
+(pi:define-message search-query
     ()
   ;; Fields
   (pi:define-oneof query ()
@@ -54,18 +65,33 @@
     (logical
      :index 2 :type logical-node :kind :message :label (:optional) :field-presence :explicit :json-name "logical")))
 
+;;; Services
+(pi:define-service message-converter
+    (:source-location #P"search.proto")
+  (convert (
+    convert-request =>
+    search-query)))
+
 (cl:eval-when (:compile-toplevel :load-toplevel :execute)
 (pi:add-file-descriptor #P"search.proto" 'search)
 )
 
-(cl:export '(field
+(cl:export '(convert-request
+field
 filter
 filter-node
 logical
 logical-node
+message-converter
 nodes
 op
 operator
+raw-query
 search
-search-request
+search-query
 value))
+
+(cl:in-package "CL-PROTOBUFS.EBUSTA.LIBRARY.V1-RPC")
+
+(cl:export '(call-convert
+convert))
