@@ -1,7 +1,21 @@
 {
   "script": {
     "lang": "mustache",
-    "source": "{\n  \"from\": {{from}},\n  \"size\": {{size}},\n  \"query\": {\n    \"bool\": {\n      \"must\": [\n        {\n          \"simple_query_string\": {\n            \"query\": \"{{q}}\",\n            \"fields\": [\"title^3\", \"authors^2\", \"annotation\"],\n            \"default_operator\": \"and\"\n          }\n        }\n      ]\n    }\n  }{{#sort}},\n  \"sort\": {{sort}}{{/sort}}\n}\n"
+    "source": {
+      "query": {
+        "multi_match": {
+          "query": "{{query}}",
+          "fields": ["title^3", "authors", "annotation"],
+          "type": "best_fields",
+          "fuzziness": "AUTO"
+        }
+      },
+      "collapse": {
+        "field": "title.kw",
+        "inner_hits": { "name": "best", "size": 1, "sort": [{"fileInfo.size": "desc"}] }
+      },
+      "from": "{{from}}{{^from}}0{{/from}}",
+      "size": "{{size}}{{^size}}10{{/size}}"
+    }
   }
 }
-

@@ -1,6 +1,10 @@
 {
   "script": {
     "lang": "mustache",
-    "source": "{\n  \"query\": { \"term\": { \"authors.kw\": { \"value\": \"{{author}}\" } } },\n  \"size\": {{size}},\n  \"from\": {{from}},\n  \"_source\": [\"title\",\"authors\",\"fileInfo.container\",\"fileInfo.filename\"],\n  \"sort\": [{ \"title.kw\": { \"order\": \"asc\" } }],\n  \"track_total_hits\": false,\n  \"highlight\": { \"fields\": { \"authors\": {}, \"title\": {} } }\n}"
+    "source": {
+      "query": { "term": { "authors.kw": "{{author}}" } },
+      "collapse": { "field": "title.kw", "inner_hits": { "name": "best", "size": 1, "sort": [{"fileInfo.size": "desc"}] } },
+      "size": "{{size}}{{^size}}20{{/size}}"
+    }
   }
 }
