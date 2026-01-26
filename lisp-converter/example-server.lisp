@@ -6,7 +6,7 @@
 
 (in-package #:example-server)
 
-;; Реализуем метод в контексте нашего пакета, используя полное имя метода из RPC пакета
+;; Используем полное имя метода из RPC пакета, чтобы не заходить в него
 (defmethod pb-rpc:say-hello ((request pb:hello-request) rpc)
   (declare (ignore rpc))
   (let ((name (pb:hello-request.name request)))
