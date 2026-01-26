@@ -98,3 +98,16 @@ check-ports:
 clean:
 	rm -f dsl-converter
 	-pkill -f dsl-converter || true
+
+# --- DEBUG: Direct Parser Test ---
+# Позволяет проверить логику Shunting-yard и Greedy Capture без gRPC
+test-parser-direct:
+	@echo "=== Direct Parser Logic Test (Zero Network) ==="
+	@sbcl --noinform \
+		--eval '(push (truename "$(GRPC_DIR)/") asdf:*central-registry*)' \
+		--eval '(push (truename "$(LISP_DIR)/") asdf:*central-registry*)' \
+		--eval '(ql:quickload :ebusta-search :silent t)' \
+		--load "$(LISP_DIR)/dsl-service.lisp" \
+		--eval '(format t "Input: author:\"Стивен Кинг\"~%Output: ~S~%" (ebusta-service:parse-raw-to-sexp "author:\"Стивен Кинг\""))' \
+		--eval '(format t "Input: author:Стивен Кинг AND year:2026~%Output: ~S~%" (ebusta-service:parse-raw-to-sexp "author:Стивен Кинг AND year:2026"))' \
+		--quit
