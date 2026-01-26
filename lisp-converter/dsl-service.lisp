@@ -1,72 +1,115 @@
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (ql:quickload :cl-ppcre :silent t))
+
 (defpackage #:ebusta-service
   (:use #:cl)
+  (:export #:start #:stop #:parse-raw-to-sexp #:parse-sexp-to-ast)
   (:local-nicknames (#:pb #:cl-protobufs.ebusta.library.v1)
                     (#:pb-rpc #:cl-protobufs.ebusta.library.v1-rpc)
-                    (#:grpc #:grpc)))
+                    (#:grpc #:grpc)
+                    (#:re #:cl-ppcre)))
 
 (in-package #:ebusta-service)
 
-;; --- Логика конвертации ---
+;; --- ПАРСИНГ (SHUNTING-YARD) ---
+(defun get-priority (op)
+  (cond ((string-equal op "NOT") 3) ((string-equal op "AND") 2) ((string-equal op "OR") 1) (t 0)))
 
-(defun parse-dsl (dsl)
-  "Рекурсивно превращает S-expression DSL в Protobuf объект SearchQuery"
+(defun tokenize (str)
+  (re:all-matches-as-strings "(\"[^\"]+\"|[a-zA-Z0-9_]+:|AND|OR|NOT|\\(|\\)|/|\\S+)" str))
+
+(defun build-tree-from-rpn (rpn)
+  (let (stack)
+    (dolist (token rpn)
+      (if (and (listp token) (eq (car token) :field))
+          (push token stack)
+          (let ((op (string-upcase (string token))))
+            (cond 
+              ((string= op "NOT") (push `(:not ,(pop stack)) stack))
+              ((or (string= op "AND") (string= op "OR"))
+               (let* ((right (pop stack)) (left (pop stack)) (key (if (string= op "AND") :and :or)))
+                 (push `(,key ,left ,right) stack)))))))
+    (car stack)))
+
+(defun make-field-node (field val-raw)
+  (let* ((val (string-trim " \"" val-raw))
+         (is-regex (re:scan "^/.*/$" val)))
+    `(:field ,field ,(if is-regex (string-trim "/" val) val) ,@(when is-regex '(:op :regex)))))
+
+(defun process-field (token rest-tokens-var)
+  (let* ((colon-pos (position #\: token))
+         (field (subseq token 0 colon-pos))
+         (val-part (subseq token (1+ colon-pos))))
+    (if (string/= "" val-part)
+        (values (make-field-node field val-part) rest-tokens-var)
+        (let (collected)
+          (loop while (and (car rest-tokens-var) 
+                           (zerop (get-priority (car rest-tokens-var))) 
+                           (not (member (car rest-tokens-var) '("(" ")") :test #'string-equal)))
+                do (push (pop rest-tokens-var) collected))
+          (values (make-field-node field (format nil "~{~A~^ ~}" (nreverse collected)))
+                  rest-tokens-var)))))
+
+(defun parse-raw-to-sexp (str)
+  (let ((token-list (tokenize str)) (output nil) (stack nil))
+    (loop while token-list do
+      (let ((token (pop token-list)))
+        (cond
+          ((> (get-priority token) 0)
+           (loop while (and stack (> (get-priority (car stack)) 0) (>= (get-priority (car stack)) (get-priority token)))
+                 do (push (pop stack) output))
+           (push token stack))
+          ((string= token "(") (push token stack))
+          ((string= token ")")
+           (loop while (and stack (string/= (car stack) "(")) do (push (pop stack) output))
+           (pop stack))
+          ((find #\: token)
+           (multiple-value-bind (node remaining) (process-field token token-list)
+             (push node output) (setf token-list remaining)))
+          (t (push (make-field-node "any" token) output)))))
+    (loop while stack do (push (pop stack) output))
+    (build-tree-from-rpn (nreverse output))))
+
+;; --- AST BUILDER (S-EXP -> Protobuf) ---
+(defun parse-sexp-to-ast (sexp &key request-id canonical-form)
   (let ((query (pb:make-search-query)))
-    (cond
-      ;; Логический узел: (:and ...) или (:or ...)
-      ((member (car dsl) '(:and :or))
-       (let ((l-node (pb:make-logical-node)))
-         ;; 1 = AND, 2 = OR
-         (setf (pb:logical-node.op l-node) (if (eq (car dsl) :and) 1 2))
-         ;; Рекурсивно обрабатываем детей
-         (dolist (sub (cdr dsl))
-           (push (parse-dsl sub) (pb:logical-node.nodes l-node)))
-         ;; Из-за push порядок обратный, разворачиваем (опционально)
-         (setf (pb:logical-node.nodes l-node) (nreverse (pb:logical-node.nodes l-node)))
-         (setf (pb:search-query.logical query) l-node)))
-      
-      ;; Листовой узел: (:field "key" "val")
-      ((eq (car dsl) :field)
-       (let ((f-node (pb:make-filter-node)))
-         ;; DSL: (:field "title" "Linux") -> field="title", value="Linux"
-         ;; (getf list key) не сработает удобно, берем по индексу
-         (setf (pb:filter-node.field f-node) (second dsl)
-               (pb:filter-node.value f-node) (third dsl)
-               (pb:filter-node.operator f-node) 1)
-         (setf (pb:search-query.filter query) f-node)))
-      
-      (t (error "Unknown DSL node: ~S" dsl)))
+    (when (and sexp (listp sexp))
+      (let ((head (car sexp)))
+        (cond
+          ((member head '(:and :or))
+           (let ((node (pb:make-logical-node :op (if (eq head :and) 1 2))))
+             (setf (pb:logical-node.nodes node) 
+                   (mapcar (lambda (s) (parse-sexp-to-ast s)) (cdr sexp)))
+             (setf (pb:search-query.logical query) node)))
+          ((eq head :not)
+           (let ((node (pb:make-logical-node :op 3)))
+             (setf (pb:logical-node.nodes node) (list (parse-sexp-to-ast (second sexp))))
+             (setf (pb:search-query.logical query) node)))
+          ((eq head :field)
+           (let ((node (pb:make-filter-node :field (second sexp) :value (third sexp)
+                                            :operator (if (eq (getf (cdddr sexp) :op) :regex) 6 1))))
+             (setf (pb:search-query.filter query) node))))))
+    (when request-id (setf (pb:search-query.request-id query) request-id))
+    (when canonical-form (setf (pb:search-query.canonical-form query) canonical-form))
     query))
 
-;; --- Реализация gRPC метода ---
-
-;; Определяем метод convert для generic-функции из сгенерированного пакета RPC
 (defmethod pb-rpc:convert ((request pb:convert-request) rpc)
   (declare (ignore rpc))
-  (format t ">>> REQUEST: ~A~%" (pb:convert-request.raw-query request))
-  
-  (handler-case
-      (let* ((raw-str (pb:convert-request.raw-query request))
-             ;; Опасный момент: read-from-string выполняет любой Lisp код.
-             ;; В продакшене нужен безопасный парсер, но для dev ок.
-             (dsl-sexp (read-from-string raw-str)))
-        
-        (format t "Parsed S-Exp: ~S~%" dsl-sexp)
-        (let ((result (parse-dsl dsl-sexp)))
-          (format t "Conversion success.~%")
-          result))
-    (error (e)
-      (format t "ERROR processing request: ~A~%" e)
-      ;; В gRPC можно вернуть ошибку, но пока вернем пустой ответ или упадем
-      (error e))))
+  (let* ((raw (pb:convert-request.raw-query request))
+         (request-id (format nil "req-~A" (get-universal-time))))
+    (handler-case
+        (let* ((sexp (parse-raw-to-sexp raw))
+               (ast (parse-sexp-to-ast sexp 
+                                      :request-id request-id 
+                                      :canonical-form (format nil "~S" sexp))))
+          (format t "[~A] Processed raw_query: ~A~%" request-id raw)
+          ast)
+      (error (e)
+        (format t "[ERR ~A] ~A~%" request-id e)
+        (pb:make-search-query :request-id request-id)))))
 
-;; --- Запуск сервера ---
-
-(defun start ()
+(defun start (&key (port 50052))
   (grpc:init-grpc)
-  (format t "=== EBusta DSL Service listening on :50052 ===~%")
-  (grpc:run-grpc-proto-server
-   "0.0.0.0:50052"
-   'pb:message-converter
-   :num-threads 2))
-
-(start)
+  (format t "=== EBusta DSL Engine V15 (Full Trace) Online [Port ~A] ===~%" port)
+  (grpc:run-grpc-proto-server (format nil "0.0.0.0:~A" port) 'pb:message-converter)
+  (loop (sleep 1)))

@@ -2,33 +2,30 @@ syntax = "proto3";
 
 package ebusta.library.v1;
 
-// Входной запрос с сырой строкой DSL
+message FilterNode {
+  string field = 1;
+  string value = 2;
+  int32 operator = 3;
+}
+
+message LogicalNode {
+  int32 op = 1; 
+  repeated SearchQuery nodes = 2;
+}
+
+message SearchQuery {
+  oneof query {
+    FilterNode filter = 1;
+    LogicalNode logical = 2;
+  }
+  string canonical_form = 3;
+  string request_id = 4; // UR 4.2
+}
+
 message ConvertRequest {
   string raw_query = 1;
 }
 
-// Лист дерева: простой фильтр (field = value)
-message FilterNode {
-  string field = 1;
-  string value = 2;
-  int32 operator = 3; // 1 = EQ, 2 = NEQ, etc (упрощенно)
-}
-
-// Узел дерева: логическая операция (AND/OR)
-message LogicalNode {
-  int32 op = 1; // 1 = AND, 2 = OR
-  repeated SearchQuery nodes = 2;
-}
-
-// Рекурсивная структура запроса
-message SearchQuery {
-  // Используем oneof, так как узел может быть ЛИБО группой, ЛИБО фильтром
-  oneof node {
-    LogicalNode logical = 1;
-    FilterNode filter = 2;
-  }
-}
-
 service MessageConverter {
-  rpc Convert(ConvertRequest) returns (SearchQuery) {}
+  rpc Convert(ConvertRequest) returns (SearchQuery);
 }

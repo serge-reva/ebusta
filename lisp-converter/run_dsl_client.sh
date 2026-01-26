@@ -1,14 +1,12 @@
 #!/bin/bash
-# Путь к библиотеке внутри проекта
-GRPC_PATH="$HOME/projects/ebusta/grpc"
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$GRPC_PATH
+# Скрипт запуска тестового Lisp-клиента
 
-echo "🚀 Запускаю DSL Client..."
+PROJ_DIR="$HOME/projects/ebusta"
 
-sbcl --noinform \
-     --eval "(push (truename \"$GRPC_PATH/\") asdf:*central-registry*)" \
+sbcl --noinform --non-interactive \
+     --eval '(push (truename "~/projects/ebusta/grpc/") asdf:*central-registry*)' \
      --eval '(push (truename "~/projects/ebusta/lisp-converter/") asdf:*central-registry*)' \
-     --eval '(ql:quickload :cl-protobufs :silent t)' \
-     --eval '(ql:quickload :grpc :silent t)' \
-     --eval '(ql:quickload :ebusta-search :silent t)' \
-     --load "$HOME/projects/ebusta/lisp-converter/dsl-client.lisp"
+     --eval "(ql:quickload '(:cl-protobufs :grpc :uiop :cl-json) :silent t)" \
+     --eval "(ql:quickload :ebusta-search :silent t)" \
+     --load "$PROJ_DIR/lisp-converter/dsl-client.lisp" \
+     --eval "(ebusta-service::run)"
