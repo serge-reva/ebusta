@@ -1,12 +1,11 @@
 #!/bin/bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/projects/grpc
+# Чистим порт перед запуском
+fuser -k 50051/tcp 2>/dev/null || true
 
-echo "🚀 Запускаю Example Server (через Load File)..."
+echo "🚀 Запускаю Example Server..."
 
 sbcl --noinform \
-     --eval '(push (truename "~/projects/grpc/") asdf:*central-registry*)' \
      --eval '(push (truename "~/projects/ebusta/lisp-converter/") asdf:*central-registry*)' \
-     --eval '(ql:quickload :cl-protobufs :silent t)' \
-     --eval '(ql:quickload :grpc :silent t)' \
      --eval '(ql:quickload :helloworld :silent t)' \
-     --load "$HOME/projects/ebusta/lisp-converter/example-server.lisp"
+     --load "$HOME/projects/ebusta/lisp-converter/example-server.lisp" \
+     --eval "(loop (sleep 1))"
