@@ -33,3 +33,17 @@ vendor/
 .idea/
 .vscode/
 .DS_Store
+
+# --- build artifacts ---
+datamanager
+dsl-converter
+orchestrator
+web-adapter
+
+# go build outputs / caches (на всякий случай)
+*.exe
+*.out
+
+# --- local dumps/logs ---
+ebusta_full_context_*.txt
+*before-split
