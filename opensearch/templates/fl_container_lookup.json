@@ -1,0 +1,9 @@
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": { "term": { "fileInfo.container": "{{query}}" } },
+      "size": "{{size}}{{^size}}50{{/size}}"
+    }
+  }
+}

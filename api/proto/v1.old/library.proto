@@ -1,0 +1,156 @@
+syntax = "proto3";
+
+package libraryv1;
+
+option go_package = "ebusta/api/proto/v1;libraryv1";
+
+// ==========================================
+// 1. SERVICES
+// ==========================================
+
+service OrchestratorService {
+  rpc Search (SearchRequest) returns (SearchResponse);
+}
+
+service ProcessorService {
+  rpc Process (SearchRequest) returns (SearchResponse);
+}
+
+service StorageService {
+  rpc SearchBooks (SearchRequest) returns (SearchResponse);
+}
+
+service AuthService {
+  rpc CheckAccess (AccessRequest) returns (AccessResponse);
+}
+
+service MessageConverterService {
+  rpc Convert (RawInput) returns (UnmarshaledMessage);
+}
+
+// Legacy
+service LibraryService {
+  rpc SearchBooks (SearchRequest) returns (SearchResponse);
+  rpc GetAuthors (ListRequest) returns (ListResponse);
+}
+
+// ==========================================
+// 2. MESSAGES
+// ==========================================
+
+message SearchRequest {
+  string query = 1;
+  string template_id = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+  string trace_id = 5;
+}
+
+message SearchResponse {
+  string status = 1;
+  int32 total = 2;
+  repeated Book books = 3;
+}
+
+message Book {
+  string id = 1;
+  string title = 2;
+  repeated string authors = 3;
+  string container = 4;
+  string filename = 5;
+}
+
+message ListRequest {
+  string query = 1;
+}
+
+message ListResponse {
+  repeated string items = 1;
+}
+
+// --- AUTH ---
+
+message AccessRequest {
+  string user_id = 1;
+  string platform = 2;
+  string trace_id = 3;
+}
+
+message AccessResponse {
+  bool allowed = 1;
+  string reason = 2;
+  string user_role = 3;
+}
+
+// ==========================================
+// 3. CONVERTER & AST (Fixed for existing code)
+// ==========================================
+
+message RawInput {
+  // Исправлено: переименовано в 'data', чтобы появился метод GetData(), который ждет message-converter
+  string data = 1; 
+  string trace_id = 2;
+}
+
+message MessageMeta {
+  string trace_id = 1;
+  string canonical_form = 2;
+  string platform = 3;
+  string user_id = 4;
+  // Исправлено: добавлено поле, которое требует message-converter
+  string ast_plan = 5; 
+}
+
+message UnmarshaledMessage {
+  MessageMeta meta = 1;
+  SearchQuery query = 2;
+}
+
+message Response {
+  string status = 1;
+  repeated Book books = 2;
+  ResponseMeta meta = 3;
+}
+
+message ResponseMeta {
+  string trace_id = 1;
+  string canonical_form = 2;
+}
+
+// --- AST NODES (Strictly for parser.go) ---
+
+enum LogicalOp {
+  AND = 0;
+  OR = 1;
+  NOT = 2;
+}
+
+enum Operator {
+  OP_EQUALS = 0;
+  OP_CONTAINS = 1;
+  OP_REGEX = 2;
+}
+
+message SearchQuery {
+  oneof node {
+    FilterNode filter = 1;
+    LogicalNode logical = 2;
+    NotNode negation = 3;
+  }
+}
+
+message FilterNode {
+  string field = 1;
+  string value = 2;
+  Operator operator = 3;
+}
+
+message LogicalNode {
+  LogicalOp op = 1;
+  repeated SearchQuery nodes = 2;
+}
+
+message NotNode {
+  // Важно: имя поля 'node' генерирует поле 'Node' в Go структуре, что нужно парсеру
+  SearchQuery node = 1; 
+}

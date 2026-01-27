@@ -1,0 +1,23 @@
+syntax = "proto2";
+
+package libraryv1;
+
+message FilterNode {
+  optional string field = 1;
+  optional string value = 2;
+  optional int32 operator = 3;
+}
+
+message LogicalNode {
+  repeated SearchQuery nodes = 1;
+}
+
+message NotNode {
+  optional SearchQuery node = 1;
+}
+
+message SearchQuery {
+  optional FilterNode filter = 1;
+  optional LogicalNode logical = 2;
+  optional NotNode negation = 3;
+}

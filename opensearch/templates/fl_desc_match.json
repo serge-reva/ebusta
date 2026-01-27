@@ -1,0 +1,15 @@
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "match": {
+          "annotation": { "query": "{{query}}", "fuzziness": "AUTO" }
+        }
+      },
+      "size": "{{size}}{{^size}}10{{/size}}",
+      "from": "{{from}}{{^from}}0{{/from}}",
+      "_source": ["title", "authors", "annotation"]
+    }
+  }
+}

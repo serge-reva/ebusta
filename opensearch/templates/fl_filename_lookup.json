@@ -1,0 +1,11 @@
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "wildcard": { "fileInfo.filename": "*{{query}}*" }
+      },
+      "size": "{{size}}{{^size}}20{{/size}}"
+    }
+  }
+}

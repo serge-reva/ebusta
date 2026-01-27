@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package ebusta.library.v1;
+option go_package = "grpc/gen/go;dsl";
 
 message FilterNode {
   string field = 1;
@@ -9,7 +10,7 @@ message FilterNode {
 }
 
 message LogicalNode {
-  int32 op = 1; 
+  int32 op = 1;
   repeated SearchQuery nodes = 2;
 }
 
@@ -19,7 +20,7 @@ message SearchQuery {
     LogicalNode logical = 2;
   }
   string canonical_form = 3;
-  string request_id = 4; // UR 4.2
+  string request_id = 4;
 }
 
 message ConvertRequest {
