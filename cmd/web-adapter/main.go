@@ -18,7 +18,7 @@ func main() {
 	// 1. Подключение к Orchestrator (порт 50054)
 	orchHost := os.Getenv("ORCHESTRATOR_HOST")
 	if orchHost == "" {
-		orchHost = "localhost:50054"
+		orchHost = "localhost:50053"
 	}
 
 	conn, err := grpc.Dial(orchHost, grpc.WithTransportCredentials(insecure.NewCredentials()))
