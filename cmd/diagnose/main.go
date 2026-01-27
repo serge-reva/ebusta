@@ -11,7 +11,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	libraryv1 "ebusta/api/proto/v1"
-	dsl "ebusta/api/proto/v1"
+
+	dsl "ebusta/api/gen/dsl"
 )
 
 func main() {

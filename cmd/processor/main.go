@@ -80,7 +80,7 @@ func (s *processorServer) Process(ctx context.Context, req *libraryv1.SearchRequ
 }
 
 func main() {
-	lis, err := net.Listen("tcp", ":50053")
+	lis, err := net.Listen("tcp", ":50054")
 	if err != nil { log.Fatal(err) }
 	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
 	if err != nil { log.Fatal(err) }

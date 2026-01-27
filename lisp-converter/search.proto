@@ -1,8 +1,7 @@
 syntax = "proto3";
 
 package ebusta.library.v1;
-option go_package = "grpc/gen/go;dsl";
-
+option go_package = "ebusta/api/gen/dsl;dslpb";
 message FilterNode {
   string field = 1;
   string value = 2;

@@ -26,7 +26,7 @@ func main() {
 		log.Println("🐞 DEBUG MODE: ENABLED")
 	}
 
-	conn, err := grpc.Dial("localhost:50054", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial("localhost:50053", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("❌ Failed to connect to Orchestrator: %v", err)
 	}

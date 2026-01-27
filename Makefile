@@ -1,5 +1,6 @@
 LISP_DIR=$(shell pwd)/lisp-converter
 API_PROTO_DIR=api/proto/v1
+API_PROTOS := $(filter-out $(API_PROTO_DIR)/auth.proto, $(wildcard $(API_PROTO_DIR)/*.proto))
 
 # Конфигурация портов
 WEB_PORT=50080
@@ -13,8 +14,8 @@ proto:
 	@echo "Generating protobuf files..."
 	@mkdir -p $(API_PROTO_DIR)
 	protoc --proto_path=$(API_PROTO_DIR) \
-		--go_out=paths=import:. \
-		--go-grpc_out=paths=import:. \
+		--go_out=paths=import:. --go_opt=module=ebusta \
+		--go-grpc_out=paths=import:. --go-grpc_opt=module=ebusta \
 		$(API_PROTO_DIR)/*.proto
 	@go mod tidy
 	@echo "✅ Proto generation complete"
@@ -66,3 +67,9 @@ clean:
 	@rm -f datamanager orchestrator web-adapter dsl-converter
 	@rm -f *.log
 	@echo "✅ Clean complete"
+
+
+.PHONY: test-stage-a
+test-stage-a:
+	bash tests/a_chain_neighbors.sh
+	@true

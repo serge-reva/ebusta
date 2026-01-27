@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"context"
 	"fmt"
 	"log"
@@ -33,6 +34,12 @@ func (s *server) Convert(ctx context.Context, req *libraryv1.RawInput) (*library
 }
 
 func main() {
+	// Legacy guard: DSL must be served by Lisp module. Prevent accidental port clash on :50052.
+	if os.Getenv("ENABLE_LEGACY_CONVERTER") != "1" {
+		log.Println("cmd/message-converter is legacy and disabled by default (set ENABLE_LEGACY_CONVERTER=1 to run).")
+		return
+	}
+
 	lis, err := net.Listen("tcp", ":50052")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)

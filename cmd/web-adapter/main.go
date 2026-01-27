@@ -72,8 +72,8 @@ func main() {
 		}
 	})
 
-	port := os.Getenv("PORT")
-	if port == "" {
+	port := "50080"
+if port == "" {
 		port = "8080"
 	}
 

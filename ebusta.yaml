@@ -8,4 +8,4 @@ orchestrator:
   processor_addr: "localhost:50053"
 
 web:
-  port: 8080
+  port: 50080

@@ -52,3 +52,25 @@ dsl-converter
 orchestrator
 web-adapter
 ebusta_full_context_*.txt
+
+# === local backups / temp ===
+*.bak.*
+*.orig
+*.rej
+
+# === local logs / runtime ===
+*.log
+/tmp/*
+diagnose
+datamanager
+orchestrator
+web-adapter
+dsl-converter
+
+# === context dumps ===
+ebusta_*context*.txt
+*full_context*.txt
+
+# === generated (keep if you want committed; we do NOT) ===
+api/gen/
+api/proto/v1/*pb.go

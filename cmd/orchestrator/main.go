@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	libraryv1 "ebusta/api/proto/v1"
-	dsl "ebusta/grpc/gen/go"
+	dsl "ebusta/api/gen/dsl"
 )
 
 type orchestratorServer struct {
