@@ -13,10 +13,8 @@ proto:
 	@echo "Generating protobuf files..."
 	@mkdir -p $(API_PROTO_DIR)
 	protoc --proto_path=$(API_PROTO_DIR) \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		--go-grpc_out=. \
-		--go-grpc_opt=paths=source_relative \
+		--go_out=paths=import:. \
+		--go-grpc_out=paths=import:. \
 		$(API_PROTO_DIR)/*.proto
 	@go mod tidy
 	@echo "✅ Proto generation complete"

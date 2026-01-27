@@ -9,33 +9,36 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	libraryv1 "ebusta/api/proto/v1"
+	dsl "ebusta/grpc/gen/go"
 )
 
 type orchestratorServer struct {
 	libraryv1.UnimplementedOrchestratorServiceServer
-	dslClient     libraryv1.MessageConverterClient
+	dslClient     dsl.MessageConverterClient
 	storageClient libraryv1.StorageServiceClient
 }
 
 func (s *orchestratorServer) Search(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
 	log.Printf("🎼 Orchestrator received: %s", req.Query)
 	
-	// 1. Парсим через DSL
 	log.Printf("🎼 Orchestrator -> DSL-Converter")
-	dslResp, err := s.dslClient.Convert(ctx, &libraryv1.ConvertRequest{
+	dslResp, err := s.dslClient.Convert(ctx, &dsl.ConvertRequest{
 		RawQuery: req.Query,
 	})
 	
 	if err != nil {
 		log.Printf("❌ DSL Error: %v", err)
-		return nil, err
+		return s.storageClient.SearchBooks(ctx, req)
 	}
 	
 	log.Printf("✅ DSL Parsed: %s", dslResp.CanonicalForm)
 	
-	// 2. Передаем canonical_form (распарсенный запрос) в DataManager
 	searchReq := &libraryv1.SearchRequest{
-		Query: dslResp.CanonicalForm, // Используем распарсенный запрос!
+		Query: dslResp.CanonicalForm,
+		TemplateId: req.TemplateId,
+		Limit: req.Limit,
+		Offset: req.Offset,
+		TraceId: req.TraceId,
 	}
 	
 	return s.storageClient.SearchBooks(ctx, searchReq)
@@ -61,7 +64,7 @@ func main() {
 
 	s := grpc.NewServer()
 	libraryv1.RegisterOrchestratorServiceServer(s, &orchestratorServer{
-		dslClient:     libraryv1.NewMessageConverterClient(dslConn),
+		dslClient:     dsl.NewMessageConverterClient(dslConn),
 		storageClient: libraryv1.NewStorageServiceClient(storageConn),
 	})
 
