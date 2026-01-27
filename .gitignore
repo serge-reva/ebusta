@@ -47,3 +47,8 @@ web-adapter
 # --- local dumps/logs ---
 ebusta_full_context_*.txt
 *before-split
+datamanager
+dsl-converter
+orchestrator
+web-adapter
+ebusta_full_context_*.txt
