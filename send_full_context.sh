@@ -35,6 +35,7 @@ find . -type f \
        -o -name "*.asd" \
        -o -name "*.sexp" \) \
     -not -path "./bin/*" \
+    -not -path "./grpc/*" \
     -not -path "*/data/*" \
     -not -path "./.git/*" \
     -not -path "*/uploader.log" \

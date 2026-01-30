@@ -22,9 +22,8 @@ default_target: grpc.so
 
 grpc.so: ${OFILES}
 	$(CXX)  -pthread -shared -Wl,--no-undefined ${OFILES} -o $@ $(LDFLAGS)
-
-clean: $(RM) ${OFILES} grpc.so
-
+clean:
+	$(RM) -f $(OFILES) grpc.so
 client.o: client.cc
 client_auth.o: client_auth.cc
 server.o: server.cc

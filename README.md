@@ -37,3 +37,10 @@
 make build   # Генерация Proto и компиляция всех сервисов
 make run     # Запуск всей системы в фоновом режиме
 
+## Ops: Prometheus metrics (orchestrator)
+- Metrics endpoint: `http://localhost:50090/metrics`
+- Manual helper:
+  - `./scripts/ebusta_metrics.sh head`
+  - `./scripts/ebusta_metrics.sh check`
+  - `./scripts/ebusta_metrics.sh inc 5`
+

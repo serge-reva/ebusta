@@ -10,16 +10,6 @@ echo "📂 Собираю контекст проекта в $OUTPUT_FILE..."
 # Очищаем файл перед началом
 echo "=== EBusta Project Context: $(date) ===" > "$OUTPUT_FILE"
 
-# 1. Добавляем Git Diff за последний час
-echo "" >> "$OUTPUT_FILE"
-echo "--- SECTION: GIT DIFF (LAST 1 HOUR) ---" >> "$OUTPUT_FILE"
-if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-    git diff --since="1 hour ago" >> "$OUTPUT_FILE"
-else
-    echo "Not a git repository or no changes in the last hour." >> "$OUTPUT_FILE"
-fi
-echo "--- END SECTION: GIT DIFF ---" >> "$OUTPUT_FILE"
-
 # 2. Собираем исходники
 find . -type f \
     \( -name "*.go" -o -name "*.yaml" -o -name "*.proto" -o -name "*.json" -o -name "*.md" -o -name "Makefile" -o -name "go.mod" \) \

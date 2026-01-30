@@ -38,7 +38,7 @@ func (s *processorServer) Process(ctx context.Context, req *libraryv1.SearchRequ
 	// 2. Обработка префикса title: (Каскадный поиск)
 	if strings.HasPrefix(qLower, "title:") {
 		cleanTitle := strings.TrimSpace(strings.TrimPrefix(fullQuery, "title:"))
-		
+
 		// Попытка 1: Строгий substring
 		subReq := &libraryv1.SearchRequest{
 			Query:      cleanTitle,
@@ -47,7 +47,7 @@ func (s *processorServer) Process(ctx context.Context, req *libraryv1.SearchRequ
 			TraceId:    req.TraceId,
 		}
 		resp, err := s.storage.SearchBooks(ctx, subReq)
-		
+
 		if err == nil && resp.Total > 0 {
 			return resp, nil
 		}
@@ -81,12 +81,16 @@ func (s *processorServer) Process(ctx context.Context, req *libraryv1.SearchRequ
 
 func main() {
 	lis, err := net.Listen("tcp", ":50054")
-	if err != nil { log.Fatal(err) }
+	if err != nil {
+		log.Fatal(err)
+	}
 	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
-	if err != nil { log.Fatal(err) }
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer conn.Close()
 	s := grpc.NewServer()
 	libraryv1.RegisterProcessorServiceServer(s, &processorServer{storage: libraryv1.NewStorageServiceClient(conn)})
-	log.Println("🧠 Ebusta Processor started on :50053")
+	log.Println("🧠 Ebusta Processor started on :50054")
 	s.Serve(lis)
 }

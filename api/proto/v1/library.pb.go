@@ -419,126 +419,6 @@ func (x *ListResponse) GetItems() []string {
 	return nil
 }
 
-type AccessRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Platform      string                 `protobuf:"bytes,2,opt,name=platform,proto3" json:"platform,omitempty"`
-	TraceId       string                 `protobuf:"bytes,3,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AccessRequest) Reset() {
-	*x = AccessRequest{}
-	mi := &file_library_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AccessRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AccessRequest) ProtoMessage() {}
-
-func (x *AccessRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AccessRequest.ProtoReflect.Descriptor instead.
-func (*AccessRequest) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *AccessRequest) GetUserId() string {
-	if x != nil {
-		return x.UserId
-	}
-	return ""
-}
-
-func (x *AccessRequest) GetPlatform() string {
-	if x != nil {
-		return x.Platform
-	}
-	return ""
-}
-
-func (x *AccessRequest) GetTraceId() string {
-	if x != nil {
-		return x.TraceId
-	}
-	return ""
-}
-
-type AccessResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Allowed       bool                   `protobuf:"varint,1,opt,name=allowed,proto3" json:"allowed,omitempty"`
-	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
-	UserRole      string                 `protobuf:"bytes,3,opt,name=user_role,json=userRole,proto3" json:"user_role,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AccessResponse) Reset() {
-	*x = AccessResponse{}
-	mi := &file_library_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AccessResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AccessResponse) ProtoMessage() {}
-
-func (x *AccessResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AccessResponse.ProtoReflect.Descriptor instead.
-func (*AccessResponse) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *AccessResponse) GetAllowed() bool {
-	if x != nil {
-		return x.Allowed
-	}
-	return false
-}
-
-func (x *AccessResponse) GetReason() string {
-	if x != nil {
-		return x.Reason
-	}
-	return ""
-}
-
-func (x *AccessResponse) GetUserRole() string {
-	if x != nil {
-		return x.UserRole
-	}
-	return ""
-}
-
 type RawInput struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Исправлено: переименовано в 'data', чтобы появился метод GetData(), который ждет message-converter
@@ -550,7 +430,7 @@ type RawInput struct {
 
 func (x *RawInput) Reset() {
 	*x = RawInput{}
-	mi := &file_library_proto_msgTypes[7]
+	mi := &file_library_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -562,7 +442,7 @@ func (x *RawInput) String() string {
 func (*RawInput) ProtoMessage() {}
 
 func (x *RawInput) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[7]
+	mi := &file_library_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -575,7 +455,7 @@ func (x *RawInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RawInput.ProtoReflect.Descriptor instead.
 func (*RawInput) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{7}
+	return file_library_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *RawInput) GetData() string {
@@ -606,7 +486,7 @@ type MessageMeta struct {
 
 func (x *MessageMeta) Reset() {
 	*x = MessageMeta{}
-	mi := &file_library_proto_msgTypes[8]
+	mi := &file_library_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -618,7 +498,7 @@ func (x *MessageMeta) String() string {
 func (*MessageMeta) ProtoMessage() {}
 
 func (x *MessageMeta) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[8]
+	mi := &file_library_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -631,7 +511,7 @@ func (x *MessageMeta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageMeta.ProtoReflect.Descriptor instead.
 func (*MessageMeta) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{8}
+	return file_library_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *MessageMeta) GetTraceId() string {
@@ -679,7 +559,7 @@ type UnmarshaledMessage struct {
 
 func (x *UnmarshaledMessage) Reset() {
 	*x = UnmarshaledMessage{}
-	mi := &file_library_proto_msgTypes[9]
+	mi := &file_library_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -691,7 +571,7 @@ func (x *UnmarshaledMessage) String() string {
 func (*UnmarshaledMessage) ProtoMessage() {}
 
 func (x *UnmarshaledMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[9]
+	mi := &file_library_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -704,7 +584,7 @@ func (x *UnmarshaledMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnmarshaledMessage.ProtoReflect.Descriptor instead.
 func (*UnmarshaledMessage) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{9}
+	return file_library_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UnmarshaledMessage) GetMeta() *MessageMeta {
@@ -732,7 +612,7 @@ type Response struct {
 
 func (x *Response) Reset() {
 	*x = Response{}
-	mi := &file_library_proto_msgTypes[10]
+	mi := &file_library_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -744,7 +624,7 @@ func (x *Response) String() string {
 func (*Response) ProtoMessage() {}
 
 func (x *Response) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[10]
+	mi := &file_library_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -757,7 +637,7 @@ func (x *Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Response.ProtoReflect.Descriptor instead.
 func (*Response) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{10}
+	return file_library_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Response) GetStatus() string {
@@ -791,7 +671,7 @@ type ResponseMeta struct {
 
 func (x *ResponseMeta) Reset() {
 	*x = ResponseMeta{}
-	mi := &file_library_proto_msgTypes[11]
+	mi := &file_library_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -803,7 +683,7 @@ func (x *ResponseMeta) String() string {
 func (*ResponseMeta) ProtoMessage() {}
 
 func (x *ResponseMeta) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[11]
+	mi := &file_library_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -816,7 +696,7 @@ func (x *ResponseMeta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResponseMeta.ProtoReflect.Descriptor instead.
 func (*ResponseMeta) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{11}
+	return file_library_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ResponseMeta) GetTraceId() string {
@@ -847,7 +727,7 @@ type SearchQuery struct {
 
 func (x *SearchQuery) Reset() {
 	*x = SearchQuery{}
-	mi := &file_library_proto_msgTypes[12]
+	mi := &file_library_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -859,7 +739,7 @@ func (x *SearchQuery) String() string {
 func (*SearchQuery) ProtoMessage() {}
 
 func (x *SearchQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[12]
+	mi := &file_library_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -872,7 +752,7 @@ func (x *SearchQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchQuery.ProtoReflect.Descriptor instead.
 func (*SearchQuery) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{12}
+	return file_library_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SearchQuery) GetNode() isSearchQuery_Node {
@@ -942,7 +822,7 @@ type FilterNode struct {
 
 func (x *FilterNode) Reset() {
 	*x = FilterNode{}
-	mi := &file_library_proto_msgTypes[13]
+	mi := &file_library_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -954,7 +834,7 @@ func (x *FilterNode) String() string {
 func (*FilterNode) ProtoMessage() {}
 
 func (x *FilterNode) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[13]
+	mi := &file_library_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -967,7 +847,7 @@ func (x *FilterNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterNode.ProtoReflect.Descriptor instead.
 func (*FilterNode) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{13}
+	return file_library_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *FilterNode) GetField() string {
@@ -1001,7 +881,7 @@ type LogicalNode struct {
 
 func (x *LogicalNode) Reset() {
 	*x = LogicalNode{}
-	mi := &file_library_proto_msgTypes[14]
+	mi := &file_library_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1013,7 +893,7 @@ func (x *LogicalNode) String() string {
 func (*LogicalNode) ProtoMessage() {}
 
 func (x *LogicalNode) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[14]
+	mi := &file_library_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1026,7 +906,7 @@ func (x *LogicalNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogicalNode.ProtoReflect.Descriptor instead.
 func (*LogicalNode) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{14}
+	return file_library_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *LogicalNode) GetOp() LogicalOp {
@@ -1053,7 +933,7 @@ type NotNode struct {
 
 func (x *NotNode) Reset() {
 	*x = NotNode{}
-	mi := &file_library_proto_msgTypes[15]
+	mi := &file_library_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1065,7 +945,7 @@ func (x *NotNode) String() string {
 func (*NotNode) ProtoMessage() {}
 
 func (x *NotNode) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[15]
+	mi := &file_library_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1078,7 +958,7 @@ func (x *NotNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NotNode.ProtoReflect.Descriptor instead.
 func (*NotNode) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{15}
+	return file_library_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *NotNode) GetNode() *SearchQuery {
@@ -1113,15 +993,7 @@ const file_library_proto_rawDesc = "" +
 	"\vListRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\"$\n" +
 	"\fListResponse\x12\x14\n" +
-	"\x05items\x18\x01 \x03(\tR\x05items\"_\n" +
-	"\rAccessRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
-	"\bplatform\x18\x02 \x01(\tR\bplatform\x12\x19\n" +
-	"\btrace_id\x18\x03 \x01(\tR\atraceId\"_\n" +
-	"\x0eAccessResponse\x12\x18\n" +
-	"\aallowed\x18\x01 \x01(\bR\aallowed\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x1b\n" +
-	"\tuser_role\x18\x03 \x01(\tR\buserRole\"9\n" +
+	"\x05items\x18\x01 \x03(\tR\x05items\"9\n" +
 	"\bRawInput\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\tR\x04data\x12\x19\n" +
 	"\btrace_id\x18\x02 \x01(\tR\atraceId\"\x9f\x01\n" +
@@ -1169,9 +1041,7 @@ const file_library_proto_rawDesc = "" +
 	"\x10ProcessorService\x12>\n" +
 	"\aProcess\x12\x18.libraryv1.SearchRequest\x1a\x19.libraryv1.SearchResponse2T\n" +
 	"\x0eStorageService\x12B\n" +
-	"\vSearchBooks\x12\x18.libraryv1.SearchRequest\x1a\x19.libraryv1.SearchResponse2Q\n" +
-	"\vAuthService\x12B\n" +
-	"\vCheckAccess\x12\x18.libraryv1.AccessRequest\x1a\x19.libraryv1.AccessResponse2X\n" +
+	"\vSearchBooks\x12\x18.libraryv1.SearchRequest\x1a\x19.libraryv1.SearchResponse2X\n" +
 	"\x17MessageConverterService\x12=\n" +
 	"\aConvert\x12\x13.libraryv1.RawInput\x1a\x1d.libraryv1.UnmarshaledMessage2\x93\x01\n" +
 	"\x0eLibraryService\x12B\n" +
@@ -1192,7 +1062,7 @@ func file_library_proto_rawDescGZIP() []byte {
 }
 
 var file_library_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_library_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_library_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_library_proto_goTypes = []any{
 	(LogicalOp)(0),             // 0: libraryv1.LogicalOp
 	(Operator)(0),              // 1: libraryv1.Operator
@@ -1201,47 +1071,43 @@ var file_library_proto_goTypes = []any{
 	(*Book)(nil),               // 4: libraryv1.Book
 	(*ListRequest)(nil),        // 5: libraryv1.ListRequest
 	(*ListResponse)(nil),       // 6: libraryv1.ListResponse
-	(*AccessRequest)(nil),      // 7: libraryv1.AccessRequest
-	(*AccessResponse)(nil),     // 8: libraryv1.AccessResponse
-	(*RawInput)(nil),           // 9: libraryv1.RawInput
-	(*MessageMeta)(nil),        // 10: libraryv1.MessageMeta
-	(*UnmarshaledMessage)(nil), // 11: libraryv1.UnmarshaledMessage
-	(*Response)(nil),           // 12: libraryv1.Response
-	(*ResponseMeta)(nil),       // 13: libraryv1.ResponseMeta
-	(*SearchQuery)(nil),        // 14: libraryv1.SearchQuery
-	(*FilterNode)(nil),         // 15: libraryv1.FilterNode
-	(*LogicalNode)(nil),        // 16: libraryv1.LogicalNode
-	(*NotNode)(nil),            // 17: libraryv1.NotNode
+	(*RawInput)(nil),           // 7: libraryv1.RawInput
+	(*MessageMeta)(nil),        // 8: libraryv1.MessageMeta
+	(*UnmarshaledMessage)(nil), // 9: libraryv1.UnmarshaledMessage
+	(*Response)(nil),           // 10: libraryv1.Response
+	(*ResponseMeta)(nil),       // 11: libraryv1.ResponseMeta
+	(*SearchQuery)(nil),        // 12: libraryv1.SearchQuery
+	(*FilterNode)(nil),         // 13: libraryv1.FilterNode
+	(*LogicalNode)(nil),        // 14: libraryv1.LogicalNode
+	(*NotNode)(nil),            // 15: libraryv1.NotNode
 }
 var file_library_proto_depIdxs = []int32{
 	4,  // 0: libraryv1.SearchResponse.books:type_name -> libraryv1.Book
-	10, // 1: libraryv1.UnmarshaledMessage.meta:type_name -> libraryv1.MessageMeta
-	14, // 2: libraryv1.UnmarshaledMessage.query:type_name -> libraryv1.SearchQuery
+	8,  // 1: libraryv1.UnmarshaledMessage.meta:type_name -> libraryv1.MessageMeta
+	12, // 2: libraryv1.UnmarshaledMessage.query:type_name -> libraryv1.SearchQuery
 	4,  // 3: libraryv1.Response.books:type_name -> libraryv1.Book
-	13, // 4: libraryv1.Response.meta:type_name -> libraryv1.ResponseMeta
-	15, // 5: libraryv1.SearchQuery.filter:type_name -> libraryv1.FilterNode
-	16, // 6: libraryv1.SearchQuery.logical:type_name -> libraryv1.LogicalNode
-	17, // 7: libraryv1.SearchQuery.negation:type_name -> libraryv1.NotNode
+	11, // 4: libraryv1.Response.meta:type_name -> libraryv1.ResponseMeta
+	13, // 5: libraryv1.SearchQuery.filter:type_name -> libraryv1.FilterNode
+	14, // 6: libraryv1.SearchQuery.logical:type_name -> libraryv1.LogicalNode
+	15, // 7: libraryv1.SearchQuery.negation:type_name -> libraryv1.NotNode
 	1,  // 8: libraryv1.FilterNode.operator:type_name -> libraryv1.Operator
 	0,  // 9: libraryv1.LogicalNode.op:type_name -> libraryv1.LogicalOp
-	14, // 10: libraryv1.LogicalNode.nodes:type_name -> libraryv1.SearchQuery
-	14, // 11: libraryv1.NotNode.node:type_name -> libraryv1.SearchQuery
+	12, // 10: libraryv1.LogicalNode.nodes:type_name -> libraryv1.SearchQuery
+	12, // 11: libraryv1.NotNode.node:type_name -> libraryv1.SearchQuery
 	2,  // 12: libraryv1.OrchestratorService.Search:input_type -> libraryv1.SearchRequest
 	2,  // 13: libraryv1.ProcessorService.Process:input_type -> libraryv1.SearchRequest
 	2,  // 14: libraryv1.StorageService.SearchBooks:input_type -> libraryv1.SearchRequest
-	7,  // 15: libraryv1.AuthService.CheckAccess:input_type -> libraryv1.AccessRequest
-	9,  // 16: libraryv1.MessageConverterService.Convert:input_type -> libraryv1.RawInput
-	2,  // 17: libraryv1.LibraryService.SearchBooks:input_type -> libraryv1.SearchRequest
-	5,  // 18: libraryv1.LibraryService.GetAuthors:input_type -> libraryv1.ListRequest
-	3,  // 19: libraryv1.OrchestratorService.Search:output_type -> libraryv1.SearchResponse
-	3,  // 20: libraryv1.ProcessorService.Process:output_type -> libraryv1.SearchResponse
-	3,  // 21: libraryv1.StorageService.SearchBooks:output_type -> libraryv1.SearchResponse
-	8,  // 22: libraryv1.AuthService.CheckAccess:output_type -> libraryv1.AccessResponse
-	11, // 23: libraryv1.MessageConverterService.Convert:output_type -> libraryv1.UnmarshaledMessage
-	3,  // 24: libraryv1.LibraryService.SearchBooks:output_type -> libraryv1.SearchResponse
-	6,  // 25: libraryv1.LibraryService.GetAuthors:output_type -> libraryv1.ListResponse
-	19, // [19:26] is the sub-list for method output_type
-	12, // [12:19] is the sub-list for method input_type
+	7,  // 15: libraryv1.MessageConverterService.Convert:input_type -> libraryv1.RawInput
+	2,  // 16: libraryv1.LibraryService.SearchBooks:input_type -> libraryv1.SearchRequest
+	5,  // 17: libraryv1.LibraryService.GetAuthors:input_type -> libraryv1.ListRequest
+	3,  // 18: libraryv1.OrchestratorService.Search:output_type -> libraryv1.SearchResponse
+	3,  // 19: libraryv1.ProcessorService.Process:output_type -> libraryv1.SearchResponse
+	3,  // 20: libraryv1.StorageService.SearchBooks:output_type -> libraryv1.SearchResponse
+	9,  // 21: libraryv1.MessageConverterService.Convert:output_type -> libraryv1.UnmarshaledMessage
+	3,  // 22: libraryv1.LibraryService.SearchBooks:output_type -> libraryv1.SearchResponse
+	6,  // 23: libraryv1.LibraryService.GetAuthors:output_type -> libraryv1.ListResponse
+	18, // [18:24] is the sub-list for method output_type
+	12, // [12:18] is the sub-list for method input_type
 	12, // [12:12] is the sub-list for extension type_name
 	12, // [12:12] is the sub-list for extension extendee
 	0,  // [0:12] is the sub-list for field type_name
@@ -1252,7 +1118,7 @@ func file_library_proto_init() {
 	if File_library_proto != nil {
 		return
 	}
-	file_library_proto_msgTypes[12].OneofWrappers = []any{
+	file_library_proto_msgTypes[10].OneofWrappers = []any{
 		(*SearchQuery_Filter)(nil),
 		(*SearchQuery_Logical)(nil),
 		(*SearchQuery_Negation)(nil),
@@ -1263,9 +1129,9 @@ func file_library_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_library_proto_rawDesc), len(file_library_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   16,
+			NumMessages:   14,
 			NumExtensions: 0,
-			NumServices:   6,
+			NumServices:   5,
 		},
 		GoTypes:           file_library_proto_goTypes,
 		DependencyIndexes: file_library_proto_depIdxs,
