@@ -3,11 +3,6 @@ API_PROTO_DIR=api/proto/v1
 API_PROTOS := $(filter-out $(API_PROTO_DIR)/auth.proto, $(wildcard $(API_PROTO_DIR)/*.proto))
 
 # Конфигурация портов
-WEB_PORT=50080
-ORCH_PORT=50053
-DSL_PORT=50052
-DATA_PORT=50051
-METRICS_PORT=50090
 .PHONY: build-all stop-all start-all restart-all test-compliance test-e2e proto clean gen-dsl
 
 proto:
@@ -57,8 +52,8 @@ test-compliance:
 	@go run tests/compliance_runner.go
 
 test-e2e:
-	@echo "=== Running E2E Test (HTTP :$(WEB_PORT)/input) ==="
-	@curl -v -X POST --data-urlencode "msg=author:\"Стивен Кинг\"" http://localhost:$(WEB_PORT)/input
+	@echo "=== Running E2E Test (HTTP :50080/input) ==="
+	@curl -v -X POST --data-urlencode "msg=author:\"Стивен Кинг\"" http://localhost:50080/input
 
 restart-all: stop-all build-all start-all
 
@@ -68,7 +63,6 @@ clean:
 	@rm -f *.log
 	@echo "✅ Clean complete"
 
-
 .PHONY: test-stage-a
 test-stage-a:
 	bash tests/a_chain_neighbors.sh
@@ -77,4 +71,3 @@ test-stage-a:
 .PHONY: gen-dsl
 gen-dsl:
 	./tests/a_dsl_go_stubs.sh
-

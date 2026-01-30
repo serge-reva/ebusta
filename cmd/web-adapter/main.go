@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	// 1. Подключение к Orchestrator (порт 50054)
+	// 1. Подключение к Orchestrator (порт 50053)
 	orchHost := os.Getenv("ORCHESTRATOR_HOST")
 	if orchHost == "" {
 		orchHost = "localhost:50053"
@@ -35,7 +35,7 @@ func main() {
 		if query == "" {
 			query = r.URL.Query().Get("q")
 		}
-		
+
 		if query == "" {
 			http.Error(w, "Please provide 'msg' parameter", http.StatusBadRequest)
 			return
@@ -58,7 +58,7 @@ func main() {
 
 		// Форматируем простой текстовый ответ
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		
+
 		if len(resp.Books) == 0 {
 			fmt.Fprintf(w, "No books found for: %s\n", query)
 			return

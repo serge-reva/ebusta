@@ -7,7 +7,7 @@ import (
 	"time"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	pb "ebusta/grpc/gen/go" 
+	pb "ebusta/api/gen/dsl" 
 )
 
 func findFilter(resp *pb.SearchQuery, field string) *pb.FilterNode {
