@@ -5,7 +5,7 @@ datamanager:
 
 orchestrator:
   storage_addr: "localhost:50051"
-  processor_addr: "localhost:50053"
+  processor_addr: "localhost:50054"
 
 web:
   port: 50080

@@ -7,8 +7,8 @@ WEB_PORT=50080
 ORCH_PORT=50053
 DSL_PORT=50052
 DATA_PORT=50051
-
-.PHONY: build-all stop-all start-all restart-all test-compliance test-e2e proto clean
+METRICS_PORT=50090
+.PHONY: build-all stop-all start-all restart-all test-compliance test-e2e proto clean gen-dsl
 
 proto:
 	@echo "Generating protobuf files..."
@@ -20,7 +20,7 @@ proto:
 	@go mod tidy
 	@echo "✅ Proto generation complete"
 
-build-all: proto
+build-all: proto gen-dsl
 	@echo "Building DSL-Converter..."
 	sbcl --noinform --eval '(push (truename "$(LISP_DIR)/") asdf:*central-registry*)' \
 		--eval '(ql:quickload :ebusta-search :silent t)' \
@@ -39,12 +39,12 @@ stop-all:
 
 start-all:
 	@echo "Starting Full Stack..."
-	./datamanager -port $(DATA_PORT) >> data.log 2>&1 &
+	./datamanager >> data.log 2>&1 &
 	./dsl-converter >> dsl.log 2>&1 &
 	@sleep 2
-	./orchestrator -port $(ORCH_PORT) >> orch.log 2>&1 &
+	./orchestrator >> orch.log 2>&1 &
 	@sleep 1
-	./web-adapter -port $(WEB_PORT) >> web.log 2>&1 &
+	./web-adapter >> web.log 2>&1 &
 	@sleep 1
 	@echo "--- Service Status ---"
 	@grep "===" data.log | tail -n 1 || echo "[DATAMANAGER] No banner"
@@ -73,3 +73,8 @@ clean:
 test-stage-a:
 	bash tests/a_chain_neighbors.sh
 	@true
+
+.PHONY: gen-dsl
+gen-dsl:
+	./tests/a_dsl_go_stubs.sh
+

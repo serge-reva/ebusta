@@ -73,10 +73,6 @@ func main() {
 	})
 
 	port := "50080"
-if port == "" {
-		port = "8080"
-	}
-
 	log.Printf("🌍 Web Adapter started on :%s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("failed to serve: %v", err)
