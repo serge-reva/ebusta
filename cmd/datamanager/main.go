@@ -9,7 +9,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 
 	"ebusta/api/proto/v1"
 	"github.com/spf13/viper"
@@ -28,7 +27,7 @@ func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRe
 	if templateID == "" {
 		templateID = "fl_mixed_search"
 	}
-	
+
 	var paramName string
 	switch templateID {
 	case "fl_author_exact", "fl_author_fuzzy":
@@ -47,7 +46,7 @@ func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRe
 			"size":    req.Limit,
 		},
 	}
-	
+
 	if val, ok := osReqBody["params"].(map[string]interface{})["size"].(int32); ok && val == 0 {
 		osReqBody["params"].(map[string]interface{})["size"] = 10
 	}
@@ -63,7 +62,7 @@ func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRe
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	
+
 	// ГИБКИЙ ПАРСИНГ: Total может быть числом, объектом или отсутствовать
 	var osRaw struct {
 		Hits struct {
@@ -118,12 +117,18 @@ func main() {
 	viper.AddConfigPath(".")
 	viper.ReadInConfig()
 
-	osBaseURL := viper.GetString("datamanager.opensearch_url")
-	indexName := viper.GetString("datamanager.index_name")
-	debug := os.Getenv("DEBUG") != ""
+	osBaseURL := viper.GetString("opensearch.url")
+	indexName := viper.GetString("opensearch.index_name")
+	debug := viper.GetBool("opensearch.debug")
 
-	lis, err := net.Listen("tcp", ":50051")
-	if err != nil { log.Fatalf("failed to listen: %v", err) }
+	protocol := viper.GetString("datamanager.protocol")
+	port := viper.GetInt("datamanager.port")
+	addr := fmt.Sprintf(":%d", port)
+
+	lis, err := net.Listen(protocol, addr)
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
 
 	s := grpc.NewServer()
 	libraryv1.RegisterStorageServiceServer(s, &storageServer{
@@ -132,6 +137,6 @@ func main() {
 		debug:     debug,
 	})
 
-	log.Println("💾 DataManager (Storage) started on :50051")
+	log.Printf("💾 DataManager (Storage) started on %s (%s)", addr, protocol)
 	s.Serve(lis)
 }
