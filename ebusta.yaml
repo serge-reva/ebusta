@@ -4,14 +4,30 @@ opensearch:
   debug: true
 
 datamanager:
-  protocol: tcp
+  protocol: "tcp"
+  host: "localhost"
   port: 50051
-
-
+  debug: false
 
 orchestrator:
-  storage_addr: "localhost:50051"
-  processor_addr: "localhost:50054"
+  protocol: "tcp"
+  host: "localhost"
+  port: 50053
+  debug: false
 
-web:
+web_adapter:
+  protocol: "tcp"
+  host: "localhost"
   port: 50080
+  debug: false
+
+cli:
+  debug: false
+
+lisp_converter:
+  protocol: "tcp"
+  host: "localhost"
+  port: 50052
+
+metrics:
+  port: 50090

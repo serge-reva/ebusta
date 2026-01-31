@@ -19,6 +19,12 @@ type ComponentConfig struct {
 	Protocol string `yaml:"protocol"`
 	Host     string `yaml:"host"`
 	Port     int    `yaml:"port"`
+	Debug    bool   `yaml:"debug"`
+}
+
+// CLIConfig настройки для CLI (не сервис)
+type CLIConfig struct {
+	Debug bool `yaml:"debug"`
 }
 
 // OpenSearchConfig настройки поискового движка
@@ -39,7 +45,7 @@ type Config struct {
 	Datamanager   ComponentConfig  `yaml:"datamanager"`
 	Orchestrator  ComponentConfig  `yaml:"orchestrator"`
 	WebAdapter    ComponentConfig  `yaml:"web_adapter"`
-	CLI           interface{}      `yaml:"cli"`
+	CLI           CLIConfig        `yaml:"cli"`
 	LispConverter ComponentConfig  `yaml:"lisp_converter"`
 	Metrics       MetricsConfig    `yaml:"metrics"`
 }

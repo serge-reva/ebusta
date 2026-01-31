@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"ebusta/api/proto/v1"
+	libraryv1 "ebusta/api/proto/v1"
+	"ebusta/internal/config"
 	"github.com/peterh/liner"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -21,14 +22,17 @@ var (
 )
 
 func main() {
-	if os.Getenv("DEBUG") != "" {
-		debugMode = true
-		log.Println("🐞 DEBUG MODE: ENABLED")
+	cfg := config.Get()
+	debugMode = cfg.CLI.Debug
+	if debugMode {
+		log.Println("🐞 DEBUG MODE: ENABLED (from config)")
 	}
 
-	conn, err := grpc.Dial("localhost:50053", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	orchAddr := cfg.Orchestrator.Address()
+
+	conn, err := grpc.Dial(orchAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("❌ Failed to connect to Orchestrator: %v", err)
+		log.Fatalf("❌ Failed to connect to Orchestrator (%s): %v", orchAddr, err)
 	}
 	defer conn.Close()
 
@@ -69,11 +73,9 @@ func runInteractiveLoop(client libraryv1.OrchestratorServiceClient) {
 				break
 			}
 
-			// Добавляем в историю и сохраняем
 			line.AppendHistory(text)
 			runSearch(client, text)
 
-			// Сохраняем историю после каждого успешного ввода
 			if f, err := os.Create(historyPath); err == nil {
 				line.WriteHistory(f)
 				f.Close()
@@ -115,9 +117,9 @@ func runSearch(client libraryv1.OrchestratorServiceClient, query string) {
 	fmt.Println(strings.Repeat("-", 100))
 
 	for _, b := range resp.Books {
-		fmt.Printf("%-40s | %-40s | %s\n", 
-			b.Id, 
-			truncate(b.Title, 38), 
+		fmt.Printf("%-40s | %-40s | %s\n",
+			b.Id,
+			truncate(b.Title, 38),
 			truncate(strings.Join(b.Authors, ", "), 30),
 		)
 	}
