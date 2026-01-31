@@ -106,6 +106,19 @@ test-functional-only: test-functional-web test-functional-cli
 
 # Starts stack via stack-up, then runs functional AST tests
 test-functional: stack-up test-functional-only
+
+.PHONY: test-results test-results-only test-results-web test-results-cli
+
+test-results-web:
+	@bash tests/test_functional_results_web_adapter.sh
+
+test-results-cli:
+	@bash tests/test_functional_results_cli.sh
+
+test-results-only: test-results-web test-results-cli
+
+# Starts stack via stack-up, then runs functional results tests (expects non-empty results)
+test-results: stack-up test-results-only
 # END EBUSTA TEST STACK
 
 # Runs stack tests + functional AST suite in one routine run
