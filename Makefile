@@ -93,4 +93,21 @@ stack-up: stack-build
 test-stack: stack-up
 	@$(MAKE) test-components
 	@$(MAKE) test-e2e-chain-neighbors
+
+.PHONY: test-functional test-functional-only test-functional-web test-functional-cli
+
+test-functional-web:
+	@bash tests/test_functional_ast_web_adapter.sh
+
+test-functional-cli:
+	@bash tests/test_functional_ast_cli.sh
+
+test-functional-only: test-functional-web test-functional-cli
+
+# Starts stack via stack-up, then runs functional AST tests
+test-functional: stack-up test-functional-only
 # END EBUSTA TEST STACK
+
+# Runs stack tests + functional AST suite in one routine run
+.PHONY: test-routine
+test-routine: test-stack test-functional-only
