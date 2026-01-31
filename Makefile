@@ -52,22 +52,45 @@ test-compliance:
 	@go run tests/compliance_runner.go
 
 test-e2e:
-	@echo "=== Running E2E Test (HTTP :50080/input) ==="
-	@curl -v -X POST --data-urlencode "msg=author:\"Стивен Кинг\"" http://localhost:50080/input
+	@bash tests/test_e2e_chain_neighbors.sh
 
-restart-all: stop-all build-all start-all
 
-clean:
-	@echo "Cleaning build artifacts..."
-	@rm -f datamanager orchestrator web-adapter dsl-converter
-	@rm -f *.log
-	@echo "✅ Clean complete"
+# BEGIN EBUSTA TEST STACK
+.PHONY: build-cli test-components test-e2e-chain-neighbors test-stack stack-stop stack-build stack-up \
+        test-component-datamanager test-component-orchestrator test-component-web-adapter test-component-cli
 
-.PHONY: test-stage-a
-test-stage-a:
-	bash tests/a_chain_neighbors.sh
-	@true
+build-cli:
+	@mkdir -p bin
+	go build -o bin/ebusta-cli ./cmd/cli
 
-.PHONY: gen-dsl
-gen-dsl:
-	./tests/a_dsl_go_stubs.sh
+test-component-datamanager:
+	@bash tests/test_component_datamanager.sh
+
+test-component-orchestrator:
+	@bash tests/test_component_orchestrator.sh
+
+test-component-web-adapter:
+	@bash tests/test_component_web_adapter.sh
+
+test-component-cli:
+	@bash tests/test_component_cli.sh
+
+test-components: test-component-datamanager test-component-orchestrator test-component-web-adapter test-component-cli
+
+test-e2e-chain-neighbors:
+	@bash tests/test_e2e_chain_neighbors.sh
+
+stack-stop:
+	@$(MAKE) stop-all
+
+stack-build: stack-stop
+	@$(MAKE) build-all
+	@$(MAKE) build-cli
+
+stack-up: stack-build
+	@$(MAKE) start-all
+
+test-stack: stack-up
+	@$(MAKE) test-components
+	@$(MAKE) test-e2e-chain-neighbors
+# END EBUSTA TEST STACK
