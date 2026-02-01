@@ -1,5 +1,4 @@
 syntax = "proto3";
-
 package libraryv1;
 option go_package = "ebusta/api/proto/v1;libraryv1";
 
@@ -20,6 +19,7 @@ service ProcessorService {
 service StorageService {
   rpc SearchBooks (SearchRequest) returns (SearchResponse);
 }
+
 service MessageConverterService {
   rpc Convert (RawInput) returns (UnmarshaledMessage);
 }
@@ -41,6 +41,10 @@ message SearchRequest {
   int32 offset = 4;
   string trace_id = 5;
   .ebusta.library.v1.SearchQuery ast = 6;
+
+  // --- НОВЫЕ ПОЛЯ ДЛЯ QUERY BUILDER ---
+  string debug_open_search_json = 10; // Готовый JSON запрос
+  string execution_type = 11;         // "DSL" или "TEMPLATE"
 }
 
 message SearchResponse {
@@ -65,13 +69,11 @@ message ListResponse {
   repeated string items = 1;
 }
 
-// --- AUTH ---
 // ==========================================
-// 3. CONVERTER & META (Fixed for existing code)
+// 3. CONVERTER & META
 // ==========================================
 
 message RawInput {
-  // Исправлено: переименовано в 'data', чтобы появился метод GetData(), который ждет message-converter
   string data = 1;
   string trace_id = 2;
 }
@@ -81,7 +83,6 @@ message MessageMeta {
   string canonical_form = 2;
   string platform = 3;
   string user_id = 4;
-  // Исправлено: добавлено поле, которое требует message-converter
   string ast_plan = 5;
 }
 

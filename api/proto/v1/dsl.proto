@@ -1,14 +1,17 @@
 syntax = "proto3";
 package ebusta.dsl.v1;
-option go_package = "ebusta/api/dsl/v1;dslv1";
+
+option go_package = "ebusta/api/proto/v1;libraryv1";
 
 import "common.proto";
 
 service DslTransformer {
-  rpc Transform (RawInput) returns (SQuery) {}
+  // ИСПРАВЛЕНИЕ: Используем DslRequest вместо RawInput
+  rpc Transform (DslRequest) returns (SQuery) {}
 }
 
-message RawInput {
+// ИСПРАВЛЕНИЕ: Переименовали сообщение, чтобы не конфликтовать с library.proto
+message DslRequest {
   string query = 1;
 }
 
@@ -16,6 +19,5 @@ message SQuery {
   string data = 1;
   bool is_success = 2;
   string error_msg = 3;
-  // Добавляем AST дерево
   ebusta.library.v1.SearchQuery ast = 4;
 }

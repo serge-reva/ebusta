@@ -1,6 +1,8 @@
 syntax = "proto3";
 package ebusta.qb.v1;
-option go_package = "ebusta/api/qb/v1;qbv1";
+
+// ИСПРАВЛЕНИЕ: Ставим общий пакет libraryv1, чтобы лежать в одной папке с остальными
+option go_package = "ebusta/api/proto/v1;libraryv1";
 
 import "common.proto";
 

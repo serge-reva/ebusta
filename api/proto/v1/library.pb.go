@@ -22,15 +22,18 @@ const (
 )
 
 type SearchRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
-	TemplateId    string                 `protobuf:"bytes,2,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
-	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
-	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
-	TraceId       string                 `protobuf:"bytes,5,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
-	Ast           *SearchQuery           `protobuf:"bytes,6,opt,name=ast,proto3" json:"ast,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Query      string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	TemplateId string                 `protobuf:"bytes,2,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+	Limit      int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset     int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	TraceId    string                 `protobuf:"bytes,5,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	Ast        *SearchQuery           `protobuf:"bytes,6,opt,name=ast,proto3" json:"ast,omitempty"`
+	// --- НОВЫЕ ПОЛЯ ДЛЯ QUERY BUILDER ---
+	DebugOpenSearchJson string `protobuf:"bytes,10,opt,name=debug_open_search_json,json=debugOpenSearchJson,proto3" json:"debug_open_search_json,omitempty"` // Готовый JSON запрос
+	ExecutionType       string `protobuf:"bytes,11,opt,name=execution_type,json=executionType,proto3" json:"execution_type,omitempty"`                       // "DSL" или "TEMPLATE"
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *SearchRequest) Reset() {
@@ -103,6 +106,20 @@ func (x *SearchRequest) GetAst() *SearchQuery {
 		return x.Ast
 	}
 	return nil
+}
+
+func (x *SearchRequest) GetDebugOpenSearchJson() string {
+	if x != nil {
+		return x.DebugOpenSearchJson
+	}
+	return ""
+}
+
+func (x *SearchRequest) GetExecutionType() string {
+	if x != nil {
+		return x.ExecutionType
+	}
+	return ""
 }
 
 type SearchResponse struct {
@@ -330,10 +347,9 @@ func (x *ListResponse) GetItems() []string {
 }
 
 type RawInput struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Исправлено: переименовано в 'data', чтобы появился метод GetData(), который ждет message-converter
-	Data          string `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
-	TraceId       string `protobuf:"bytes,2,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          string                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	TraceId       string                 `protobuf:"bytes,2,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -388,8 +404,7 @@ type MessageMeta struct {
 	CanonicalForm string                 `protobuf:"bytes,2,opt,name=canonical_form,json=canonicalForm,proto3" json:"canonical_form,omitempty"`
 	Platform      string                 `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"`
 	UserId        string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	// Исправлено: добавлено поле, которое требует message-converter
-	AstPlan       string `protobuf:"bytes,5,opt,name=ast_plan,json=astPlan,proto3" json:"ast_plan,omitempty"`
+	AstPlan       string                 `protobuf:"bytes,5,opt,name=ast_plan,json=astPlan,proto3" json:"ast_plan,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -627,7 +642,7 @@ var File_library_proto protoreflect.FileDescriptor
 
 const file_library_proto_rawDesc = "" +
 	"\n" +
-	"\rlibrary.proto\x12\tlibraryv1\x1a\fcommon.proto\"\xc1\x01\n" +
+	"\rlibrary.proto\x12\tlibraryv1\x1a\fcommon.proto\"\x9d\x02\n" +
 	"\rSearchRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x1f\n" +
 	"\vtemplate_id\x18\x02 \x01(\tR\n" +
@@ -635,7 +650,10 @@ const file_library_proto_rawDesc = "" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x04 \x01(\x05R\x06offset\x12\x19\n" +
 	"\btrace_id\x18\x05 \x01(\tR\atraceId\x120\n" +
-	"\x03ast\x18\x06 \x01(\v2\x1e.ebusta.library.v1.SearchQueryR\x03ast\"e\n" +
+	"\x03ast\x18\x06 \x01(\v2\x1e.ebusta.library.v1.SearchQueryR\x03ast\x123\n" +
+	"\x16debug_open_search_json\x18\n" +
+	" \x01(\tR\x13debugOpenSearchJson\x12%\n" +
+	"\x0eexecution_type\x18\v \x01(\tR\rexecutionType\"e\n" +
 	"\x0eSearchResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x12%\n" +
