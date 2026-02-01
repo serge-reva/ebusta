@@ -69,3 +69,4 @@ project/boot/
 
 # --- Application ---
 server.log
+*.tar.gz
