@@ -21,104 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type LogicalOp int32
-
-const (
-	LogicalOp_AND LogicalOp = 0
-	LogicalOp_OR  LogicalOp = 1
-	LogicalOp_NOT LogicalOp = 2
-)
-
-// Enum value maps for LogicalOp.
-var (
-	LogicalOp_name = map[int32]string{
-		0: "AND",
-		1: "OR",
-		2: "NOT",
-	}
-	LogicalOp_value = map[string]int32{
-		"AND": 0,
-		"OR":  1,
-		"NOT": 2,
-	}
-)
-
-func (x LogicalOp) Enum() *LogicalOp {
-	p := new(LogicalOp)
-	*p = x
-	return p
-}
-
-func (x LogicalOp) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (LogicalOp) Descriptor() protoreflect.EnumDescriptor {
-	return file_library_proto_enumTypes[0].Descriptor()
-}
-
-func (LogicalOp) Type() protoreflect.EnumType {
-	return &file_library_proto_enumTypes[0]
-}
-
-func (x LogicalOp) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use LogicalOp.Descriptor instead.
-func (LogicalOp) EnumDescriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{0}
-}
-
-type Operator int32
-
-const (
-	Operator_OP_EQUALS   Operator = 0
-	Operator_OP_CONTAINS Operator = 1
-	Operator_OP_REGEX    Operator = 2
-)
-
-// Enum value maps for Operator.
-var (
-	Operator_name = map[int32]string{
-		0: "OP_EQUALS",
-		1: "OP_CONTAINS",
-		2: "OP_REGEX",
-	}
-	Operator_value = map[string]int32{
-		"OP_EQUALS":   0,
-		"OP_CONTAINS": 1,
-		"OP_REGEX":    2,
-	}
-)
-
-func (x Operator) Enum() *Operator {
-	p := new(Operator)
-	*p = x
-	return p
-}
-
-func (x Operator) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (Operator) Descriptor() protoreflect.EnumDescriptor {
-	return file_library_proto_enumTypes[1].Descriptor()
-}
-
-func (Operator) Type() protoreflect.EnumType {
-	return &file_library_proto_enumTypes[1]
-}
-
-func (x Operator) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use Operator.Descriptor instead.
-func (Operator) EnumDescriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{1}
-}
-
 type SearchRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
@@ -126,6 +28,7 @@ type SearchRequest struct {
 	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
 	TraceId       string                 `protobuf:"bytes,5,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	Ast           *SearchQuery           `protobuf:"bytes,6,opt,name=ast,proto3" json:"ast,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -193,6 +96,13 @@ func (x *SearchRequest) GetTraceId() string {
 		return x.TraceId
 	}
 	return ""
+}
+
+func (x *SearchRequest) GetAst() *SearchQuery {
+	if x != nil {
+		return x.Ast
+	}
+	return nil
 }
 
 type SearchResponse struct {
@@ -713,273 +623,19 @@ func (x *ResponseMeta) GetCanonicalForm() string {
 	return ""
 }
 
-type SearchQuery struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Types that are valid to be assigned to Node:
-	//
-	//	*SearchQuery_Filter
-	//	*SearchQuery_Logical
-	//	*SearchQuery_Negation
-	Node          isSearchQuery_Node `protobuf_oneof:"node"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SearchQuery) Reset() {
-	*x = SearchQuery{}
-	mi := &file_library_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SearchQuery) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SearchQuery) ProtoMessage() {}
-
-func (x *SearchQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SearchQuery.ProtoReflect.Descriptor instead.
-func (*SearchQuery) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *SearchQuery) GetNode() isSearchQuery_Node {
-	if x != nil {
-		return x.Node
-	}
-	return nil
-}
-
-func (x *SearchQuery) GetFilter() *FilterNode {
-	if x != nil {
-		if x, ok := x.Node.(*SearchQuery_Filter); ok {
-			return x.Filter
-		}
-	}
-	return nil
-}
-
-func (x *SearchQuery) GetLogical() *LogicalNode {
-	if x != nil {
-		if x, ok := x.Node.(*SearchQuery_Logical); ok {
-			return x.Logical
-		}
-	}
-	return nil
-}
-
-func (x *SearchQuery) GetNegation() *NotNode {
-	if x != nil {
-		if x, ok := x.Node.(*SearchQuery_Negation); ok {
-			return x.Negation
-		}
-	}
-	return nil
-}
-
-type isSearchQuery_Node interface {
-	isSearchQuery_Node()
-}
-
-type SearchQuery_Filter struct {
-	Filter *FilterNode `protobuf:"bytes,1,opt,name=filter,proto3,oneof"`
-}
-
-type SearchQuery_Logical struct {
-	Logical *LogicalNode `protobuf:"bytes,2,opt,name=logical,proto3,oneof"`
-}
-
-type SearchQuery_Negation struct {
-	Negation *NotNode `protobuf:"bytes,3,opt,name=negation,proto3,oneof"`
-}
-
-func (*SearchQuery_Filter) isSearchQuery_Node() {}
-
-func (*SearchQuery_Logical) isSearchQuery_Node() {}
-
-func (*SearchQuery_Negation) isSearchQuery_Node() {}
-
-type FilterNode struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Field         string                 `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
-	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
-	Operator      Operator               `protobuf:"varint,3,opt,name=operator,proto3,enum=libraryv1.Operator" json:"operator,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *FilterNode) Reset() {
-	*x = FilterNode{}
-	mi := &file_library_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *FilterNode) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*FilterNode) ProtoMessage() {}
-
-func (x *FilterNode) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use FilterNode.ProtoReflect.Descriptor instead.
-func (*FilterNode) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *FilterNode) GetField() string {
-	if x != nil {
-		return x.Field
-	}
-	return ""
-}
-
-func (x *FilterNode) GetValue() string {
-	if x != nil {
-		return x.Value
-	}
-	return ""
-}
-
-func (x *FilterNode) GetOperator() Operator {
-	if x != nil {
-		return x.Operator
-	}
-	return Operator_OP_EQUALS
-}
-
-type LogicalNode struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Op            LogicalOp              `protobuf:"varint,1,opt,name=op,proto3,enum=libraryv1.LogicalOp" json:"op,omitempty"`
-	Nodes         []*SearchQuery         `protobuf:"bytes,2,rep,name=nodes,proto3" json:"nodes,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *LogicalNode) Reset() {
-	*x = LogicalNode{}
-	mi := &file_library_proto_msgTypes[12]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *LogicalNode) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*LogicalNode) ProtoMessage() {}
-
-func (x *LogicalNode) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[12]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use LogicalNode.ProtoReflect.Descriptor instead.
-func (*LogicalNode) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{12}
-}
-
-func (x *LogicalNode) GetOp() LogicalOp {
-	if x != nil {
-		return x.Op
-	}
-	return LogicalOp_AND
-}
-
-func (x *LogicalNode) GetNodes() []*SearchQuery {
-	if x != nil {
-		return x.Nodes
-	}
-	return nil
-}
-
-type NotNode struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Важно: имя поля 'node' генерирует поле 'Node' в Go структуре, что нужно парсеру
-	Node          *SearchQuery `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *NotNode) Reset() {
-	*x = NotNode{}
-	mi := &file_library_proto_msgTypes[13]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *NotNode) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NotNode) ProtoMessage() {}
-
-func (x *NotNode) ProtoReflect() protoreflect.Message {
-	mi := &file_library_proto_msgTypes[13]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NotNode.ProtoReflect.Descriptor instead.
-func (*NotNode) Descriptor() ([]byte, []int) {
-	return file_library_proto_rawDescGZIP(), []int{13}
-}
-
-func (x *NotNode) GetNode() *SearchQuery {
-	if x != nil {
-		return x.Node
-	}
-	return nil
-}
-
 var File_library_proto protoreflect.FileDescriptor
 
 const file_library_proto_rawDesc = "" +
 	"\n" +
-	"\rlibrary.proto\x12\tlibraryv1\"\x8f\x01\n" +
+	"\rlibrary.proto\x12\tlibraryv1\x1a\fcommon.proto\"\xc1\x01\n" +
 	"\rSearchRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x1f\n" +
 	"\vtemplate_id\x18\x02 \x01(\tR\n" +
 	"templateId\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x04 \x01(\x05R\x06offset\x12\x19\n" +
-	"\btrace_id\x18\x05 \x01(\tR\atraceId\"e\n" +
+	"\btrace_id\x18\x05 \x01(\tR\atraceId\x120\n" +
+	"\x03ast\x18\x06 \x01(\v2\x1e.ebusta.library.v1.SearchQueryR\x03ast\"e\n" +
 	"\x0eSearchResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x12%\n" +
@@ -1002,40 +658,17 @@ const file_library_proto_rawDesc = "" +
 	"\x0ecanonical_form\x18\x02 \x01(\tR\rcanonicalForm\x12\x1a\n" +
 	"\bplatform\x18\x03 \x01(\tR\bplatform\x12\x17\n" +
 	"\auser_id\x18\x04 \x01(\tR\x06userId\x12\x19\n" +
-	"\bast_plan\x18\x05 \x01(\tR\aastPlan\"n\n" +
+	"\bast_plan\x18\x05 \x01(\tR\aastPlan\"v\n" +
 	"\x12UnmarshaledMessage\x12*\n" +
-	"\x04meta\x18\x01 \x01(\v2\x16.libraryv1.MessageMetaR\x04meta\x12,\n" +
-	"\x05query\x18\x02 \x01(\v2\x16.libraryv1.SearchQueryR\x05query\"v\n" +
+	"\x04meta\x18\x01 \x01(\v2\x16.libraryv1.MessageMetaR\x04meta\x124\n" +
+	"\x05query\x18\x02 \x01(\v2\x1e.ebusta.library.v1.SearchQueryR\x05query\"v\n" +
 	"\bResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12%\n" +
 	"\x05books\x18\x02 \x03(\v2\x0f.libraryv1.BookR\x05books\x12+\n" +
 	"\x04meta\x18\x03 \x01(\v2\x17.libraryv1.ResponseMetaR\x04meta\"P\n" +
 	"\fResponseMeta\x12\x19\n" +
 	"\btrace_id\x18\x01 \x01(\tR\atraceId\x12%\n" +
-	"\x0ecanonical_form\x18\x02 \x01(\tR\rcanonicalForm\"\xac\x01\n" +
-	"\vSearchQuery\x12/\n" +
-	"\x06filter\x18\x01 \x01(\v2\x15.libraryv1.FilterNodeH\x00R\x06filter\x122\n" +
-	"\alogical\x18\x02 \x01(\v2\x16.libraryv1.LogicalNodeH\x00R\alogical\x120\n" +
-	"\bnegation\x18\x03 \x01(\v2\x12.libraryv1.NotNodeH\x00R\bnegationB\x06\n" +
-	"\x04node\"i\n" +
-	"\n" +
-	"FilterNode\x12\x14\n" +
-	"\x05field\x18\x01 \x01(\tR\x05field\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value\x12/\n" +
-	"\boperator\x18\x03 \x01(\x0e2\x13.libraryv1.OperatorR\boperator\"a\n" +
-	"\vLogicalNode\x12$\n" +
-	"\x02op\x18\x01 \x01(\x0e2\x14.libraryv1.LogicalOpR\x02op\x12,\n" +
-	"\x05nodes\x18\x02 \x03(\v2\x16.libraryv1.SearchQueryR\x05nodes\"5\n" +
-	"\aNotNode\x12*\n" +
-	"\x04node\x18\x01 \x01(\v2\x16.libraryv1.SearchQueryR\x04node*%\n" +
-	"\tLogicalOp\x12\a\n" +
-	"\x03AND\x10\x00\x12\x06\n" +
-	"\x02OR\x10\x01\x12\a\n" +
-	"\x03NOT\x10\x02*8\n" +
-	"\bOperator\x12\r\n" +
-	"\tOP_EQUALS\x10\x00\x12\x0f\n" +
-	"\vOP_CONTAINS\x10\x01\x12\f\n" +
-	"\bOP_REGEX\x10\x022T\n" +
+	"\x0ecanonical_form\x18\x02 \x01(\tR\rcanonicalForm2T\n" +
 	"\x13OrchestratorService\x12=\n" +
 	"\x06Search\x12\x18.libraryv1.SearchRequest\x1a\x19.libraryv1.SearchResponse2R\n" +
 	"\x10ProcessorService\x12>\n" +
@@ -1061,56 +694,44 @@ func file_library_proto_rawDescGZIP() []byte {
 	return file_library_proto_rawDescData
 }
 
-var file_library_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_library_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_library_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_library_proto_goTypes = []any{
-	(LogicalOp)(0),             // 0: libraryv1.LogicalOp
-	(Operator)(0),              // 1: libraryv1.Operator
-	(*SearchRequest)(nil),      // 2: libraryv1.SearchRequest
-	(*SearchResponse)(nil),     // 3: libraryv1.SearchResponse
-	(*Book)(nil),               // 4: libraryv1.Book
-	(*ListRequest)(nil),        // 5: libraryv1.ListRequest
-	(*ListResponse)(nil),       // 6: libraryv1.ListResponse
-	(*RawInput)(nil),           // 7: libraryv1.RawInput
-	(*MessageMeta)(nil),        // 8: libraryv1.MessageMeta
-	(*UnmarshaledMessage)(nil), // 9: libraryv1.UnmarshaledMessage
-	(*Response)(nil),           // 10: libraryv1.Response
-	(*ResponseMeta)(nil),       // 11: libraryv1.ResponseMeta
-	(*SearchQuery)(nil),        // 12: libraryv1.SearchQuery
-	(*FilterNode)(nil),         // 13: libraryv1.FilterNode
-	(*LogicalNode)(nil),        // 14: libraryv1.LogicalNode
-	(*NotNode)(nil),            // 15: libraryv1.NotNode
+	(*SearchRequest)(nil),      // 0: libraryv1.SearchRequest
+	(*SearchResponse)(nil),     // 1: libraryv1.SearchResponse
+	(*Book)(nil),               // 2: libraryv1.Book
+	(*ListRequest)(nil),        // 3: libraryv1.ListRequest
+	(*ListResponse)(nil),       // 4: libraryv1.ListResponse
+	(*RawInput)(nil),           // 5: libraryv1.RawInput
+	(*MessageMeta)(nil),        // 6: libraryv1.MessageMeta
+	(*UnmarshaledMessage)(nil), // 7: libraryv1.UnmarshaledMessage
+	(*Response)(nil),           // 8: libraryv1.Response
+	(*ResponseMeta)(nil),       // 9: libraryv1.ResponseMeta
+	(*SearchQuery)(nil),        // 10: ebusta.library.v1.SearchQuery
 }
 var file_library_proto_depIdxs = []int32{
-	4,  // 0: libraryv1.SearchResponse.books:type_name -> libraryv1.Book
-	8,  // 1: libraryv1.UnmarshaledMessage.meta:type_name -> libraryv1.MessageMeta
-	12, // 2: libraryv1.UnmarshaledMessage.query:type_name -> libraryv1.SearchQuery
-	4,  // 3: libraryv1.Response.books:type_name -> libraryv1.Book
-	11, // 4: libraryv1.Response.meta:type_name -> libraryv1.ResponseMeta
-	13, // 5: libraryv1.SearchQuery.filter:type_name -> libraryv1.FilterNode
-	14, // 6: libraryv1.SearchQuery.logical:type_name -> libraryv1.LogicalNode
-	15, // 7: libraryv1.SearchQuery.negation:type_name -> libraryv1.NotNode
-	1,  // 8: libraryv1.FilterNode.operator:type_name -> libraryv1.Operator
-	0,  // 9: libraryv1.LogicalNode.op:type_name -> libraryv1.LogicalOp
-	12, // 10: libraryv1.LogicalNode.nodes:type_name -> libraryv1.SearchQuery
-	12, // 11: libraryv1.NotNode.node:type_name -> libraryv1.SearchQuery
-	2,  // 12: libraryv1.OrchestratorService.Search:input_type -> libraryv1.SearchRequest
-	2,  // 13: libraryv1.ProcessorService.Process:input_type -> libraryv1.SearchRequest
-	2,  // 14: libraryv1.StorageService.SearchBooks:input_type -> libraryv1.SearchRequest
-	7,  // 15: libraryv1.MessageConverterService.Convert:input_type -> libraryv1.RawInput
-	2,  // 16: libraryv1.LibraryService.SearchBooks:input_type -> libraryv1.SearchRequest
-	5,  // 17: libraryv1.LibraryService.GetAuthors:input_type -> libraryv1.ListRequest
-	3,  // 18: libraryv1.OrchestratorService.Search:output_type -> libraryv1.SearchResponse
-	3,  // 19: libraryv1.ProcessorService.Process:output_type -> libraryv1.SearchResponse
-	3,  // 20: libraryv1.StorageService.SearchBooks:output_type -> libraryv1.SearchResponse
-	9,  // 21: libraryv1.MessageConverterService.Convert:output_type -> libraryv1.UnmarshaledMessage
-	3,  // 22: libraryv1.LibraryService.SearchBooks:output_type -> libraryv1.SearchResponse
-	6,  // 23: libraryv1.LibraryService.GetAuthors:output_type -> libraryv1.ListResponse
-	18, // [18:24] is the sub-list for method output_type
-	12, // [12:18] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	10, // 0: libraryv1.SearchRequest.ast:type_name -> ebusta.library.v1.SearchQuery
+	2,  // 1: libraryv1.SearchResponse.books:type_name -> libraryv1.Book
+	6,  // 2: libraryv1.UnmarshaledMessage.meta:type_name -> libraryv1.MessageMeta
+	10, // 3: libraryv1.UnmarshaledMessage.query:type_name -> ebusta.library.v1.SearchQuery
+	2,  // 4: libraryv1.Response.books:type_name -> libraryv1.Book
+	9,  // 5: libraryv1.Response.meta:type_name -> libraryv1.ResponseMeta
+	0,  // 6: libraryv1.OrchestratorService.Search:input_type -> libraryv1.SearchRequest
+	0,  // 7: libraryv1.ProcessorService.Process:input_type -> libraryv1.SearchRequest
+	0,  // 8: libraryv1.StorageService.SearchBooks:input_type -> libraryv1.SearchRequest
+	5,  // 9: libraryv1.MessageConverterService.Convert:input_type -> libraryv1.RawInput
+	0,  // 10: libraryv1.LibraryService.SearchBooks:input_type -> libraryv1.SearchRequest
+	3,  // 11: libraryv1.LibraryService.GetAuthors:input_type -> libraryv1.ListRequest
+	1,  // 12: libraryv1.OrchestratorService.Search:output_type -> libraryv1.SearchResponse
+	1,  // 13: libraryv1.ProcessorService.Process:output_type -> libraryv1.SearchResponse
+	1,  // 14: libraryv1.StorageService.SearchBooks:output_type -> libraryv1.SearchResponse
+	7,  // 15: libraryv1.MessageConverterService.Convert:output_type -> libraryv1.UnmarshaledMessage
+	1,  // 16: libraryv1.LibraryService.SearchBooks:output_type -> libraryv1.SearchResponse
+	4,  // 17: libraryv1.LibraryService.GetAuthors:output_type -> libraryv1.ListResponse
+	12, // [12:18] is the sub-list for method output_type
+	6,  // [6:12] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_library_proto_init() }
@@ -1118,24 +739,19 @@ func file_library_proto_init() {
 	if File_library_proto != nil {
 		return
 	}
-	file_library_proto_msgTypes[10].OneofWrappers = []any{
-		(*SearchQuery_Filter)(nil),
-		(*SearchQuery_Logical)(nil),
-		(*SearchQuery_Negation)(nil),
-	}
+	file_common_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_library_proto_rawDesc), len(file_library_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   14,
+			NumEnums:      0,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   5,
 		},
 		GoTypes:           file_library_proto_goTypes,
 		DependencyIndexes: file_library_proto_depIdxs,
-		EnumInfos:         file_library_proto_enumTypes,
 		MessageInfos:      file_library_proto_msgTypes,
 	}.Build()
 	File_library_proto = out.File

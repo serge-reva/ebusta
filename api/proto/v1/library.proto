@@ -3,6 +3,8 @@ syntax = "proto3";
 package libraryv1;
 option go_package = "ebusta/api/proto/v1;libraryv1";
 
+import "common.proto";
+
 // ==========================================
 // 1. SERVICES
 // ==========================================
@@ -38,6 +40,7 @@ message SearchRequest {
   int32 limit = 3;
   int32 offset = 4;
   string trace_id = 5;
+  .ebusta.library.v1.SearchQuery ast = 6;
 }
 
 message SearchResponse {
@@ -64,12 +67,12 @@ message ListResponse {
 
 // --- AUTH ---
 // ==========================================
-// 3. CONVERTER & AST (Fixed for existing code)
+// 3. CONVERTER & META (Fixed for existing code)
 // ==========================================
 
 message RawInput {
   // Исправлено: переименовано в 'data', чтобы появился метод GetData(), который ждет message-converter
-  string data = 1; 
+  string data = 1;
   string trace_id = 2;
 }
 
@@ -79,12 +82,12 @@ message MessageMeta {
   string platform = 3;
   string user_id = 4;
   // Исправлено: добавлено поле, которое требует message-converter
-  string ast_plan = 5; 
+  string ast_plan = 5;
 }
 
 message UnmarshaledMessage {
   MessageMeta meta = 1;
-  SearchQuery query = 2;
+  .ebusta.library.v1.SearchQuery query = 2;
 }
 
 message Response {
@@ -96,42 +99,4 @@ message Response {
 message ResponseMeta {
   string trace_id = 1;
   string canonical_form = 2;
-}
-
-// --- AST NODES (Strictly for parser.go) ---
-
-enum LogicalOp {
-  AND = 0;
-  OR = 1;
-  NOT = 2;
-}
-
-enum Operator {
-  OP_EQUALS = 0;
-  OP_CONTAINS = 1;
-  OP_REGEX = 2;
-}
-
-message SearchQuery {
-  oneof node {
-    FilterNode filter = 1;
-    LogicalNode logical = 2;
-    NotNode negation = 3;
-  }
-}
-
-message FilterNode {
-  string field = 1;
-  string value = 2;
-  Operator operator = 3;
-}
-
-message LogicalNode {
-  LogicalOp op = 1;
-  repeated SearchQuery nodes = 2;
-}
-
-message NotNode {
-  // Важно: имя поля 'node' генерирует поле 'Node' в Go структуре, что нужно парсеру
-  SearchQuery node = 1; 
 }

@@ -1,0 +1,11 @@
+datamanager:
+  opensearch_url: "http://cloud-1:9200"
+  index_name: "flibusta_merged_index"
+  debug: true
+
+orchestrator:
+  storage_addr: "localhost:50051"
+  processor_addr: "localhost:50054"
+
+web:
+  port: 50080

@@ -1,0 +1,10 @@
+syntax = "proto3";
+package ebusta.dsl.v1;
+option go_package = "ebusta/api/dsl/v1;dslv1";
+
+service DslTransformer {
+  rpc Transform (RawInput) returns (SQuery) {}
+}
+
+message RawInput { string query = 1; }
+message SQuery { string data = 1; bool is_success = 2; string error_msg = 3; }

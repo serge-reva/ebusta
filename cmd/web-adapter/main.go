@@ -5,76 +5,68 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"strings"
 	"time"
 
-	"ebusta/api/proto/v1"
+	libraryv1 "ebusta/api/proto/v1"
+	"ebusta/internal/config"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
-	// 1. Подключение к Orchestrator (порт 50053)
-	orchHost := os.Getenv("ORCHESTRATOR_HOST")
-	if orchHost == "" {
-		orchHost = "localhost:50053"
-	}
+	cfg := config.Get()
 
-	conn, err := grpc.Dial(orchHost, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	orchAddr := cfg.Orchestrator.Address()
+	conn, err := grpc.Dial(orchAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		log.Fatalf("failed to connect to orchestrator: %v", err)
 	}
 	defer conn.Close()
 
-	// ИСПРАВЛЕНИЕ 1: Правильное имя клиента (OrchestratorServiceClient)
 	client := libraryv1.NewOrchestratorServiceClient(conn)
 
 	http.HandleFunc("/input", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("msg")
 		if query == "" {
-			query = r.URL.Query().Get("q")
-		}
-
-		if query == "" {
-			http.Error(w, "Please provide 'msg' parameter", http.StatusBadRequest)
+			http.Error(w, "missing 'msg' query parameter", http.StatusBadRequest)
 			return
 		}
 
-		log.Printf("🌍 Web Adapter received: %s", query)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
 
-		// ИСПРАВЛЕНИЕ 2: Используем SearchRequest и метод Search
-		resp, err := client.Search(ctx, &libraryv1.SearchRequest{
-			Query: query,
-		})
-
+		resp, err := client.Search(ctx, &libraryv1.SearchRequest{Query: query, Limit: 5})
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Error calling Orchestrator: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Search error: %v", err), http.StatusInternalServerError)
 			return
 		}
 
-		// Форматируем простой текстовый ответ
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-
-		if len(resp.Books) == 0 {
+		if resp.GetTotal() == 0 || len(resp.GetBooks()) == 0 {
 			fmt.Fprintf(w, "No books found for: %s\n", query)
 			return
 		}
 
-		fmt.Fprintf(w, "Found %d books:\n", len(resp.Books))
-		fmt.Fprintln(w, strings.Repeat("-", 40))
-		for _, b := range resp.Books {
-			authors := strings.Join(b.Authors, ", ")
-			fmt.Fprintf(w, "[%s] %s — %s\n", b.Id, b.Title, authors)
+		fmt.Fprintf(w, "Found %d books:\n", resp.GetTotal())
+		fmt.Fprintln(w, "----------------------------------------")
+		for i, b := range resp.GetBooks() {
+			if i >= 5 {
+				break
+			}
+			authors := "Unknown"
+			if len(b.GetAuthors()) > 0 {
+				authors = b.GetAuthors()[0]
+				if len(b.GetAuthors()) > 1 {
+					authors = fmt.Sprintf("%s, %s", b.GetAuthors()[0], b.GetAuthors()[1])
+				}
+			}
+			fmt.Fprintf(w, "[%s] %s — %s\n", b.GetId(), b.GetTitle(), authors)
 		}
 	})
 
-	port := "50080"
-	log.Printf("🌍 Web Adapter started on :%s", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+	addr := cfg.WebAdapter.Address()
+	log.Printf("🌐 Web Adapter started on http://%s", addr)
+	if err := http.ListenAndServe(addr, nil); err != nil {
+		log.Fatalf("failed to start web server: %v", err)
 	}
 }

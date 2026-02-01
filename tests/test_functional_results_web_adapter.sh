@@ -28,5 +28,7 @@ echo "=== Functional RESULTS via web-adapter ==="
 
 run_case "1) simple keyword" "Кинг"
 run_case "2) field author"   "author:Кинг"
+run_case "3) explicit id:"   "id:0ef3a71859cce7a48d27493cdeabd6901c6d1e43"
+run_case "4) implicit SHA"   "0ef3a71859cce7a48d27493cdeabd6901c6d1e43"
 
 echo "ALL PASS: web-adapter functional results"

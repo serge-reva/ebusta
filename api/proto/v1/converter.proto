@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package ebusta.library.v1;
+
+option go_package = "ebusta/api/proto/v1;libraryv1";
+
+import "common.proto";
+
+// DSL Converter service (implemented by lisp-converter)
+service MessageConverter {
+  rpc Convert(ConvertRequest) returns (SearchQuery);
+}

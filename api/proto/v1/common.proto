@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package ebusta.library.v1;
+
+option go_package = "ebusta/api/proto/v1;libraryv1";
+
+// DTO for DSL AST.
+// IMPORTANT: Must match lisp-converter/search.proto message definitions exactly.
+// Do NOT change field numbers.
+
+message FilterNode {
+  string field = 1;
+  string value = 2;
+  int32 operator = 3;
+}
+
+message LogicalNode {
+  int32 op = 1;
+  repeated SearchQuery nodes = 2;
+}
+
+message SearchQuery {
+  oneof query {
+    FilterNode filter = 1;
+    LogicalNode logical = 2;
+  }
+  string canonical_form = 3;
+  string request_id = 4;
+}
+
+message ConvertRequest {
+  string raw_query = 1;
+}

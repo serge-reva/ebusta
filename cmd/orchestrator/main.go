@@ -8,18 +8,18 @@ import (
 	"net/http"
 	"sync/atomic"
 
+	libraryv1 "ebusta/api/proto/v1"
+	"ebusta/internal/config"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-
-	dsl "ebusta/api/gen/dsl"
-	libraryv1 "ebusta/api/proto/v1"
 )
 
 var orchestratorRequestsTotal uint64
 
 type orchestratorServer struct {
 	libraryv1.UnimplementedOrchestratorServiceServer
-	dslClient     dsl.MessageConverterClient
+	dslClient     libraryv1.MessageConverterClient
 	storageClient libraryv1.StorageServiceClient
 }
 
@@ -28,55 +28,63 @@ func (s *orchestratorServer) Search(ctx context.Context, req *libraryv1.SearchRe
 	log.Printf("🎼 Orchestrator received: %s", req.Query)
 
 	log.Printf("🎼 Orchestrator -> DSL-Converter")
-	dslResp, err := s.dslClient.Convert(ctx, &dsl.ConvertRequest{
+	ast, err := s.dslClient.Convert(ctx, &libraryv1.ConvertRequest{
 		RawQuery: req.Query,
 	})
-
 	if err != nil {
 		log.Printf("❌ DSL Error: %v", err)
-		return s.storageClient.SearchBooks(ctx, req)
+		return nil, err
 	}
 
-	log.Printf("✅ DSL Parsed: %s", dslResp.CanonicalForm)
+	log.Printf("🎼 DSL CanonicalForm: %s", ast.GetCanonicalForm())
 
+	// Orchestrator owns the DTO: raw query stays raw; structured AST goes separately.
 	searchReq := &libraryv1.SearchRequest{
-		Query:      dslResp.CanonicalForm,
+		Query:      req.Query,
+		Ast:        ast,
 		TemplateId: req.TemplateId,
 		Limit:      req.Limit,
 		Offset:     req.Offset,
 		TraceId:    req.TraceId,
 	}
 
+	log.Printf("🎼 Orchestrator -> Storage (DataManager)")
 	return s.storageClient.SearchBooks(ctx, searchReq)
 }
 
 func main() {
-	log.Println("=== [ORCHESTRATOR] Starting on :50053 ===")
+	cfg := config.Get()
 
-	dslConn, err := grpc.Dial("localhost:50052", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	orchAddr := cfg.Orchestrator.Address()
+	log.Printf("=== [ORCHESTRATOR] Starting on %s ===", orchAddr)
+
+	dslAddr := cfg.LispConverter.Address()
+	storageAddr := cfg.Datamanager.Address()
+
+	dslConn, err := grpc.Dial(dslAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("failed to connect to dsl: %v", err)
 	}
 
-	storageConn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	storageConn, err := grpc.Dial(storageAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("failed to connect to storage: %v", err)
 	}
 
-	lis, err := net.Listen("tcp", ":50053")
+	lis, err := net.Listen(cfg.Orchestrator.Protocol, orchAddr)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
 	s := grpc.NewServer()
 	libraryv1.RegisterOrchestratorServiceServer(s, &orchestratorServer{
-		dslClient:     dsl.NewMessageConverterClient(dslConn),
+		dslClient:     libraryv1.NewMessageConverterClient(dslConn),
 		storageClient: libraryv1.NewStorageServiceClient(storageConn),
 	})
 
 	log.Println("🎼 Orchestrator service registered")
 
-	// METRICS_50090: Prometheus text endpoint on dedicated HTTP port
+	// Prometheus text endpoint on dedicated HTTP port
 	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +96,7 @@ func main() {
 			fmt.Fprintln(w, "# TYPE orchestrator_requests_total counter")
 			fmt.Fprintf(w, "orchestrator_requests_total %d\n", atomic.LoadUint64(&orchestratorRequestsTotal))
 		})
-		addr := ":50090"
+		addr := fmt.Sprintf(":%d", cfg.Metrics.Port)
 		log.Printf("📈 Metrics listening on %s/metrics", addr)
 		if err := http.ListenAndServe(addr, mux); err != nil && err != http.ErrServerClosed {
 			log.Printf("metrics serve error: %v", err)

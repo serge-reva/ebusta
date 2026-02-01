@@ -15,7 +15,7 @@ proto:
 	@go mod tidy
 	@echo "✅ Proto generation complete"
 
-build-all: proto gen-dsl
+build-all: proto
 	@echo "Building DSL-Converter..."
 	sbcl --noinform --eval '(push (truename "$(LISP_DIR)/") asdf:*central-registry*)' \
 		--eval '(ql:quickload :ebusta-search :silent t)' \

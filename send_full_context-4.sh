@@ -21,6 +21,7 @@ find . -type f \
      -o -name "go.mod" \
      -o -name "*.lisp" \
      -o -name "*.cc" \
+     -o -name "*.sh" \
      -o -name "*.asd" \
      -o -name "*.sexp" \) \
   -not -path "./bin/*" \

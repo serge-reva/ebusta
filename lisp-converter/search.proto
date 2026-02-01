@@ -1,7 +1,15 @@
 syntax = "proto3";
 
 package ebusta.library.v1;
-option go_package = "ebusta/api/gen/dsl;dslpb";
+
+option go_package = "ebusta/api/proto/v1;libraryv1";
+
+// =============================================================================
+// DSL Converter Types
+// NOTE: Protobuf AST is NOT USED in main flow. Foundation for future.
+// Current flow uses canonical_form (S-expression) -> QueryBuilder.
+// =============================================================================
+
 message FilterNode {
   string field = 1;
   string value = 2;

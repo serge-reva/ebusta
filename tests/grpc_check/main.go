@@ -17,6 +17,20 @@ func fail(format string, args ...any) {
 	os.Exit(1)
 }
 
+// buildSimpleAST creates a minimal AST for direct datamanager testing.
+// In production, orchestrator calls DSL-converter to build proper AST.
+func buildSimpleAST(query string) *libraryv1.SearchQuery {
+	return &libraryv1.SearchQuery{
+		Query: &libraryv1.SearchQuery_Filter{
+			Filter: &libraryv1.FilterNode{
+				Field:    "any",
+				Value:    query,
+				Operator: 1, // CONTAINS
+			},
+		},
+	}
+}
+
 func main() {
 	target := flag.String("target", "", "datamanager|orchestrator")
 	addr := flag.String("addr", "", "host:port (default depends on target)")
@@ -52,13 +66,14 @@ func main() {
 	}
 	defer conn.Close()
 
-	req := &libraryv1.SearchRequest{
-		Query: *query,
-		Limit: int32(*limit),
-	}
-
 	switch *target {
 	case "datamanager":
+		// Datamanager requires AST (it doesn't know how to parse raw query)
+		req := &libraryv1.SearchRequest{
+			Query: *query,
+			Limit: int32(*limit),
+			Ast:   buildSimpleAST(*query),
+		}
 		c := libraryv1.NewStorageServiceClient(conn)
 		resp, err := c.SearchBooks(ctx, req)
 		if err != nil {
@@ -70,6 +85,11 @@ func main() {
 		fmt.Printf("PASS: datamanager SearchBooks ok (total=%d)\n", resp.GetTotal())
 
 	case "orchestrator":
+		// Orchestrator calls DSL-converter internally to build AST
+		req := &libraryv1.SearchRequest{
+			Query: *query,
+			Limit: int32(*limit),
+		}
 		c := libraryv1.NewOrchestratorServiceClient(conn)
 		resp, err := c.Search(ctx, req)
 		if err != nil {

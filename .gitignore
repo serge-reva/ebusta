@@ -1,76 +1,71 @@
-# Бинарники
+# === build outputs / artifacts ===
 bin/
 *.exe
 *.exe_*
 *.dll
 *.so
 *.dylib
-
-# Бинарники и данные модуля f2bulker
-f2bulker/bin/
-f2bulker/data/out/*
-f2bulker/data/src/*
-f2bulker/data/warn/*
-
-# Исключения для структуры данных
-!f2bulker/data/**/.gitkeep
-
-# Объекты и кэш
 *.a
 *.o
 *.out
 .cache/
 
-# Логи и дампы
-*.log
-sources-*.txt
-*.db
+# repo-root binaries (do NOT ignore source dirs like cmd/datamanager/)
+# (these names are expected to be built into repo root)
+ /datamanager
+/dsl-converter
+/orchestrator
+/web-adapter
 
-# Зависимости
+# === f2bulker artifacts ===
+f2bulker/bin/
+f2bulker/data/out/*
+f2bulker/data/src/*
+f2bulker/data/warn/*
+!f2bulker/data/**/.gitkeep
+
+# === dependencies ===
 vendor/
 
-# IDE
+# === IDE / OS junk ===
 .idea/
 .vscode/
 .DS_Store
 
-# --- build artifacts ---
-datamanager
-dsl-converter
-orchestrator
-web-adapter
-
-# go build outputs / caches (на всякий случай)
-*.exe
-*.out
-
-# --- local dumps/logs ---
+# === local dumps / logs / temp ===
+*.log
+sources-*.txt
+*.db
 ebusta_full_context_*.txt
+ebusta_*context*.txt
+*full_context*.txt
 *before-split
-datamanager
-dsl-converter
-orchestrator
-web-adapter
-ebusta_full_context_*.txt
-
-# === local backups / temp ===
+diagnose
+tmp/
 *.bak.*
 *.orig
 *.rej
 
-# === local logs / runtime ===
-*.log
-/tmp/*
-diagnose
-datamanager
-orchestrator
-web-adapter
-dsl-converter
-
-# === context dumps ===
-ebusta_*context*.txt
-*full_context*.txt
-
-# === generated (keep if you want committed; we do NOT) ===
+# === generated (do NOT commit) ===
 api/gen/
 api/proto/v1/*pb.go
+
+# --- Scala / SBT ---
+target/
+project/target/
+project/project/target/
+lib_managed/
+src_managed/
+project/boot/
+*.class
+*.jar
+
+# --- IDE ---
+.bsp/
+.idea/
+.bloop/
+.metals/
+.vscode/
+
+# --- Application ---
+server.log

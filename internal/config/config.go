@@ -47,6 +47,7 @@ type Config struct {
 	WebAdapter    ComponentConfig  `yaml:"web_adapter"`
 	CLI           CLIConfig        `yaml:"cli"`
 	LispConverter ComponentConfig  `yaml:"lisp_converter"`
+	QueryBuilder  ComponentConfig  `yaml:"query_builder"`
 	Metrics       MetricsConfig    `yaml:"metrics"`
 }
 
