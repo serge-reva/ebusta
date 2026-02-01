@@ -35,7 +35,8 @@ dsl_scala:
 query_builder:
   protocol: "tcp"
   host: "localhost"
-  port: 00000
+  port: 50055
+
 
 metrics:
   port: 50090

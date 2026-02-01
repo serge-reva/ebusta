@@ -1,0 +1,29 @@
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "bool": {
+          "should": [
+            { "term": { "title.kw": { "value": "{{query}}", "boost": 10 } } },
+            { "term": { "authors.kw": { "value": "{{query}}", "boost": 8 } } },
+            { 
+              "multi_match": { 
+                "query": "{{query}}",
+                "fields": ["title^5", "authors^3", "annotation^1", "fileInfo.filename^1"],
+                "type": "best_fields",
+                "operator": "and",
+                "fuzziness": "AUTO"
+              } 
+            }
+          ],
+          "minimum_should_match": 1
+        }
+      },
+      "size": "{{size}}{{^size}}20{{/size}}",
+      "from": "{{from}}{{^from}}0{{/from}}",
+      "_source": ["title", "authors", "fileInfo.container", "fileInfo.filename"],
+      "highlight": { "fields": { "title": {}, "authors": {} } }
+    }
+  }
+}

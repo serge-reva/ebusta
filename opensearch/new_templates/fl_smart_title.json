@@ -1,0 +1,21 @@
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "bool": {
+          "should": [
+            { "term": { "title.kw": { "value": "{{query}}", "boost": 10 } } },
+            { "match_phrase": { "title": { "query": "{{query}}", "boost": 5 } } },
+            { "match": { "title": { "query": "{{query}}", "boost": 2, "operator": "and" } } },
+            { "match_phrase_prefix": { "title": { "query": "{{query}}", "boost": 1 } } }
+          ],
+          "minimum_should_match": 1
+        }
+      },
+      "size": "{{size}}{{^size}}20{{/size}}",
+      "from": "{{from}}{{^from}}0{{/from}}",
+      "_source": ["title", "authors", "fileInfo.container", "fileInfo.filename"]
+    }
+  }
+}

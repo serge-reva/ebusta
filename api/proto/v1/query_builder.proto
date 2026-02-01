@@ -1,0 +1,27 @@
+syntax = "proto3";
+package ebusta.qb.v1;
+option go_package = "ebusta/api/qb/v1;qbv1";
+
+import "common.proto";
+
+service QueryBuilder {
+  rpc Build (BuildRequest) returns (BuildResponse) {}
+}
+
+message BuildRequest {
+  ebusta.library.v1.SearchQuery ast = 1;
+  int32 size = 2;
+  int32 from = 3;
+}
+
+enum QueryType {
+  DSL = 0;       // Сложный JSON запрос (endpoint /_search)
+  TEMPLATE = 1;  // Вызов шаблона (endpoint /_search/template)
+}
+
+message BuildResponse {
+  string body_json = 1;  // JSON тела запроса
+  QueryType type = 2;    // Подсказка, куда слать запрос
+  bool is_success = 3;
+  string error_msg = 4;
+}

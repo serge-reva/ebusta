@@ -5,46 +5,35 @@ import scala.util.parsing.combinator.*
 import io.grpc.Metadata
 
 // Java imports
-import java.io.{FileWriter, PrintWriter, File}
+import java.io.{FileWriter, FileInputStream}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Map as JMap
 import org.yaml.snakeyaml.Yaml
-import java.io.FileInputStream
 
+// gRPC imports
 import ebusta.dsl.v1.dsl.*
+import ebusta.library.v1.common.*
 
 // --- ЛОГГЕР ---
 class SimpleLogger(verbose: Boolean, logFilePath: String = "server.log") {
   private val dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
 
-  // Метод записи
   def log(level: String, msg: String): IO[Unit] = IO.blocking {
     val timestamp = LocalDateTime.now().format(dtf)
     val logLine = s"[$timestamp] [$level] $msg"
-    
-    // 1. Всегда пишем в файл (append mode)
-    // Используем synchronized, чтобы потоки не перемешали строки
     this.synchronized {
       val fw = new FileWriter(logFilePath, true)
-      try {
-        fw.write(logLine + "\n")
-      } finally {
-        fw.close()
-      }
+      try { fw.write(logLine + "\n") } finally { fw.close() }
     }
-
-    // 2. В stdout пишем только если verbose
-    if (verbose) {
-      println(logLine)
-    }
+    if (verbose) println(logLine)
   }
 
   def info(msg: String): IO[Unit] = log("INFO", msg)
   def error(msg: String): IO[Unit] = log("ERROR", msg)
 }
 
-// --- ЛОГИКА DSL ---
+// --- ЛОГИКА ПАРСИНГА ---
 sealed trait Query
 case class Term(field: String, value: String) extends Query
 case class And(left: Query, right: Query) extends Query
@@ -66,25 +55,26 @@ class BookQueryParser extends JavaTokenParsers {
 }
 
 // --- СЕРВИС ---
-// Принимаем логгер в конструктор
 class DslImpl(logger: SimpleLogger) extends DslTransformerFs2Grpc[IO, Metadata] {
   private val parser = new BookQueryParser()
 
   override def transform(req: RawInput, ctx: Metadata): IO[SQuery] = {
     for {
-      // 1. Логируем входящий запрос
-      _ <- logger.info(s"--> REQUEST: query='${req.query}'. Metadata: $ctx")
-      
-      // 2. Выполняем логику
+      _ <- logger.info(s"--> REQ: '${req.query}'")
       result <- IO {
         parser.parseQuery(req.query) match {
-          case parser.Success(ast, _) => SQuery(data = toSExp(ast), isSuccess = true)
-          case f: parser.NoSuccess    => SQuery(isSuccess = false, errorMsg = f.msg)
+          case parser.Success(internalAst, _) =>
+            val sExp = toSExp(internalAst)
+            val protoAst = toProtoAst(internalAst)
+            SQuery(data = sExp, isSuccess = true, ast = Some(protoAst))
+            
+          case f: parser.NoSuccess =>
+            SQuery(isSuccess = false, errorMsg = f.msg)
         }
       }
-
-      // 3. Логируем ответ
-      _ <- logger.info(s"<-- RESPONSE: success=${result.isSuccess}, data='${result.data}', error='${result.errorMsg}'")
+      // Исправлено: используем тройные кавычки для регулярки, чтобы избежать проблем с экранированием
+      astLog = result.ast.map(_.toProtoString.replaceAll("""\s+""", " ")).getOrElse("None")
+      _ <- logger.info(s"<-- RES: success=${result.isSuccess} data='${result.data}' ast='$astLog'")
     } yield result
   }
 
@@ -94,12 +84,21 @@ class DslImpl(logger: SimpleLogger) extends DslTransformerFs2Grpc[IO, Metadata] 
     case Or(l, r)   => s"(OR ${toSExp(l)} ${toSExp(r)})"
     case Not(q)     => s"(NOT ${toSExp(q)})"
   }
+
+  private def toProtoAst(q: Query): SearchQuery = q match {
+    case Term(f, v) =>
+      SearchQuery(SearchQuery.Query.Filter(FilterNode(field = f, value = v, operator = 1)))
+    case And(l, r) =>
+      SearchQuery(SearchQuery.Query.Logical(LogicalNode(op = 1, nodes = Seq(toProtoAst(l), toProtoAst(r)))))
+    case Or(l, r) =>
+      SearchQuery(SearchQuery.Query.Logical(LogicalNode(op = 2, nodes = Seq(toProtoAst(l), toProtoAst(r)))))
+    case Not(sub) =>
+      SearchQuery(SearchQuery.Query.Logical(LogicalNode(op = 3, nodes = Seq(toProtoAst(sub)))))
+  }
 }
 
 // --- ЗАПУСК ---
-object Main extends IOApp.Simple {
-
-  // Функция для чтения конфига
+object Main extends IOApp {
   def getConfigPath(): String = sys.env.getOrElse("EBUSTA_CONFIG", "ebusta.yaml")
 
   def loadConfig(path: String): (String, Int) = {
@@ -113,44 +112,29 @@ object Main extends IOApp.Simple {
     (host, port)
   }
 
-  // Главный метод run
-  override def run: IO[Unit] = IO {
-    // 0. Разбор аргументов командной строки вручную
-    // IOApp.Simple не дает args в run, но мы можем взять системные свойства или сделать хитро.
-    // Но проще сделать так:
-    val args = sys.props.getOrElse("sun.java.command", "").split(" ")
+  override def run(args: List[String]): IO[ExitCode] = {
     val isVerbose = args.contains("-v") || args.contains("--verbose")
-    
-    // Инициализация логгера
     val logger = new SimpleLogger(isVerbose)
-    
-    (logger, isVerbose)
-  }.flatMap { case (logger, verbose) =>
-    
     val configPath = getConfigPath()
-    
-    // Пытаемся загрузить конфиг
-    val configLoad = IO(loadConfig(configPath)).attempt.flatMap {
-      case Right((h, p)) => IO.pure((h, p))
-      case Left(e) => 
-        logger.error(s"Failed to load config from $configPath: ${e.getMessage}") *>
-        IO.raiseError(e)
-    }
 
-    configLoad.flatMap { case (host, port) =>
-      val service = new DslImpl(logger)
-      
-      DslTransformerFs2Grpc.bindServiceResource[IO](service).flatMap { boundService =>
+    val program = for {
+      _ <- logger.info(s"=== DSL SERVER STARTING ===")
+      configTuple <- IO(loadConfig(configPath)).handleErrorWith { e =>
+        logger.error(s"Config Error: ${e.getMessage}") *> IO.raiseError(e)
+      }
+      (host, port) = configTuple
+
+      _ <- logger.info(s"Listening on $host:$port")
+      _ <- DslTransformerFs2Grpc.bindServiceResource[IO](new DslImpl(logger)).flatMap { service =>
         Resource.make(
-          logger.info(s"=== SERVER STARTING ===") *>
-          logger.info(s"Config: $configPath, Verbose: $verbose") *>
-          logger.info(s"Listening on $host:$port") *>
-          IO(NettyServerBuilder.forPort(port).addService(boundService).build().start())
+          IO(NettyServerBuilder.forPort(port).addService(service).build().start())
         )(server => 
-          logger.info("=== SERVER STOPPING ===") *> 
+          logger.info("=== DSL SERVER STOPPING ===") *> 
           IO(server.shutdown().awaitTermination()).void
         )
       }.use(_ => IO.never)
-    }
+    } yield ()
+
+    program.as(ExitCode.Success)
   }
 }
