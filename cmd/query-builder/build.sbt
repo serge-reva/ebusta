@@ -6,6 +6,8 @@ enablePlugins(Fs2Grpc)
 
 Compile / unmanagedSourceDirectories += baseDirectory.value / "../../query-builder/src/main/scala"
 
+val grpcVersion = "1.59.0"
+
 libraryDependencies ++= Seq(
   "org.typelevel"        %% "cats-effect"          % "3.5.0",
   "co.fs2"               %% "fs2-core"             % "3.9.3",
@@ -15,8 +17,21 @@ libraryDependencies ++= Seq(
   "io.circe"             %% "circe-generic"        % "0.14.6",
   "io.circe"             %% "circe-parser"         % "0.14.6",
   "com.thesamet.scalapb" %% "scalapb-runtime"      % "0.11.13" % "protobuf",
-  "io.grpc"              %  "grpc-netty-shaded"    % "1.59.0",
-  "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % "0.11.13"
+  "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % "0.11.13",
+  // Явные версии
+  "io.grpc"              %  "grpc-netty-shaded"    % grpcVersion,
+  "io.grpc"              %  "grpc-core"            % grpcVersion,
+  "io.grpc"              %  "grpc-api"             % grpcVersion
+)
+
+// ЖЕСТКИЙ КОНТРОЛЬ ВЕРСИЙ (чтобы не было AbstractMethodError)
+dependencyOverrides ++= Seq(
+  "io.grpc" % "grpc-core" % grpcVersion,
+  "io.grpc" % "grpc-api" % grpcVersion,
+  "io.grpc" % "grpc-netty-shaded" % grpcVersion,
+  "io.grpc" % "grpc-context" % grpcVersion,
+  "io.grpc" % "grpc-protobuf" % grpcVersion,
+  "io.grpc" % "grpc-stub" % grpcVersion
 )
 
 Compile / PB.protoSources += baseDirectory.value / "../../api/proto/v1"
@@ -31,6 +46,7 @@ Compile / PB.targets := (Compile / PB.targets).value.map { target =>
 }
 
 assembly / assemblyJarName := "query-builder.jar"
+// Используем переменную, которую нашли в начале скрипта
 assembly / mainClass := Some("ebusta.querybuilder.Main")
 
 assembly / assemblyMergeStrategy := {

@@ -6,6 +6,8 @@ enablePlugins(Fs2Grpc)
 
 Compile / unmanagedSourceDirectories += baseDirectory.value / "../../dsl-scala/src/main/scala"
 
+val grpcVersion = "1.59.0"
+
 libraryDependencies ++= Seq(
   "org.typelevel"          %% "cats-effect"             % "3.5.0",
   "co.fs2"                 %% "fs2-core"                % "3.9.3",
@@ -13,8 +15,21 @@ libraryDependencies ++= Seq(
   "org.yaml"               %  "snakeyaml"               % "2.2",
   "org.scala-lang.modules" %% "scala-parser-combinators" % "2.3.0",
   "com.thesamet.scalapb"   %% "scalapb-runtime"         % "0.11.13" % "protobuf",
-  "io.grpc"                %  "grpc-netty-shaded"       % "1.59.0",
-  "com.thesamet.scalapb"   %% "scalapb-runtime-grpc"    % "0.11.13"
+  "com.thesamet.scalapb"   %% "scalapb-runtime-grpc"    % "0.11.13",
+  // Явно добавляем основные компоненты gRPC одной версии
+  "io.grpc"                %  "grpc-netty-shaded"       % grpcVersion,
+  "io.grpc"                %  "grpc-core"               % grpcVersion,
+  "io.grpc"                %  "grpc-api"                % grpcVersion
+)
+
+// ПРИНУДИТЕЛЬНО выставляем версию для всех транзитивных зависимостей
+dependencyOverrides ++= Seq(
+  "io.grpc" % "grpc-core" % grpcVersion,
+  "io.grpc" % "grpc-api" % grpcVersion,
+  "io.grpc" % "grpc-netty-shaded" % grpcVersion,
+  "io.grpc" % "grpc-context" % grpcVersion,
+  "io.grpc" % "grpc-protobuf" % grpcVersion,
+  "io.grpc" % "grpc-stub" % grpcVersion
 )
 
 Compile / PB.protoSources += baseDirectory.value / "../../api/proto/v1"
@@ -29,7 +44,8 @@ Compile / PB.targets := (Compile / PB.targets).value.map { target =>
 }
 
 assembly / assemblyJarName := "dsl-server.jar"
-// Используем найденный класс
+// ДИНАМИЧЕСКИЙ Main Class (мы уже знаем, что это работает, но оставим авто-определение при сборке)
+// Для надежности хардкодим то, что нашли скриптом
 assembly / mainClass := Some("ebusta.dsl.Main")
 
 assembly / assemblyMergeStrategy := {
