@@ -41,14 +41,17 @@ type MetricsConfig struct {
 
 // Config корень дерева конфигурации, строго соответствующий ebusta.yaml
 type Config struct {
-	OpenSearch    OpenSearchConfig `yaml:"opensearch"`
-	Datamanager   ComponentConfig  `yaml:"datamanager"`
-	Orchestrator  ComponentConfig  `yaml:"orchestrator"`
-	WebAdapter    ComponentConfig  `yaml:"web_adapter"`
-	CLI           CLIConfig        `yaml:"cli"`
-	LispConverter ComponentConfig  `yaml:"lisp_converter"`
-	QueryBuilder  ComponentConfig  `yaml:"query_builder"`
-	Metrics       MetricsConfig    `yaml:"metrics"`
+	OpenSearch   OpenSearchConfig `yaml:"opensearch"`
+	Datamanager  ComponentConfig  `yaml:"datamanager"`
+	Orchestrator ComponentConfig  `yaml:"orchestrator"`
+	WebAdapter   ComponentConfig  `yaml:"web_adapter"`
+	CLI          CLIConfig        `yaml:"cli"`
+	
+	// Новые сервисы (согласно ebusta.yaml)
+	DslScala     ComponentConfig  `yaml:"dsl_scala"`
+	QueryBuilder ComponentConfig  `yaml:"query_builder"`
+	
+	Metrics      MetricsConfig    `yaml:"metrics"`
 }
 
 // Get возвращает инициализированный объект конфигурации (Singleton)
