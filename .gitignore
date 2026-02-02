@@ -70,3 +70,34 @@ project/boot/
 # --- Application ---
 server.log
 *.tar.gz
+
+# --- EBUSTA NEW RULES ---
+# Logs
+*.log
+*.out
+
+# Go Binaries
+cmd/orchestrator/orchestrator
+cmd/datamanager/datamanager
+cmd/cli/ebusta-cli
+ebusta-cli
+orchestrator
+datamanager
+
+# Go Meta
+vendor/
+go.work
+
+# Scala / SBT / Java
+target/
+project/target/
+project/project/
+.bsp/
+.bloop/
+*.jar
+*.class
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
