@@ -1,103 +1,62 @@
-# === build outputs / artifacts ===
+# === Сборка и Артефакты ===
 bin/
-*.exe
-*.exe_*
-*.dll
-*.so
-*.dylib
-*.a
-*.o
-*.out
-.cache/
-
-# repo-root binaries (do NOT ignore source dirs like cmd/datamanager/)
-# (these names are expected to be built into repo root)
- /datamanager
+/datamanager
 /dsl-converter
 /orchestrator
 /web-adapter
+/ebusta-cli
+/diagnose
+*.exe
+*.so
+*.dll
+*.o
+.cache/
 
-# === f2bulker artifacts ===
+# === Go специфичное ===
+vendor/
+go.work
+api/gen/
+api/proto/v1/*pb.go
+# Бинарники внутри cmd (чтобы не путать с исходниками)
+cmd/orchestrator/orchestrator
+cmd/datamanager/datamanager
+cmd/cli/ebusta-cli
+
+# === Scala / SBT / Java ===
+target/
+project/target/
+project/project/
+lib_managed/
+src_managed/
+*.class
+*.jar
+*.tar.gz
+
+# === f2bulker ===
 f2bulker/bin/
 f2bulker/data/out/*
 f2bulker/data/src/*
 f2bulker/data/warn/*
 !f2bulker/data/**/.gitkeep
 
-# === dependencies ===
-vendor/
-
-# === IDE / OS junk ===
-.idea/
-.vscode/
-.DS_Store
-
-# === local dumps / logs / temp ===
+# === Логи и Мусор ===
 *.log
-sources-*.txt
-*.db
-ebusta_full_context_*.txt
-ebusta_*context*.txt
-*full_context*.txt
-*before-split
-diagnose
-tmp/
+*.out
 *.bak.*
 *.orig
 *.rej
+tmp/
+.DS_Store
 
-# === generated (do NOT commit) ===
-api/gen/
-api/proto/v1/*pb.go
+# === Контексты и Дампы ===
+sources-*.txt
+ebusta_full_context_*.txt
+ebusta_*context*.txt
+*full_context*.txt
 
-# --- Scala / SBT ---
-target/
-project/target/
-project/project/target/
-lib_managed/
-src_managed/
-project/boot/
-*.class
-*.jar
-
-# --- IDE ---
-.bsp/
+# === IDE ===
 .idea/
+.vscode/
+.bsp/
 .bloop/
 .metals/
-.vscode/
-
-# --- Application ---
-server.log
-*.tar.gz
-
-# --- EBUSTA NEW RULES ---
-# Logs
-*.log
-*.out
-
-# Go Binaries
-cmd/orchestrator/orchestrator
-cmd/datamanager/datamanager
-cmd/cli/ebusta-cli
-ebusta-cli
-orchestrator
-datamanager
-
-# Go Meta
-vendor/
-go.work
-
-# Scala / SBT / Java
-target/
-project/target/
-project/project/
-.bsp/
-.bloop/
-*.jar
-*.class
-
-# IDE
-.idea/
-.vscode/
-.DS_Store

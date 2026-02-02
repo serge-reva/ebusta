@@ -4,24 +4,22 @@ import cats.effect.*
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder
 import fs2.grpc.syntax.all.*
 import io.grpc.Metadata
+// ВАЖНО: Импорт Reflection
+import io.grpc.protobuf.services.ProtoReflectionService
 
-// JSON
 import io.circe.*
 import io.circe.syntax.*
 import io.circe.parser.*
 
-// Java Utils
 import java.io.{FileWriter, FileInputStream}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Map as JMap
 import org.yaml.snakeyaml.Yaml
 
-// gRPC generated
 import ebusta.qb.v1.query_builder.*
 import ebusta.library.v1.common.*
 
-// --- 1. ЛОГГЕР ---
 class SimpleLogger(verbose: Boolean, logFilePath: String = "qb.log") {
   private val dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
   def log(level: String, msg: String): IO[Unit] = IO.blocking {
@@ -36,7 +34,6 @@ class SimpleLogger(verbose: Boolean, logFilePath: String = "qb.log") {
   def error(msg: String): IO[Unit] = log("ERROR", msg)
 }
 
-// --- 2. КОНВЕРТЕР В DSL ---
 object OsDslBuilder {
   def toDsl(query: SearchQuery): Json = {
     query.query match {
@@ -77,21 +74,20 @@ object OsDslBuilder {
       case "filename" => Json.obj("wildcard" -> Json.obj("fileInfo.filename" -> ("*" + node.value + "*").asJson))
       case _ =>
          Json.obj("bool" -> Json.obj("should" -> Json.arr(
-            Json.obj("term" -> Json.obj("title.kw" -> Json.obj("value" -> node.value.asJson, "boost" -> 10.asJson))),
-            Json.obj("term" -> Json.obj("authors.kw" -> Json.obj("value" -> node.value.asJson, "boost" -> 8.asJson))),
-            Json.obj("multi_match" -> Json.obj(
-              "query" -> node.value.asJson,
-              "fields" -> Json.arr("title^5".asJson, "authors^3".asJson, "annotation^1".asJson, "fileInfo.filename^1".asJson),
-              "type" -> "best_fields".asJson,
-              "operator" -> "and".asJson,
-              "fuzziness" -> "AUTO".asJson
-            ))
+           Json.obj("term" -> Json.obj("title.kw" -> Json.obj("value" -> node.value.asJson, "boost" -> 10.asJson))),
+           Json.obj("term" -> Json.obj("authors.kw" -> Json.obj("value" -> node.value.asJson, "boost" -> 8.asJson))),
+           Json.obj("multi_match" -> Json.obj(
+             "query" -> node.value.asJson,
+             "fields" -> Json.arr("title^5".asJson, "authors^3".asJson, "annotation^1".asJson, "fileInfo.filename^1".asJson),
+             "type" -> "best_fields".asJson,
+             "operator" -> "and".asJson,
+             "fuzziness" -> "AUTO".asJson
+           ))
          ), "minimum_should_match" -> 1.asJson))
     }
   }
 }
 
-// --- 3. СТРАТЕГИЯ ---
 object OsStrategy {
   def build(ast: SearchQuery, size: Int, from: Int): (Json, QueryType) = {
     ast.query match {
@@ -116,7 +112,6 @@ object OsStrategy {
   }
 }
 
-// --- 4. СЕРВИС ---
 class QueryBuilderImpl(logger: SimpleLogger) extends QueryBuilderFs2Grpc[IO, Metadata] {
   override def build(req: BuildRequest, ctx: Metadata): IO[BuildResponse] = {
     for {
@@ -135,10 +130,9 @@ class QueryBuilderImpl(logger: SimpleLogger) extends QueryBuilderFs2Grpc[IO, Met
   }
 }
 
-// --- 5. MAIN (ИСПРАВЛЕННЫЙ) ---
 object Main extends IOApp {
   def getConfigPath(): String = sys.env.getOrElse("EBUSTA_CONFIG", "ebusta.yaml")
-  
+   
   def loadConfig(path: String): (String, Int) = {
     val input = new FileInputStream(path)
     val yaml = new Yaml()
@@ -152,7 +146,6 @@ object Main extends IOApp {
     val logger = new SimpleLogger(isVerbose)
     val configPath = getConfigPath()
 
-    // 1. Загружаем конфиг (чистый IO)
     val initStep = for {
       _ <- logger.info("=== QUERY BUILDER STARTING ===")
       config <- IO(loadConfig(configPath)).handleErrorWith { e =>
@@ -160,13 +153,18 @@ object Main extends IOApp {
       }
     } yield config
 
-    // 2. Запускаем сервер, используя конфиг
     initStep.flatMap { case (host, port) =>
       val serverResource = for {
         _ <- Resource.eval(logger.info(s"Listening on $host:$port"))
         service <- QueryBuilderFs2Grpc.bindServiceResource[IO](new QueryBuilderImpl(logger))
         server <- Resource.make(
-          IO(NettyServerBuilder.forPort(port).addService(service).build().start())
+          IO(
+            NettyServerBuilder.forPort(port)
+              .addService(service)
+              .addService(ProtoReflectionService.newInstance()) // <--- ВКЛЮЧАЕМ REFLECTION
+              .build()
+              .start()
+          )
         )(s => logger.info("=== STOPPING ===") *> IO(s.shutdown().awaitTermination()).void)
       } yield server
 

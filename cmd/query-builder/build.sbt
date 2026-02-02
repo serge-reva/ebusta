@@ -18,13 +18,13 @@ libraryDependencies ++= Seq(
   "io.circe"             %% "circe-parser"         % "0.14.6",
   "com.thesamet.scalapb" %% "scalapb-runtime"      % "0.11.13" % "protobuf",
   "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % "0.11.13",
-  // Явные версии
   "io.grpc"              %  "grpc-netty-shaded"    % grpcVersion,
   "io.grpc"              %  "grpc-core"            % grpcVersion,
-  "io.grpc"              %  "grpc-api"             % grpcVersion
+  "io.grpc"              %  "grpc-api"             % grpcVersion,
+  // ДОБАВЛЕНО ДЛЯ GRPCURL:
+  "io.grpc"              %  "grpc-services"        % grpcVersion
 )
 
-// ЖЕСТКИЙ КОНТРОЛЬ ВЕРСИЙ (чтобы не было AbstractMethodError)
 dependencyOverrides ++= Seq(
   "io.grpc" % "grpc-core" % grpcVersion,
   "io.grpc" % "grpc-api" % grpcVersion,
@@ -46,7 +46,6 @@ Compile / PB.targets := (Compile / PB.targets).value.map { target =>
 }
 
 assembly / assemblyJarName := "query-builder.jar"
-// Используем переменную, которую нашли в начале скрипта
 assembly / mainClass := Some("ebusta.querybuilder.Main")
 
 assembly / assemblyMergeStrategy := {

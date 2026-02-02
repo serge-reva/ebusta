@@ -16,13 +16,13 @@ libraryDependencies ++= Seq(
   "org.scala-lang.modules" %% "scala-parser-combinators" % "2.3.0",
   "com.thesamet.scalapb"   %% "scalapb-runtime"         % "0.11.13" % "protobuf",
   "com.thesamet.scalapb"   %% "scalapb-runtime-grpc"    % "0.11.13",
-  // Явно добавляем основные компоненты gRPC одной версии
   "io.grpc"                %  "grpc-netty-shaded"       % grpcVersion,
   "io.grpc"                %  "grpc-core"               % grpcVersion,
-  "io.grpc"                %  "grpc-api"                % grpcVersion
+  "io.grpc"                %  "grpc-api"                % grpcVersion,
+  // ДОБАВЛЕНО ДЛЯ GRPCURL:
+  "io.grpc"                %  "grpc-services"           % grpcVersion
 )
 
-// ПРИНУДИТЕЛЬНО выставляем версию для всех транзитивных зависимостей
 dependencyOverrides ++= Seq(
   "io.grpc" % "grpc-core" % grpcVersion,
   "io.grpc" % "grpc-api" % grpcVersion,
@@ -44,8 +44,6 @@ Compile / PB.targets := (Compile / PB.targets).value.map { target =>
 }
 
 assembly / assemblyJarName := "dsl-server.jar"
-// ДИНАМИЧЕСКИЙ Main Class (мы уже знаем, что это работает, но оставим авто-определение при сборке)
-// Для надежности хардкодим то, что нашли скриптом
 assembly / mainClass := Some("ebusta.dsl.Main")
 
 assembly / assemblyMergeStrategy := {

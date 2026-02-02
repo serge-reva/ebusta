@@ -5,22 +5,19 @@ import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder
 import fs2.grpc.syntax.all.*
 import scala.util.parsing.combinator.*
 import io.grpc.Metadata
+import io.grpc.protobuf.services.ProtoReflectionService
 
-// Java imports
 import java.io.{FileWriter, FileInputStream}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Map as JMap
 import org.yaml.snakeyaml.Yaml
 
-// gRPC imports
 import ebusta.dsl.v1.dsl.*
 import ebusta.library.v1.common.*
 
-// --- ЛОГГЕР ---
 class SimpleLogger(verbose: Boolean, logFilePath: String = "server.log") {
   private val dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
-
   def log(level: String, msg: String): IO[Unit] = IO.blocking {
     val timestamp = LocalDateTime.now().format(dtf)
     val logLine = s"[$timestamp] [$level] $msg"
@@ -30,12 +27,10 @@ class SimpleLogger(verbose: Boolean, logFilePath: String = "server.log") {
     }
     if (verbose) println(logLine)
   }
-
   def info(msg: String): IO[Unit] = log("INFO", msg)
   def error(msg: String): IO[Unit] = log("ERROR", msg)
 }
 
-// --- ЛОГИКА ПАРСИНГА ---
 sealed trait Query
 case class Term(field: String, value: String) extends Query
 case class And(left: Query, right: Query) extends Query
@@ -44,22 +39,29 @@ case class Not(query: Query) extends Query
 
 class BookQueryParser extends JavaTokenParsers {
   val fields = Set("author", "title", "id", "container", "filename")
+  
   def parseQuery(input: String): ParseResult[Query] = parseAll(or, input)
+  
   def or: Parser[Query] = chainl1(and, "OR" ^^^ { Or(_, _) })
   def and: Parser[Query] = chainl1(termExpr, "AND" ^^^ { And(_, _) })
-  def termExpr: Parser[Query] = "NOT" ~> termExpr ^^ { Not(_) } | "(" ~> or <~ ")" | fieldTerm
+  
+  // ДОБАВИЛ implicitId в конец цепочки
+  def termExpr: Parser[Query] = "NOT" ~> termExpr ^^ { Not(_) } | "(" ~> or <~ ")" | fieldTerm | implicitId
+  
   def fieldTerm: Parser[Term] = (ident <~ ":") ~ (quotedString | unquotedString) >> {
     case f ~ v if fields.contains(f) => success(Term(f, v))
     case f ~ _ => failure(s"Unknown field: $f")
   }
+  
+  // НОВОЕ ПРАВИЛО: Если это 40 символов HEX, то это ID
+  def implicitId: Parser[Term] = """[a-fA-F0-9]{40}""".r ^^ { id => Term("id", id) }
+
   def quotedString: Parser[String] = "\"" ~> """[^"]*""".r <~ "\""
   def unquotedString: Parser[String] = """[^ "()]+""".r
 }
 
-// --- СЕРВИС ---
 class DslImpl(logger: SimpleLogger) extends DslTransformerFs2Grpc[IO, Metadata] {
   private val parser = new BookQueryParser()
-
   override def transform(req: DslRequest, ctx: Metadata): IO[SQuery] = {
     for {
       _ <- logger.info(s"--> REQ: '${req.query}'")
@@ -69,7 +71,6 @@ class DslImpl(logger: SimpleLogger) extends DslTransformerFs2Grpc[IO, Metadata] 
             val sExp = toSExp(internalAst)
             val protoAst = toProtoAst(internalAst)
             SQuery(data = sExp, isSuccess = true, ast = Some(protoAst))
-             
           case f: parser.NoSuccess =>
             SQuery(isSuccess = false, errorMsg = f.msg)
         }
@@ -98,7 +99,6 @@ class DslImpl(logger: SimpleLogger) extends DslTransformerFs2Grpc[IO, Metadata] 
   }
 }
 
-// --- ЗАПУСК ---
 object Main extends IOApp {
   def getConfigPath(): String = sys.env.getOrElse("EBUSTA_CONFIG", "ebusta.yaml")
 
@@ -108,7 +108,7 @@ object Main extends IOApp {
     val data = yaml.load(input).asInstanceOf[JMap[String, Any]]
     val dslSection = data.get("dsl_scala").asInstanceOf[JMap[String, Any]]
     val host = dslSection.get("host").toString
-    val port = dslSection.get("port").toString.toDouble.toInt  
+    val port = dslSection.get("port").toString.toDouble.toInt   
     input.close()
     (host, port)
   }
@@ -128,9 +128,15 @@ object Main extends IOApp {
       _ <- logger.info(s"Listening on $host:$port")
       _ <- DslTransformerFs2Grpc.bindServiceResource[IO](new DslImpl(logger)).flatMap { service =>
         Resource.make(
-          IO(NettyServerBuilder.forPort(port).addService(service).build().start())
-        )(server =>  
-          logger.info("=== DSL SERVER STOPPING ===") *>  
+          IO(
+            NettyServerBuilder.forPort(port)
+              .addService(service)
+              .addService(ProtoReflectionService.newInstance())
+              .build()
+              .start()
+          )
+        )(server =>   
+          logger.info("=== DSL SERVER STOPPING ===") *>   
           IO(server.shutdown().awaitTermination()).void
         )
       }.use(_ => IO.never)
