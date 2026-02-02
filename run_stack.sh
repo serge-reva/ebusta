@@ -11,10 +11,11 @@ kill_port() {
 }
 
 echo "🛑 Cleaning up ports..."
-kill_port 50053 # Orchestrator (UPDATED PORT)
+kill_port 50053 # Orchestrator
 kill_port 50051 # DataManager
 kill_port 50054 # DSL Service
 kill_port 50055 # Query Builder
+kill_port 50080 # Web Adapter
 sleep 1
 
 echo "🚀 Starting Services..."
@@ -35,8 +36,12 @@ nohup ./cmd/datamanager/datamanager > dm.log 2>&1 &
 echo "   - Starting Orchestrator (:50053)..."
 nohup ./cmd/orchestrator/orchestrator > orch.log 2>&1 &
 
+# 5. Web Adapter (Go)
+echo "   - Starting Web Adapter (:50080)..."
+nohup ./cmd/web-adapter/web-adapter > web.log 2>&1 &
+
 echo "⏳ Waiting 5s for services to warm up..."
 sleep 5
 
 echo "✅ Stack is running!"
-echo "   Logs: dsl.log, qb.log, dm.log, orch.log"
+echo "   Logs: dsl.log, qb.log, dm.log, orch.log, web.log"
