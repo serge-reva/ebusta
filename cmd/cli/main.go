@@ -63,6 +63,7 @@ func main() {
 		return
 	}
 
+	fmt.Printf("Found %d books:\n", resp.GetTotal())
 	fmt.Printf("%-40s | %-40s | %s\n", "ID", "Title", "Authors")
 	fmt.Println(strings.Repeat("-", 100))
 
