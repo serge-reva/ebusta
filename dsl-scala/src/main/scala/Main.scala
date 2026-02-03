@@ -45,16 +45,16 @@ class BookQueryParser extends JavaTokenParsers {
   def or: Parser[Query] = chainl1(and, "OR" ^^^ { Or(_, _) })
   def and: Parser[Query] = chainl1(termExpr, "AND" ^^^ { And(_, _) })
   
-  // ДОБАВИЛ implicitId в конец цепочки
-  def termExpr: Parser[Query] = "NOT" ~> termExpr ^^ { Not(_) } | "(" ~> or <~ ")" | fieldTerm | implicitId
+  def termExpr: Parser[Query] = "NOT" ~> termExpr ^^ { Not(_) } | "(" ~> or <~ ")" | fieldTerm | implicitId | plainTerm
   
   def fieldTerm: Parser[Term] = (ident <~ ":") ~ (quotedString | unquotedString) >> {
     case f ~ v if fields.contains(f) => success(Term(f, v))
     case f ~ _ => failure(s"Unknown field: $f")
   }
   
-  // НОВОЕ ПРАВИЛО: Если это 40 символов HEX, то это ID
   def implicitId: Parser[Term] = """[a-fA-F0-9]{40}""".r ^^ { id => Term("id", id) }
+
+  def plainTerm: Parser[Term] = (quotedString | unquotedString) ^^ { v => Term("_all", v) }
 
   def quotedString: Parser[String] = "\"" ~> """[^"]*""".r <~ "\""
   def unquotedString: Parser[String] = """[^ "()]+""".r
@@ -108,7 +108,7 @@ object Main extends IOApp {
     val data = yaml.load(input).asInstanceOf[JMap[String, Any]]
     val dslSection = data.get("dsl_scala").asInstanceOf[JMap[String, Any]]
     val host = dslSection.get("host").toString
-    val port = dslSection.get("port").toString.toDouble.toInt   
+    val port = dslSection.get("port").toString.toDouble.toInt    
     input.close()
     (host, port)
   }
@@ -135,8 +135,8 @@ object Main extends IOApp {
               .build()
               .start()
           )
-        )(server =>   
-          logger.info("=== DSL SERVER STOPPING ===") *>   
+        )(server =>    
+          logger.info("=== DSL SERVER STOPPING ===") *>    
           IO(server.shutdown().awaitTermination()).void
         )
       }.use(_ => IO.never)

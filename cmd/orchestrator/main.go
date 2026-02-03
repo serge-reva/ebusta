@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 
@@ -22,38 +23,48 @@ type orchestratorServer struct {
 func (s *orchestratorServer) Search(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
 	log.Printf("🎼 Search request: %s", req.GetQuery())
 
-	// 1. Поход в Scala DSL (Трансформация строки в AST)
+	// 1. DSL Transformer
 	dslResp, err := s.dslClient.Transform(ctx, &libraryv1.DslRequest{
 		Query: req.GetQuery(),
 	})
 	if err != nil {
-		log.Printf("❌ DSL Error: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("DSL connection error: %v", err)
+	}
+	if !dslResp.GetIsSuccess() {
+		return nil, fmt.Errorf("DSL parse error: %s", dslResp.GetErrorMsg())
 	}
 
-	// 2. Поход в Query Builder (Генерация JSON для OpenSearch)
+	// 2. Query Builder
 	qbResp, err := s.qbClient.Build(ctx, &libraryv1.BuildRequest{
 		Ast:  dslResp.GetAst(),
 		Size: req.GetLimit(),
 	})
 	if err != nil {
-		log.Printf("❌ QueryBuilder Error: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("QueryBuilder connection error: %v", err)
+	}
+	if !qbResp.GetIsSuccess() {
+		return nil, fmt.Errorf("QueryBuilder build error: %s", qbResp.GetErrorMsg())
 	}
 
-	// 3. Поход в DataManager с готовым JSON запросом
+	// 3. Определяем тип исполнения (GetType вместо GetQueryType)
+	execType := "DSL"
+	if qbResp.GetType() == libraryv1.QueryType_TEMPLATE {
+		execType = "TEMPLATE"
+	}
+
+	// 4. Data Manager
 	return s.dmClient.SearchBooks(ctx, &libraryv1.SearchRequest{
 		Query:               req.GetQuery(),
 		Ast:                 dslResp.GetAst(),
 		Limit:               req.GetLimit(),
-		DebugOpenSearchJson: qbResp.GetBodyJson(), // Исправлено: GetBodyJson вместо GetJsonQuery
+		DebugOpenSearchJson: qbResp.GetBodyJson(),
+		ExecutionType:       execType,
 	})
 }
 
 func main() {
 	cfg := config.Get()
 
-	// Коннекты к сервисам через новый конфиг 
 	dslConn, _ := grpc.Dial(cfg.DslScala.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	qbConn, _ := grpc.Dial(cfg.QueryBuilder.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	dmConn, _ := grpc.Dial(cfg.Datamanager.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -70,7 +81,7 @@ func main() {
 		dmClient:  libraryv1.NewStorageServiceClient(dmConn),
 	})
 
-	log.Printf("🚀 Orchestrator (Full Chain) started on %s", cfg.Orchestrator.Address())
+	log.Printf("🚀 Orchestrator (Safe Chain) started on %s", cfg.Orchestrator.Address())
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
