@@ -7,24 +7,18 @@ import (
 	"net/http"
 	"time"
 
-	libraryv1 "ebusta/api/proto/v1"
 	"ebusta/internal/config"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"ebusta/internal/search"
 )
 
 func main() {
 	cfg := config.Get()
 
-	orchAddr := cfg.Orchestrator.Address()
-	conn, err := grpc.Dial(orchAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	searchSvc, err := search.New()
 	if err != nil {
-		log.Fatalf("failed to connect to orchestrator: %v", err)
+		log.Fatalf("failed to initialize search service: %v", err)
 	}
-	defer conn.Close()
-
-	client := libraryv1.NewOrchestratorServiceClient(conn)
+	defer searchSvc.Close()
 
 	http.HandleFunc("/input", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("msg")
@@ -36,31 +30,21 @@ func main() {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
 
-		resp, err := client.Search(ctx, &libraryv1.SearchRequest{Query: query, Limit: 5})
+		res, err := searchSvc.Search(ctx, query, 5)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Search error: %v", err), http.StatusInternalServerError)
 			return
 		}
 
-		if resp.GetTotal() == 0 || len(resp.GetBooks()) == 0 {
+		if res.Total == 0 || len(res.Books) == 0 {
 			fmt.Fprintf(w, "No books found for: %s\n", query)
 			return
 		}
 
-		fmt.Fprintf(w, "Found %d books:\n", resp.GetTotal())
+		fmt.Fprintf(w, "Found %d books:\n", res.Total)
 		fmt.Fprintln(w, "----------------------------------------")
-		for i, b := range resp.GetBooks() {
-			if i >= 5 {
-				break
-			}
-			authors := "Unknown"
-			if len(b.GetAuthors()) > 0 {
-				authors = b.GetAuthors()[0]
-				if len(b.GetAuthors()) > 1 {
-					authors = fmt.Sprintf("%s, %s", b.GetAuthors()[0], b.GetAuthors()[1])
-				}
-			}
-			fmt.Fprintf(w, "[%s] %s — %s\n", b.GetId(), b.GetTitle(), authors)
+		for _, b := range res.Books {
+			fmt.Fprintf(w, "[%s] %s — %s\n", b.ID, b.Title, b.FullAuthors)
 		}
 	})
 

@@ -2,11 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net"
-	"net/http"
-	"sync/atomic"
 
 	libraryv1 "ebusta/api/proto/v1"
 	"ebusta/internal/config"
@@ -15,94 +12,65 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-var orchestratorRequestsTotal uint64
-
 type orchestratorServer struct {
 	libraryv1.UnimplementedOrchestratorServiceServer
-	dslClient     libraryv1.MessageConverterClient
-	storageClient libraryv1.StorageServiceClient
+	dslClient libraryv1.DslTransformerClient
+	qbClient  libraryv1.QueryBuilderClient
+	dmClient  libraryv1.StorageServiceClient
 }
 
 func (s *orchestratorServer) Search(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
-	atomic.AddUint64(&orchestratorRequestsTotal, 1)
-	log.Printf("🎼 Orchestrator received: %s", req.Query)
+	log.Printf("🎼 Search request: %s", req.GetQuery())
 
-	log.Printf("🎼 Orchestrator -> DSL-Converter")
-	ast, err := s.dslClient.Convert(ctx, &libraryv1.ConvertRequest{
-		RawQuery: req.Query,
+	// 1. Поход в Scala DSL (Трансформация строки в AST)
+	dslResp, err := s.dslClient.Transform(ctx, &libraryv1.DslRequest{
+		Query: req.GetQuery(),
 	})
 	if err != nil {
 		log.Printf("❌ DSL Error: %v", err)
 		return nil, err
 	}
 
-	log.Printf("🎼 DSL CanonicalForm: %s", ast.GetCanonicalForm())
-
-	// Orchestrator owns the DTO: raw query stays raw; structured AST goes separately.
-	searchReq := &libraryv1.SearchRequest{
-		Query:      req.Query,
-		Ast:        ast,
-		TemplateId: req.TemplateId,
-		Limit:      req.Limit,
-		Offset:     req.Offset,
-		TraceId:    req.TraceId,
+	// 2. Поход в Query Builder (Генерация JSON для OpenSearch)
+	qbResp, err := s.qbClient.Build(ctx, &libraryv1.BuildRequest{
+		Ast:  dslResp.GetAst(),
+		Size: req.GetLimit(),
+	})
+	if err != nil {
+		log.Printf("❌ QueryBuilder Error: %v", err)
+		return nil, err
 	}
 
-	log.Printf("🎼 Orchestrator -> Storage (DataManager)")
-	return s.storageClient.SearchBooks(ctx, searchReq)
+	// 3. Поход в DataManager с готовым JSON запросом
+	return s.dmClient.SearchBooks(ctx, &libraryv1.SearchRequest{
+		Query:               req.GetQuery(),
+		Ast:                 dslResp.GetAst(),
+		Limit:               req.GetLimit(),
+		DebugOpenSearchJson: qbResp.GetBodyJson(), // Исправлено: GetBodyJson вместо GetJsonQuery
+	})
 }
 
 func main() {
 	cfg := config.Get()
 
-	orchAddr := cfg.Orchestrator.Address()
-	log.Printf("=== [ORCHESTRATOR] Starting on %s ===", orchAddr)
+	// Коннекты к сервисам через новый конфиг 
+	dslConn, _ := grpc.Dial(cfg.DslScala.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	qbConn, _ := grpc.Dial(cfg.QueryBuilder.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dmConn, _ := grpc.Dial(cfg.Datamanager.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	dslAddr := cfg.LispConverter.Address()
-	storageAddr := cfg.Datamanager.Address()
-
-	dslConn, err := grpc.Dial(dslAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("failed to connect to dsl: %v", err)
-	}
-
-	storageConn, err := grpc.Dial(storageAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("failed to connect to storage: %v", err)
-	}
-
-	lis, err := net.Listen(cfg.Orchestrator.Protocol, orchAddr)
+	lis, err := net.Listen("tcp", cfg.Orchestrator.Address())
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
 	s := grpc.NewServer()
 	libraryv1.RegisterOrchestratorServiceServer(s, &orchestratorServer{
-		dslClient:     libraryv1.NewMessageConverterClient(dslConn),
-		storageClient: libraryv1.NewStorageServiceClient(storageConn),
+		dslClient: libraryv1.NewDslTransformerClient(dslConn),
+		qbClient:  libraryv1.NewQueryBuilderClient(qbConn),
+		dmClient:  libraryv1.NewStorageServiceClient(dmConn),
 	})
 
-	log.Println("🎼 Orchestrator service registered")
-
-	// Prometheus text endpoint on dedicated HTTP port
-	go func() {
-		mux := http.NewServeMux()
-		mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-			fmt.Fprintln(w, "# HELP orchestrator_up 1 if orchestrator process is running")
-			fmt.Fprintln(w, "# TYPE orchestrator_up gauge")
-			fmt.Fprintln(w, "orchestrator_up 1")
-			fmt.Fprintln(w, "# HELP orchestrator_requests_total Total Search requests handled")
-			fmt.Fprintln(w, "# TYPE orchestrator_requests_total counter")
-			fmt.Fprintf(w, "orchestrator_requests_total %d\n", atomic.LoadUint64(&orchestratorRequestsTotal))
-		})
-		addr := fmt.Sprintf(":%d", cfg.Metrics.Port)
-		log.Printf("📈 Metrics listening on %s/metrics", addr)
-		if err := http.ListenAndServe(addr, mux); err != nil && err != http.ErrServerClosed {
-			log.Printf("metrics serve error: %v", err)
-		}
-	}()
-
+	log.Printf("🚀 Orchestrator (Full Chain) started on %s", cfg.Orchestrator.Address())
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}

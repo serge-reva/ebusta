@@ -8,66 +8,74 @@ import (
 	"strings"
 	"time"
 
-	libraryv1 "ebusta/api/proto/v1"
-	"ebusta/internal/config"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"ebusta/internal/search"
+	"github.com/peterh/liner"
 )
 
-var debugMode bool
-
-func init() {
-	debugMode = os.Getenv("DEBUG") == "1"
-}
-
-func debugLog(format string, args ...interface{}) {
-	if debugMode {
-		log.Printf("🐛 "+format, args...)
-	}
-}
-
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: ebusta-cli \"search query\"")
+	searchSvc, err := search.New()
+	if err != nil {
+		log.Fatalf("Failed to initialize search service: %v", err)
+	}
+	defer searchSvc.Close()
+
+	// Режим 1: Запуск с аргументами (One-shot)
+	if len(os.Args) > 1 {
+		query := strings.Join(os.Args[1:], " ")
+		performSearch(searchSvc, query)
 		return
 	}
 
-	query := strings.Join(os.Args[1:], " ")
+	// Режим 2: Интерактивный режим (REPL)
+	line := liner.NewLiner()
+	defer line.Close()
 
-	cfg := config.Get()
-	orchAddr := cfg.Orchestrator.Address()
+	line.SetCtrlCAborts(true)
+	fmt.Println("Ebusta Interactive CLI. Type 'exit' to quit.")
 
-	debugLog("Connecting to %s", orchAddr)
-	conn, err := grpc.Dial(orchAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("Failed to connect to orchestrator: %v", err)
+	for {
+		if query, err := line.Prompt("ebusta> "); err == nil {
+			query = strings.TrimSpace(query)
+			if query == "" {
+				continue
+			}
+			if query == "exit" || query == "quit" {
+				break
+			}
+			
+			line.AppendHistory(query)
+			performSearch(searchSvc, query)
+		} else if err == liner.ErrPromptAborted {
+			break
+		} else {
+			log.Print("Error reading line: ", err)
+			break
+		}
 	}
-	defer conn.Close()
+}
 
-	client := libraryv1.NewOrchestratorServiceClient(conn)
-
+func performSearch(svc *search.Service, query string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	resp, err := client.Search(ctx, &libraryv1.SearchRequest{
-		Query: query,
-		Limit: 10,
-	})
+	res, err := svc.Search(ctx, query, 10)
 	if err != nil {
-		log.Fatalf("Search error: %v", err)
-	}
-
-	if len(resp.GetBooks()) == 0 {
-		fmt.Println("No results found.")
+		fmt.Printf("❌ Search error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Found %d books:\n", resp.GetTotal())
-	fmt.Printf("%-40s | %-40s | %s\n", "ID", "Title", "Authors")
-	fmt.Println(strings.Repeat("-", 100))
-
-	for _, b := range resp.GetBooks() {
-		fmt.Printf("%-40s | %-40s | %s\n", b.GetId(), b.GetTitle(), strings.Join(b.GetAuthors(), ", "))
+	if len(res.Books) == 0 {
+		fmt.Printf("No results found for: %s\n", query)
+		return
 	}
+
+	fmt.Printf("\nFound %d books:\n", res.Total)
+	headerFmt := "%-40s | %-30s | %-25s | %-10s | %s\n"
+	fmt.Printf(headerFmt, "ID", "Title", "Authors", "Container", "Filename")
+	fmt.Println(strings.Repeat("-", 140))
+
+	for _, b := range res.Books {
+		fmt.Printf(headerFmt, b.ID, b.Title, b.FullAuthors, b.Container, b.Filename)
+	}
+	fmt.Println()
 }

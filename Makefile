@@ -7,7 +7,7 @@ API_PROTO_DIR := api/proto/v1
 DSL_DIR := cmd/dsl-scala
 QB_DIR  := cmd/query-builder
 
-.PHONY: all build proto up down restart test clean build-scala
+.PHONY: all build proto up down restart test clean build-scala build-cli
 
 all: build
 
@@ -25,7 +25,14 @@ build-scala:
 	@cd $(DSL_DIR) && sbt clean assembly && cp target/scala-3.3.1/dsl-server.jar ../../dsl-server.jar
 	@cd $(QB_DIR)  && sbt clean assembly && cp target/scala-3.3.1/query-builder.jar ../../query-builder.jar
 
-build: proto build-scala
+# Новая цель для CLI
+build-cli:
+	@echo "🛠 Building ebusta-cli..."
+	@mkdir -p $(BIN_DIR)
+	@go build -o $(BIN_DIR)/ebusta-cli ./cmd/cli/main.go
+
+# CLI теперь в списке зависимостей для полной сборки
+build: proto build-scala build-cli
 	@echo "🛠 Building Go binaries..."
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/datamanager ./cmd/datamanager
