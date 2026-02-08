@@ -12,6 +12,7 @@ type BookDTO struct {
 
 // SearchResult содержит агрегированный результат поиска
 type SearchResult struct {
-	Total int
-	Books []BookDTO
+	TraceId string
+	Total   int
+	Books   []BookDTO
 }

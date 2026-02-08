@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	libraryv1 "ebusta/api/proto/v1"
@@ -33,27 +34,52 @@ func New() (*Service, error) {
 	}, nil
 }
 
+// NewService — удобный конструктор для адаптеров (CLI/web-adapter):
+// возвращает nil при ошибке подключения.
+func NewService() *Service {
+	s, err := New()
+	if err != nil {
+		return nil
+	}
+	return s
+}
+
 // Close закрывает gRPC соединение
 func (s *Service) Close() error {
-	if s.conn != nil {
+	if s != nil && s.conn != nil {
 		return s.conn.Close()
 	}
 	return nil
 }
 
-// Search выполняет запрос к оркестратору и мапит результат в DTO
-func (s *Service) Search(ctx context.Context, query string, limit int) (*SearchResult, error) {
+// Search выполняет запрос к оркестратору и мапит результат в DTO.
+// traceID генерируется на edge и здесь НЕ создаётся.
+func (s *Service) Search(ctx context.Context, query string, limit int, traceID string) (*SearchResult, error) {
+	if s == nil {
+		return nil, errors.New("search service is nil")
+	}
+	if traceID == "" {
+		return nil, errors.New("traceID is empty")
+	}
+
+	q := Normalize(query)
+	if err := Validate(q); err != nil {
+		return nil, err
+	}
+
 	resp, err := s.client.Search(ctx, &libraryv1.SearchRequest{
-		Query: query,
-		Limit: int32(limit),
+		Query:   q,
+		Limit:  int32(limit),
+		TraceId: traceID,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	res := &SearchResult{
-		Total: int(resp.GetTotal()),
-		Books: make([]BookDTO, 0, len(resp.GetBooks())),
+		TraceId: traceID, // возвращаем тот же TraceID, который отправили
+		Total:   int(resp.GetTotal()),
+		Books:   make([]BookDTO, 0, len(resp.GetBooks())),
 	}
 
 	for _, b := range resp.GetBooks() {
