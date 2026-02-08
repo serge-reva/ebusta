@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"context"
 	"database/sql"
-	"fmt"
 	"io"
 	"path/filepath"
 
@@ -134,6 +133,9 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
 	ctx := stream.Context()
 	sha1 := req.GetId().GetSha1()
 
+	// request_id сейчас используется только для логов/ошибок higher-level; для gRPC status — стандартные коды
+	_ = requestIDFromCtx(ctx)
+
 	r, err := n.getMeta(ctx, sha1)
 	if err == sql.ErrNoRows {
 		return status.Error(codes.NotFound, "NOT_FOUND: book not found in archive index")
@@ -172,7 +174,6 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
 	for {
 		nn, rerr := rc.Read(buf)
 		if nn > 0 {
-			// копируем буфер, чтобы не переиспользовать backing array между Send
 			out := make([]byte, nn)
 			copy(out, buf[:nn])
 			if err := stream.Send(&libraryv1.Chunk{Data: out}); err != nil {
