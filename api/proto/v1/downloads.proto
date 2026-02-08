@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package ebusta.library.v1;
+
+option go_package = "ebusta/api/proto/v1;libraryv1";
+
+// -------------------------------
+// Common DTOs
+// -------------------------------
+
+message BookId {
+  // sha1 (40 hex). Это и есть bookID.
+  string sha1 = 1;
+}
+
+message BookMeta {
+  string sha1 = 1;       // 40 hex
+  string container = 2;  // zip name including ".zip"
+  string filename = 3;   // entry name inside zip
+  int64  size = 4;       // bytes
+  string title = 5;      // for debug/UX
+}
+
+message Error {
+  string code = 1;        // NOT_FOUND, ZIP_ERROR, IO_ERROR, UPSTREAM_UNAVAILABLE, INTERNAL, PLASMA_ITEM_TOO_LARGE
+  string message = 2;     // human-readable
+  string request_id = 3;  // echoed back (request_id передаётся через metadata)
+}
+
+// -------------------------------
+// Tier node service (plasma/hot/warm/cold/archive)
+// -------------------------------
+
+service StorageNode {
+  rpc Has(HasRequest) returns (HasResponse);
+  rpc GetMeta(GetMetaRequest) returns (GetMetaResponse);
+  rpc GetStream(GetStreamRequest) returns (stream Chunk);
+
+  // Client-streaming: первое сообщение должно содержать meta.
+  rpc Put(stream PutRequest) returns (PutResponse);
+}
+
+message HasRequest {
+  BookId id = 1;
+}
+
+message HasResponse {
+  bool exists = 1;
+  Error error = 2; // set only if request failed (not for "not exists")
+}
+
+message GetMetaRequest {
+  BookId id = 1;
+}
+
+message GetMetaResponse {
+  BookMeta meta = 1;
+  Error error = 2; // NOT_FOUND if absent
+}
+
+message GetStreamRequest {
+  BookId id = 1;
+}
+
+message Chunk {
+  bytes data = 1;
+}
+
+message PutRequest {
+  // Present only in the first message
+  BookMeta meta = 1;
+
+  // Byte payload (may be present in the first message too)
+  bytes data = 2;
+}
+
+message PutResponse {
+  bool stored = 1;        // true if stored now; false if already existed and wasn't overwritten
+  BookMeta meta = 2;      // final meta known on this node
+  Error error = 3;
+}
