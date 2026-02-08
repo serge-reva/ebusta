@@ -12,7 +12,8 @@ import (
 	libraryv1 "ebusta/api/proto/v1"
 	"ebusta/internal/downloads/plasma"
 
-	_ "expvar" // registers /debug/vars on DefaultServeMux
+	_ "expvar" // регистрирует /debug/vars на DefaultServeMux
+
 	"google.golang.org/grpc"
 )
 
@@ -25,8 +26,7 @@ func main() {
 	flag.Parse()
 
 	if *listen == "" || *parent == "" || *maxBytes <= 0 || *maxItems <= 0 {
-		fmt.Fprintf(os.Stderr,
-			"usage: plasma-node -listen :PORT -parent host:port -max-bytes N -max-items N [-debug :8091]\n")
+		fmt.Fprintf(os.Stderr, "usage: plasma-node -listen :PORT -parent host:port -max-bytes N -max-items N [-debug :8091]\n")
 		os.Exit(2)
 	}
 
