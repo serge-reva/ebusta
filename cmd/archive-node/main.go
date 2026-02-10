@@ -7,6 +7,7 @@ import (
 	"os"
 
 	libraryv1 "ebusta/api/proto/v1"
+	"ebusta/internal/config"
 	"ebusta/internal/downloads/archive"
 
 	"google.golang.org/grpc"
@@ -14,27 +15,41 @@ import (
 
 func main() {
 	var (
-		addr       = flag.String("listen", "", "gRPC listen address, e.g. :50110")
-		zipRoot    = flag.String("zip-root", "", "path to directory with zip containers")
-		sqlitePath = flag.String("sqlite", "", "path to sqlite index file")
+		flagListen = flag.String("listen", "", "override listen address, e.g. :50110")
+		flagZip    = flag.String("zip-root", "", "override zip root directory")
+		flagSqlite = flag.String("sqlite", "", "override sqlite path")
 	)
 	flag.Parse()
 
-	if *addr == "" || *zipRoot == "" || *sqlitePath == "" {
-		fmt.Fprintf(os.Stderr, "usage: archive-node -listen :PORT -zip-root <dir> -sqlite <meta.sqlite>\n")
+	cfg := config.Get()
+	arch := cfg.Downloads.ArchiveNode
+
+	// overrides
+	if *flagListen != "" {
+		fmt.Sscanf(*flagListen, ":%d", &arch.ListenPort)
+	}
+	if *flagZip != "" {
+		arch.ZipRoot = *flagZip
+	}
+	if *flagSqlite != "" {
+		arch.Sqlite = *flagSqlite
+	}
+
+	if err := arch.Validate(); err != nil {
+		fmt.Fprintf(os.Stderr, "archive-node config error: %v\n", err)
 		os.Exit(2)
 	}
 
-	node, err := archive.New(*zipRoot, *sqlitePath)
+	node, err := archive.New(arch.ZipRoot, arch.Sqlite)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "archive-node: init failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "archive-node init: %v\n", err)
 		os.Exit(1)
 	}
 	defer node.Close()
 
-	lis, err := net.Listen("tcp", *addr)
+	lis, err := net.Listen("tcp", arch.ListenAddr())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "archive-node: listen failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "archive-node listen: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -42,7 +57,7 @@ func main() {
 	libraryv1.RegisterStorageNodeServer(s, node)
 
 	if err := s.Serve(lis); err != nil {
-		fmt.Fprintf(os.Stderr, "archive-node: serve failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "archive-node serve: %v\n", err)
 		os.Exit(1)
 	}
 }

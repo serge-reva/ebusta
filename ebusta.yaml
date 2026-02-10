@@ -40,3 +40,9 @@ query_builder:
 
 metrics:
   port: 50090
+
+downloads:
+  archive_node:
+    listen_port: 50110
+    zip_root: "//mnt/fb2/fb2.Flibusta.Net/"
+    sqlite: "./archive.meta.sqlite"

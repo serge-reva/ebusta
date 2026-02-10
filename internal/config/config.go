@@ -39,6 +39,35 @@ type MetricsConfig struct {
 	Port int `yaml:"port"`
 }
 
+// DownloadsConfig — конфиг подсистемы downloads (пока начинаем с archive-node)
+type DownloadsConfig struct {
+	ArchiveNode ArchiveNodeConfig `yaml:"archive_node"`
+}
+
+// ArchiveNodeConfig — параметры archive-node
+type ArchiveNodeConfig struct {
+	ListenPort int    `yaml:"listen_port"`
+	ZipRoot    string `yaml:"zip_root"`
+	Sqlite     string `yaml:"sqlite"`
+}
+
+func (c ArchiveNodeConfig) Validate() error {
+	if c.ListenPort == 0 {
+		return fmt.Errorf("downloads.archive_node.listen_port is required")
+	}
+	if c.ZipRoot == "" {
+		return fmt.Errorf("downloads.archive_node.zip_root is required")
+	}
+	if c.Sqlite == "" {
+		return fmt.Errorf("downloads.archive_node.sqlite is required")
+	}
+	return nil
+}
+
+func (c ArchiveNodeConfig) ListenAddr() string {
+	return fmt.Sprintf(":%d", c.ListenPort)
+}
+
 // Config корень дерева конфигурации, строго соответствующий ebusta.yaml
 type Config struct {
 	OpenSearch   OpenSearchConfig `yaml:"opensearch"`
@@ -46,12 +75,15 @@ type Config struct {
 	Orchestrator ComponentConfig  `yaml:"orchestrator"`
 	WebAdapter   ComponentConfig  `yaml:"web_adapter"`
 	CLI          CLIConfig        `yaml:"cli"`
-	
+
 	// Новые сервисы (согласно ebusta.yaml)
-	DslScala     ComponentConfig  `yaml:"dsl_scala"`
-	QueryBuilder ComponentConfig  `yaml:"query_builder"`
-	
-	Metrics      MetricsConfig    `yaml:"metrics"`
+	DslScala     ComponentConfig `yaml:"dsl_scala"`
+	QueryBuilder ComponentConfig `yaml:"query_builder"`
+
+	Metrics MetricsConfig `yaml:"metrics"`
+
+	// Downloads subsystem
+	Downloads DownloadsConfig `yaml:"downloads"`
 }
 
 // Get возвращает инициализированный объект конфигурации (Singleton)
