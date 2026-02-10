@@ -2,10 +2,27 @@
 BIN_DIR       := ./bin
 LOG_DIR       := ./logs
 API_PROTO_DIR := api/proto/v1
+CONFIG_FILE   := ebusta.yaml
 
-# Пути к Scala компонентам
-DSL_DIR := cmd/dsl-scala
-QB_DIR  := cmd/query-builder
+# Пути к Scala компонентам (в корне проекта)
+DSL_DIR := dsl-scala
+QB_DIR  := query-builder
+
+# Определяем списки исходников (find не должен ругаться, если src отсутствует)
+DSL_SCALA_SRC := $(shell [ -d "$(DSL_DIR)/src" ] && find "$(DSL_DIR)/src" -name "*.scala" || true)
+QB_SCALA_SRC  := $(shell [ -d "$(QB_DIR)/src" ]  && find "$(QB_DIR)/src"  -name "*.scala" || true)
+PROTO_SRC     := $(shell find "$(API_PROTO_DIR)" -name "*.proto")
+
+# jar-файлы, которые нужны для запуска (в корне проекта, как использует up)
+DSL_JAR := dsl-server.jar
+QB_JAR  := query-builder.jar
+
+# Реальные пути, куда sbt assembly пишет артефакты (по build.sbt)
+DSL_ASSEMBLY_JAR := cmd/dsl-scala/dsl-server.jar
+QB_ASSEMBLY_JAR  := cmd/query-builder/query-builder.jar
+
+# Временный способ вытащить порт tier-node из ebusta.yaml
+TIER_PORT := $(shell sed -n '/tier_node:/,/port:/p' $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 
 .PHONY: all build proto build-scala build-go build-cli up down restart test clean
 
@@ -20,31 +37,36 @@ proto:
 		$(API_PROTO_DIR)/*.proto
 	@go mod tidy
 
-# Scala отдельно
-build-scala:
-	@echo "🛠 Building Scala components (DSL & Query Builder)..."
-	@cd $(DSL_DIR) && sbt clean assembly && cp target/scala-3.3.1/dsl-server.jar ../../dsl-server.jar
-	@cd $(QB_DIR)  && sbt clean assembly && cp target/scala-3.3.1/query-builder.jar ../../query-builder.jar
+# Scala: инкрементально
+build-scala: $(DSL_JAR) $(QB_JAR)
+	@echo "✅ Scala build up-to-date."
 
-# CLI отдельно (Go)
+$(DSL_JAR): $(DSL_SCALA_SRC) $(PROTO_SRC)
+	@echo "🛠 Building DSL Scala..."
+	@cd $(DSL_DIR) && sbt assembly
+	@cp $(DSL_ASSEMBLY_JAR) ./$(DSL_JAR)
+
+$(QB_JAR): $(QB_SCALA_SRC) $(PROTO_SRC)
+	@echo "🛠 Building Query Builder..."
+	@cd $(QB_DIR) && sbt assembly
+	@cp $(QB_ASSEMBLY_JAR) ./$(QB_JAR)
+
 build-cli:
 	@echo "🛠 Building ebusta-cli..."
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/ebusta-cli ./cmd/cli
 
-# Go отдельно (включая CLI и новые downloads-бинари)
 build-go: proto build-cli
 	@echo "🛠 Building Go binaries..."
 	@mkdir -p $(BIN_DIR)
-	@go build -o $(BIN_DIR)/auth-manager    ./cmd/auth-manager
-	@go build -o $(BIN_DIR)/datamanager     ./cmd/datamanager
-	@go build -o $(BIN_DIR)/orchestrator    ./cmd/orchestrator
-	@go build -o $(BIN_DIR)/web-adapter     ./cmd/web-adapter
-	@go build -o $(BIN_DIR)/archive-node    ./cmd/archive-node
+	@go build -o $(BIN_DIR)/auth-manager     ./cmd/auth-manager
+	@go build -o $(BIN_DIR)/datamanager      ./cmd/datamanager
+	@go build -o $(BIN_DIR)/orchestrator     ./cmd/orchestrator
+	@go build -o $(BIN_DIR)/web-adapter      ./cmd/web-adapter
+	@go build -o $(BIN_DIR)/archive-node     ./cmd/archive-node
 	@go build -o $(BIN_DIR)/downloads-import ./cmd/downloads-import
-	@go build -o $(BIN_DIR)/tier-node       ./cmd/tier-node
+	@go build -o $(BIN_DIR)/tier-node        ./cmd/tier-node
 
-# Полная сборка (как раньше "build"), но через раздельные цели
 build: proto build-scala build-go
 	@echo "✅ Build done."
 
@@ -77,8 +99,12 @@ up: down
 	@$(BIN_DIR)/web-adapter >> $(LOG_DIR)/web.log 2>&1 & sleep 0.5
 	@pgrep -f web-adapter > /dev/null && echo "✅ RUNNING" || echo "❌ FAILED (check web.log)"
 
+	@echo -n "   - Tier Node (downloads): "
+	@$(BIN_DIR)/tier-node -listen :$(TIER_PORT) >> $(LOG_DIR)/tier.log 2>&1 & sleep 0.5
+	@pgrep -f "tier-node" > /dev/null && echo "✅ RUNNING on :$(TIER_PORT)" || echo "❌ FAILED (check tier.log)"
+
 	@echo "\n📊 Final check (Active processes):"
-	@ps aux | grep -v grep | grep -E "datamanager|orchestrator|web-adapter|dsl-server.jar|query-builder.jar"
+	@ps aux | grep -v grep | grep -E "datamanager|orchestrator|web-adapter|tier-node|dsl-server.jar|query-builder.jar"
 	@echo "\n✅ Logs are available in $(LOG_DIR)/"
 
 restart: up
