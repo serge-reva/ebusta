@@ -14,7 +14,6 @@ var (
 	instance *Config
 )
 
-// ComponentConfig содержит базовые сетевые настройки для запуска сервиса
 type ComponentConfig struct {
 	Protocol string `yaml:"protocol"`
 	Host     string `yaml:"host"`
@@ -22,29 +21,27 @@ type ComponentConfig struct {
 	Debug    bool   `yaml:"debug"`
 }
 
-// CLIConfig настройки для CLI (не сервис)
 type CLIConfig struct {
 	Debug bool `yaml:"debug"`
 }
 
-// OpenSearchConfig настройки поискового движка
 type OpenSearchConfig struct {
 	URL       string `yaml:"url"`
 	IndexName string `yaml:"index_name"`
 	Debug     bool   `yaml:"debug"`
 }
 
-// MetricsConfig настройки для экспортера метрик
 type MetricsConfig struct {
 	Port int `yaml:"port"`
 }
 
-// DownloadsConfig — конфиг подсистемы downloads (пока начинаем с archive-node)
 type DownloadsConfig struct {
 	ArchiveNode ArchiveNodeConfig `yaml:"archive_node"`
+	TierNode    TierNodeConfig    `yaml:"tier_node"`
 }
 
-// ArchiveNodeConfig — параметры archive-node
+/* ---------- ARCHIVE ---------- */
+
 type ArchiveNodeConfig struct {
 	ListenPort int    `yaml:"listen_port"`
 	ZipRoot    string `yaml:"zip_root"`
@@ -68,7 +65,37 @@ func (c ArchiveNodeConfig) ListenAddr() string {
 	return fmt.Sprintf(":%d", c.ListenPort)
 }
 
-// Config корень дерева конфигурации, строго соответствующий ebusta.yaml
+/* ---------- TIER ---------- */
+
+type TierNodeConfig struct {
+	ListenPort int    `yaml:"listen_port"`
+	RootPath   string `yaml:"root_path"`
+	Sqlite     string `yaml:"sqlite"`
+	ParentAddr string `yaml:"parent"`
+}
+
+func (c TierNodeConfig) Validate() error {
+	if c.ListenPort == 0 {
+		return fmt.Errorf("downloads.tier_node.listen_port is required")
+	}
+	if c.RootPath == "" {
+		return fmt.Errorf("downloads.tier_node.root_path is required")
+	}
+	if c.Sqlite == "" {
+		return fmt.Errorf("downloads.tier_node.sqlite is required")
+	}
+	if c.ParentAddr == "" {
+		return fmt.Errorf("downloads.tier_node.parent is required")
+	}
+	return nil
+}
+
+func (c TierNodeConfig) ListenAddr() string {
+	return fmt.Sprintf(":%d", c.ListenPort)
+}
+
+/* ---------- ROOT ---------- */
+
 type Config struct {
 	OpenSearch   OpenSearchConfig `yaml:"opensearch"`
 	Datamanager  ComponentConfig  `yaml:"datamanager"`
@@ -76,17 +103,14 @@ type Config struct {
 	WebAdapter   ComponentConfig  `yaml:"web_adapter"`
 	CLI          CLIConfig        `yaml:"cli"`
 
-	// Новые сервисы (согласно ebusta.yaml)
 	DslScala     ComponentConfig `yaml:"dsl_scala"`
 	QueryBuilder ComponentConfig `yaml:"query_builder"`
 
 	Metrics MetricsConfig `yaml:"metrics"`
 
-	// Downloads subsystem
 	Downloads DownloadsConfig `yaml:"downloads"`
 }
 
-// Get возвращает инициализированный объект конфигурации (Singleton)
 func Get() *Config {
 	once.Do(func() {
 		path := os.Getenv("EBUSTA_CONFIG")
@@ -107,12 +131,10 @@ func Get() *Config {
 	return instance
 }
 
-// Address возвращает строку host:port (удобно для gRPC)
 func (c ComponentConfig) Address() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }
 
-// FullURL возвращает строку protocol://host:port (удобно для HTTP/URL)
 func (c ComponentConfig) FullURL() string {
 	return fmt.Sprintf("%s://%s:%d", c.Protocol, c.Host, c.Port)
 }

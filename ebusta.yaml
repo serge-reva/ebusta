@@ -1,42 +1,37 @@
 opensearch:
   url: "http://cloud-1:9200"
   index_name: "flibusta_merged_index"
-  debug: true
+  debug: false
 
 datamanager:
-  protocol: "tcp"
+  protocol: "grpc"
   host: "localhost"
   port: 50051
-
-orchestrator:
-  protocol: "tcp"
-  host: "localhost"
-  port: 50053
-
-web_adapter:
-  protocol: "tcp"
-  host: "localhost"
-  port: 50080
-
-cli:
-
-lisp_converter:
-  protocol: "tcp"
-  host: "localhost"
-  port: 50052
-
+  debug: false
 
 dsl_scala:
-  protocol: "tcp"
+  protocol: "grpc"
   host: "localhost"
-  port: 50054
-
+  port: 50052
+  debug: false
 
 query_builder:
-  protocol: "tcp"
+  protocol: "grpc"
   host: "localhost"
-  port: 50055
+  port: 50053
+  debug: false
 
+orchestrator:
+  protocol: "grpc"
+  host: "localhost"
+  port: 50054
+  debug: false
+
+web_adapter:
+  protocol: "http"
+  host: "localhost"
+  port: 50080
+  debug: false
 
 metrics:
   port: 50090
@@ -46,3 +41,12 @@ downloads:
     listen_port: 50110
     zip_root: "//mnt/fb2/fb2.Flibusta.Net/"
     sqlite: "./archive.meta.sqlite"
+
+  tier_node:
+    listen_port: 50111
+    root_path: "./tier.data"
+    sqlite: "./tier.meta.sqlite"
+    parent: "localhost:50110"
+
+cli:
+  debug: false
