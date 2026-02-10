@@ -38,6 +38,7 @@ type MetricsConfig struct {
 type DownloadsConfig struct {
 	ArchiveNode ArchiveNodeConfig `yaml:"archive_node"`
 	TierNode    TierNodeConfig    `yaml:"tier_node"`
+	PlasmaNode  PlasmaNodeConfig  `yaml:"plasma_node"`
 }
 
 /* ---------- ARCHIVE ---------- */
@@ -91,6 +92,36 @@ func (c TierNodeConfig) Validate() error {
 }
 
 func (c TierNodeConfig) ListenAddr() string {
+	return fmt.Sprintf(":%d", c.ListenPort)
+}
+
+/* ---------- PLASMA ---------- */
+
+type PlasmaNodeConfig struct {
+	ListenPort int   `yaml:"listen_port"`
+	ParentAddr string `yaml:"parent"`
+	MaxBytes   int64  `yaml:"max_bytes"`
+	MaxItems   int    `yaml:"max_items"`
+	DebugAddr  string `yaml:"debug"`
+}
+
+func (c PlasmaNodeConfig) Validate() error {
+	if c.ListenPort == 0 {
+		return fmt.Errorf("downloads.plasma_node.listen_port is required")
+	}
+	if c.ParentAddr == "" {
+		return fmt.Errorf("downloads.plasma_node.parent is required")
+	}
+	if c.MaxBytes <= 0 {
+		return fmt.Errorf("downloads.plasma_node.max_bytes must be > 0")
+	}
+	if c.MaxItems <= 0 {
+		return fmt.Errorf("downloads.plasma_node.max_items must be > 0")
+	}
+	return nil
+}
+
+func (c PlasmaNodeConfig) ListenAddr() string {
 	return fmt.Sprintf(":%d", c.ListenPort)
 }
 

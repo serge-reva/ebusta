@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -10,34 +9,29 @@ import (
 	"time"
 
 	libraryv1 "ebusta/api/proto/v1"
+	"ebusta/internal/config"
 	"ebusta/internal/downloads/plasma"
 
-	_ "expvar" // регистрирует /debug/vars на DefaultServeMux
+	_ "expvar"
 
 	"google.golang.org/grpc"
 )
 
 func main() {
-	listen := flag.String("listen", "", "gRPC listen addr, e.g. :50112")
-	parent := flag.String("parent", "", "parent StorageNode addr, e.g. localhost:50111")
-	maxBytes := flag.Int64("max-bytes", 0, "max bytes in plasma")
-	maxItems := flag.Int("max-items", 0, "max items in plasma")
-	debugAddr := flag.String("debug", "", "optional debug HTTP addr for /debug/vars, e.g. :8091 (empty disables)")
-	flag.Parse()
-
-	if *listen == "" || *parent == "" || *maxBytes <= 0 || *maxItems <= 0 {
-		fmt.Fprintf(os.Stderr, "usage: plasma-node -listen :PORT -parent host:port -max-bytes N -max-items N [-debug :8091]\n")
+	cfg := config.Get().Downloads.PlasmaNode
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintf(os.Stderr, "plasma-node config error: %v\n", err)
 		os.Exit(2)
 	}
 
-	if *debugAddr != "" {
+	if cfg.DebugAddr != "" {
 		go func() {
 			srv := &http.Server{
-				Addr:              *debugAddr,
+				Addr:              cfg.DebugAddr,
 				Handler:           http.DefaultServeMux,
 				ReadHeaderTimeout: 3 * time.Second,
 			}
-			log.Printf("[plasma] debug http listening on %s (/debug/vars)", *debugAddr)
+			log.Printf("[plasma] debug http listening on %s (/debug/vars)", cfg.DebugAddr)
 			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				log.Printf("[plasma] debug http error: %v", err)
 			}
@@ -45,9 +39,9 @@ func main() {
 	}
 
 	node, err := plasma.New(plasma.Config{
-		ParentAddr: *parent,
-		MaxBytes:   *maxBytes,
-		MaxItems:   *maxItems,
+		ParentAddr: cfg.ParentAddr,
+		MaxBytes:   cfg.MaxBytes,
+		MaxItems:   cfg.MaxItems,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "plasma-node init failed: %v\n", err)
@@ -55,7 +49,7 @@ func main() {
 	}
 	defer node.Close()
 
-	lis, err := net.Listen("tcp", *listen)
+	lis, err := net.Listen("tcp", cfg.ListenAddr())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "listen failed: %v\n", err)
 		os.Exit(1)
@@ -64,7 +58,13 @@ func main() {
 	s := grpc.NewServer()
 	libraryv1.RegisterStorageNodeServer(s, node)
 
-	log.Printf("[plasma] grpc listening on %s parent=%s max_bytes=%d max_items=%d", *listen, *parent, *maxBytes, *maxItems)
+	log.Printf(
+		"[plasma] grpc listening on %s parent=%s max_bytes=%d max_items=%d",
+		cfg.ListenAddr(),
+		cfg.ParentAddr,
+		cfg.MaxBytes,
+		cfg.MaxItems,
+	)
 
 	if err := s.Serve(lis); err != nil {
 		fmt.Fprintf(os.Stderr, "serve failed: %v\n", err)

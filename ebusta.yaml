@@ -48,5 +48,12 @@ downloads:
     sqlite: "./tier.meta.sqlite"
     parent: "localhost:50110"
 
+  plasma_node:
+    listen_port: 50112
+    parent: "localhost:50111"
+    max_bytes: 1073741824
+    max_items: 1000
+    debug: ":8091"
+
 cli:
   debug: false
