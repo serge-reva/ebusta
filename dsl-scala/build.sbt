@@ -4,6 +4,7 @@ scalaVersion := "3.3.1"
 libraryDependencies ++= Seq(
   "org.scala-lang.modules" %% "scala-parser-combinators" % "2.3.0",
   "io.grpc" % "grpc-netty-shaded" % "1.58.0",
+  "io.grpc" % "grpc-services" % "1.58.0",
   "org.typelevel" %% "cats-effect" % "3.5.2",
   "org.yaml" % "snakeyaml" % "2.2"
 )
