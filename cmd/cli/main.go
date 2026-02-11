@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -93,6 +94,17 @@ func doDownload(sha1 string) {
 	}
 
 	cfg := config.Get()
+
+	// download_dir is optional; default to current dir if not set
+	downloadDir := strings.TrimSpace(cfg.Downloads.CLI.DownloadDir)
+	if downloadDir == "" {
+		downloadDir = "."
+	}
+	if err := os.MkdirAll(downloadDir, 0o755); err != nil {
+		fmt.Printf("cannot create download_dir %q: %v\n", downloadDir, err)
+		return
+	}
+
 	plasma := cfg.Downloads.PlasmaNode
 	addr := fmt.Sprintf("localhost:%d", plasma.ListenPort)
 
@@ -115,7 +127,9 @@ func doDownload(sha1 string) {
 	}
 
 	outName := metaResp.Meta.Filename
-	f, err := os.Create(outName)
+	outPath := filepath.Join(downloadDir, outName)
+
+	f, err := os.Create(outPath)
 	if err != nil {
 		fmt.Printf("cannot create file: %v\n", err)
 		return
@@ -135,12 +149,12 @@ func doDownload(sha1 string) {
 		if err != nil {
 			break
 		}
-		// IMPORTANT: Chunk.data is bytes -> []byte in Go. No base64 here.
+		// Chunk.data is bytes -> []byte in Go. No base64 here.
 		if _, err := f.Write(chunk.Data); err != nil {
 			fmt.Printf("write error: %v\n", err)
 			return
 		}
 	}
 
-	fmt.Printf("Downloaded %s\n", outName)
+	fmt.Printf("Downloaded %s\n", outPath)
 }

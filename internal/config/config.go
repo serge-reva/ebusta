@@ -39,6 +39,13 @@ type DownloadsConfig struct {
 	ArchiveNode ArchiveNodeConfig `yaml:"archive_node"`
 	TierNode    TierNodeConfig    `yaml:"tier_node"`
 	PlasmaNode  PlasmaNodeConfig  `yaml:"plasma_node"`
+	CLI         DownloadsCLIConfig `yaml:"cli"`
+}
+
+/* ---------- CLI (downloads) ---------- */
+
+type DownloadsCLIConfig struct {
+	DownloadDir string `yaml:"download_dir"`
 }
 
 /* ---------- ARCHIVE ---------- */
@@ -98,7 +105,7 @@ func (c TierNodeConfig) ListenAddr() string {
 /* ---------- PLASMA ---------- */
 
 type PlasmaNodeConfig struct {
-	ListenPort int   `yaml:"listen_port"`
+	ListenPort int    `yaml:"listen_port"`
 	ParentAddr string `yaml:"parent"`
 	MaxBytes   int64  `yaml:"max_bytes"`
 	MaxItems   int    `yaml:"max_items"`

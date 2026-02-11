@@ -55,5 +55,8 @@ downloads:
     max_items: 1000
     debug: ":8091"
 
+  cli:
+    download_dir: "./downloads"
+
 cli:
   debug: false
