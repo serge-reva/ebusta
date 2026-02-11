@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
@@ -18,7 +17,7 @@ import (
 )
 
 func main() {
-	// --- download mode ---
+	// --- download mode (non-interactive): ./bin/ebusta-cli get <sha1> ---
 	if len(os.Args) >= 3 && os.Args[1] == "get" {
 		doDownload(os.Args[2])
 		return
@@ -35,11 +34,13 @@ func main() {
 	line := liner.NewLiner()
 	defer line.Close()
 
+	// non-interactive search: ./bin/ebusta-cli "author:Кинг"
 	if len(os.Args) > 1 {
 		doSearch(svc, strings.Join(os.Args[1:], " "))
 		return
 	}
 
+	// interactive REPL
 	for {
 		if input, err := line.Prompt("ebusta> "); err == nil {
 			input = strings.TrimSpace(input)
@@ -49,10 +50,14 @@ func main() {
 			if input == "exit" || input == "quit" {
 				break
 			}
+
+			// interactive download: ebusta> get <sha1>
 			if strings.HasPrefix(input, "get ") {
 				doDownload(strings.TrimSpace(strings.TrimPrefix(input, "get ")))
+				line.AppendHistory(input)
 				continue
 			}
+
 			doSearch(svc, input)
 			line.AppendHistory(input)
 		} else {
@@ -130,12 +135,8 @@ func doDownload(sha1 string) {
 		if err != nil {
 			break
 		}
-		data, err := base64.StdEncoding.DecodeString(chunk.Data)
-		if err != nil {
-			fmt.Printf("decode error: %v\n", err)
-			return
-		}
-		if _, err := f.Write(data); err != nil {
+		// IMPORTANT: Chunk.data is bytes -> []byte in Go. No base64 here.
+		if _, err := f.Write(chunk.Data); err != nil {
 			fmt.Printf("write error: %v\n", err)
 			return
 		}
