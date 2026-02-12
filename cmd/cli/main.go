@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,16 +19,22 @@ import (
 )
 
 func main() {
-	// --- download mode (non-interactive): ./bin/ebusta-cli get <sha1> ---
+	// --- download modes (non-interactive) ---
+	// ./bin/ebusta-cli get <sha1>         -> save to downloads.cli.download_dir
+	// ./bin/ebusta-cli get-stdout <sha1>  -> write raw bytes to stdout
 	if len(os.Args) >= 3 && os.Args[1] == "get" {
-		doDownload(os.Args[2])
+		doDownloadToFile(os.Args[2])
+		return
+	}
+	if len(os.Args) >= 3 && os.Args[1] == "get-stdout" {
+		doDownloadToStdout(os.Args[2])
 		return
 	}
 
 	// --- search mode ---
 	svc := search.NewService()
 	if svc == nil {
-		fmt.Println("Error: could not connect to search service")
+		fmt.Fprintln(os.Stderr, "Error: could not connect to search service")
 		os.Exit(1)
 	}
 	defer svc.Close()
@@ -54,7 +61,14 @@ func main() {
 
 			// interactive download: ebusta> get <sha1>
 			if strings.HasPrefix(input, "get ") {
-				doDownload(strings.TrimSpace(strings.TrimPrefix(input, "get ")))
+				doDownloadToFile(strings.TrimSpace(strings.TrimPrefix(input, "get ")))
+				line.AppendHistory(input)
+				continue
+			}
+
+			// interactive stdout download: ebusta> get-stdout <sha1>
+			if strings.HasPrefix(input, "get-stdout ") {
+				doDownloadToStdout(strings.TrimSpace(strings.TrimPrefix(input, "get-stdout ")))
 				line.AppendHistory(input)
 				continue
 			}
@@ -72,7 +86,7 @@ func doSearch(svc *search.Service, query string) {
 
 	resp, err := svc.Search(context.Background(), query, 10, tid)
 	if err != nil {
-		fmt.Printf("Error: %v (Trace: %s)\n", err, tid)
+		fmt.Fprintf(os.Stderr, "Error: %v (Trace: %s)\n", err, tid)
 		return
 	}
 
@@ -87,42 +101,71 @@ func doSearch(svc *search.Service, query string) {
 	fmt.Println()
 }
 
-func doDownload(sha1 string) {
-	if sha1 == "" {
-		fmt.Println("usage: get <sha1>")
-		return
-	}
-
-	cfg := config.Get()
-
-	// download_dir is optional; default to current dir if not set
-	downloadDir := strings.TrimSpace(cfg.Downloads.CLI.DownloadDir)
-	if downloadDir == "" {
-		downloadDir = "."
-	}
-	if err := os.MkdirAll(downloadDir, 0o755); err != nil {
-		fmt.Printf("cannot create download_dir %q: %v\n", downloadDir, err)
-		return
-	}
-
+func dialPlasma(cfg *config.Config) (*grpc.ClientConn, libraryv1.StorageNodeClient, error) {
 	plasma := cfg.Downloads.PlasmaNode
 	addr := fmt.Sprintf("localhost:%d", plasma.ListenPort)
 
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		fmt.Printf("plasma connect error: %v\n", err)
+		return nil, nil, fmt.Errorf("plasma connect error: %w", err)
+	}
+	client := libraryv1.NewStorageNodeClient(conn)
+	return conn, client, nil
+}
+
+func streamToWriter(client libraryv1.StorageNodeClient, sha1 string, w io.Writer) error {
+	ctx := context.Background()
+
+	stream, err := client.GetStream(ctx, &libraryv1.GetStreamRequest{
+		Id: &libraryv1.BookId{Sha1: sha1},
+	})
+	if err != nil {
+		return fmt.Errorf("GetStream error: %w", err)
+	}
+
+	for {
+		chunk, err := stream.Recv()
+		if err != nil {
+			// для простоты: считаем любой recv-err концом (как было раньше)
+			break
+		}
+		if _, err := w.Write(chunk.Data); err != nil {
+			return fmt.Errorf("write error: %w", err)
+		}
+	}
+	return nil
+}
+
+func doDownloadToFile(sha1 string) {
+	if sha1 == "" {
+		fmt.Fprintln(os.Stderr, "usage: get <sha1>")
+		return
+	}
+
+	cfg := config.Get()
+
+	downloadDir := strings.TrimSpace(cfg.Downloads.CLI.DownloadDir)
+	if downloadDir == "" {
+		downloadDir = "."
+	}
+	if err := os.MkdirAll(downloadDir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "cannot create download_dir %q: %v\n", downloadDir, err)
+		return
+	}
+
+	conn, client, err := dialPlasma(cfg)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 		return
 	}
 	defer conn.Close()
 
-	client := libraryv1.NewStorageNodeClient(conn)
 	ctx := context.Background()
-
 	metaResp, err := client.GetMeta(ctx, &libraryv1.GetMetaRequest{
 		Id: &libraryv1.BookId{Sha1: sha1},
 	})
 	if err != nil {
-		fmt.Printf("GetMeta error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "GetMeta error: %v\n", err)
 		return
 	}
 
@@ -131,30 +174,37 @@ func doDownload(sha1 string) {
 
 	f, err := os.Create(outPath)
 	if err != nil {
-		fmt.Printf("cannot create file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "cannot create file: %v\n", err)
 		return
 	}
 	defer f.Close()
 
-	stream, err := client.GetStream(ctx, &libraryv1.GetStreamRequest{
-		Id: &libraryv1.BookId{Sha1: sha1},
-	})
-	if err != nil {
-		fmt.Printf("GetStream error: %v\n", err)
+	if err := streamToWriter(client, sha1, f); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 		return
 	}
 
-	for {
-		chunk, err := stream.Recv()
-		if err != nil {
-			break
-		}
-		// Chunk.data is bytes -> []byte in Go. No base64 here.
-		if _, err := f.Write(chunk.Data); err != nil {
-			fmt.Printf("write error: %v\n", err)
-			return
-		}
+	fmt.Printf("Downloaded %s\n", outPath)
+}
+
+func doDownloadToStdout(sha1 string) {
+	if sha1 == "" {
+		fmt.Fprintln(os.Stderr, "usage: get-stdout <sha1>")
+		return
 	}
 
-	fmt.Printf("Downloaded %s\n", outPath)
+	cfg := config.Get()
+
+	conn, client, err := dialPlasma(cfg)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return
+	}
+	defer conn.Close()
+
+	// stdout must be raw bytes only; all messages go to stderr.
+	if err := streamToWriter(client, sha1, os.Stdout); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return
+	}
 }
