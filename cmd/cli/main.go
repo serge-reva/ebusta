@@ -18,16 +18,37 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+type dlOpts struct {
+	Progress bool
+	Verify   bool
+}
+
 func main() {
 	// --- download modes (non-interactive) ---
-	// ./bin/ebusta-cli get <sha1>         -> save to downloads.cli.download_dir
-	// ./bin/ebusta-cli get-stdout <sha1>  -> write raw bytes to stdout
-	if len(os.Args) >= 3 && os.Args[1] == "get" {
-		doDownloadToFile(os.Args[2])
+	// ./bin/ebusta-cli get [--progress] [--verify] <sha1>         -> save to downloads.cli.download_dir
+	// ./bin/ebusta-cli get-stdout [--progress] [--verify] <sha1>  -> write raw bytes to stdout
+	if len(os.Args) >= 2 && os.Args[1] == "get" {
+		sha1, opts, err := parseDownloadArgs(os.Args[2:])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(2)
+		}
+		if err := doDownloadToFile(sha1, opts); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
 		return
 	}
-	if len(os.Args) >= 3 && os.Args[1] == "get-stdout" {
-		doDownloadToStdout(os.Args[2])
+	if len(os.Args) >= 2 && os.Args[1] == "get-stdout" {
+		sha1, opts, err := parseDownloadArgs(os.Args[2:])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(2)
+		}
+		if err := doDownloadToStdout(sha1, opts); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -61,14 +82,16 @@ func main() {
 
 			// interactive download: ebusta> get <sha1>
 			if strings.HasPrefix(input, "get ") {
-				doDownloadToFile(strings.TrimSpace(strings.TrimPrefix(input, "get ")))
+				sha1 := strings.TrimSpace(strings.TrimPrefix(input, "get "))
+				_ = doDownloadToFile(sha1, dlOpts{})
 				line.AppendHistory(input)
 				continue
 			}
 
 			// interactive stdout download: ebusta> get-stdout <sha1>
 			if strings.HasPrefix(input, "get-stdout ") {
-				doDownloadToStdout(strings.TrimSpace(strings.TrimPrefix(input, "get-stdout ")))
+				sha1 := strings.TrimSpace(strings.TrimPrefix(input, "get-stdout "))
+				_ = doDownloadToStdout(sha1, dlOpts{})
 				line.AppendHistory(input)
 				continue
 			}
@@ -101,6 +124,34 @@ func doSearch(svc *search.Service, query string) {
 	fmt.Println()
 }
 
+func parseDownloadArgs(args []string) (string, dlOpts, error) {
+	var opts dlOpts
+	var sha1 string
+
+	for _, a := range args {
+		switch a {
+		case "--progress":
+			opts.Progress = true
+		case "--verify":
+			opts.Verify = true
+		default:
+			if strings.HasPrefix(a, "-") {
+				return "", dlOpts{}, fmt.Errorf("unknown flag: %s", a)
+			}
+			if sha1 != "" {
+				return "", dlOpts{}, fmt.Errorf("too many args: expected single <sha1>")
+			}
+			sha1 = a
+		}
+	}
+
+	if sha1 == "" {
+		return "", dlOpts{}, fmt.Errorf("usage: get [--progress] [--verify] <sha1>\n       get-stdout [--progress] [--verify] <sha1>")
+	}
+
+	return sha1, opts, nil
+}
+
 func dialPlasma(cfg *config.Config) (*grpc.ClientConn, libraryv1.StorageNodeClient, error) {
 	plasma := cfg.Downloads.PlasmaNode
 	addr := fmt.Sprintf("localhost:%d", plasma.ListenPort)
@@ -113,33 +164,57 @@ func dialPlasma(cfg *config.Config) (*grpc.ClientConn, libraryv1.StorageNodeClie
 	return conn, client, nil
 }
 
-func streamToWriter(client libraryv1.StorageNodeClient, sha1 string, w io.Writer) error {
+func streamToWriter(client libraryv1.StorageNodeClient, sha1 string, w io.Writer, opts dlOpts, expectedTotal int64) (int64, error) {
 	ctx := context.Background()
 
 	stream, err := client.GetStream(ctx, &libraryv1.GetStreamRequest{
 		Id: &libraryv1.BookId{Sha1: sha1},
 	})
 	if err != nil {
-		return fmt.Errorf("GetStream error: %w", err)
+		return 0, fmt.Errorf("GetStream error: %w", err)
 	}
+
+	var written int64
+	var lastReport time.Time
+	reportEvery := int64(1 << 20) // 1 MiB
+	nextBytes := reportEvery
 
 	for {
 		chunk, err := stream.Recv()
 		if err != nil {
-			// для простоты: считаем любой recv-err концом (как было раньше)
 			break
 		}
-		if _, err := w.Write(chunk.Data); err != nil {
-			return fmt.Errorf("write error: %w", err)
+
+		n, err := w.Write(chunk.Data)
+		if err != nil {
+			return written, fmt.Errorf("write error: %w", err)
+		}
+		written += int64(n)
+
+		if opts.Progress && written >= nextBytes {
+			if !lastReport.IsZero() && time.Since(lastReport) < 250*time.Millisecond {
+				// avoid flooding stderr
+			} else {
+				if expectedTotal > 0 {
+					pct := float64(written) * 100.0 / float64(expectedTotal)
+					fmt.Fprintf(os.Stderr, "[progress] %d/%d bytes (%.1f%%)\n", written, expectedTotal, pct)
+				} else {
+					fmt.Fprintf(os.Stderr, "[progress] %d bytes\n", written)
+				}
+				lastReport = time.Now()
+			}
+			for written >= nextBytes {
+				nextBytes += reportEvery
+			}
 		}
 	}
-	return nil
+
+	return written, nil
 }
 
-func doDownloadToFile(sha1 string) {
+func doDownloadToFile(sha1 string, opts dlOpts) error {
 	if sha1 == "" {
-		fmt.Fprintln(os.Stderr, "usage: get <sha1>")
-		return
+		return fmt.Errorf("usage: get [--progress] [--verify] <sha1>")
 	}
 
 	cfg := config.Get()
@@ -149,14 +224,12 @@ func doDownloadToFile(sha1 string) {
 		downloadDir = "."
 	}
 	if err := os.MkdirAll(downloadDir, 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "cannot create download_dir %q: %v\n", downloadDir, err)
-		return
+		return fmt.Errorf("cannot create download_dir %q: %v", downloadDir, err)
 	}
 
 	conn, client, err := dialPlasma(cfg)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		return
+		return err
 	}
 	defer conn.Close()
 
@@ -165,46 +238,94 @@ func doDownloadToFile(sha1 string) {
 		Id: &libraryv1.BookId{Sha1: sha1},
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "GetMeta error: %v\n", err)
-		return
+		return fmt.Errorf("GetMeta error: %v", err)
 	}
 
 	outName := metaResp.Meta.Filename
 	outPath := filepath.Join(downloadDir, outName)
 
+	expected := metaResp.Meta.GetSize()
+
+	if opts.Progress {
+		if expected > 0 {
+			fmt.Fprintf(os.Stderr, "[start] downloading sha1=%s -> %s (expected %d bytes)\n", sha1, outPath, expected)
+		} else {
+			fmt.Fprintf(os.Stderr, "[start] downloading sha1=%s -> %s\n", sha1, outPath)
+		}
+	}
+
 	f, err := os.Create(outPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cannot create file: %v\n", err)
-		return
+		return fmt.Errorf("cannot create file: %v", err)
 	}
 	defer f.Close()
 
-	if err := streamToWriter(client, sha1, f); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		return
+	written, err := streamToWriter(client, sha1, f, opts, expected)
+	if err != nil {
+		return err
+	}
+
+	if opts.Verify {
+		if expected <= 0 {
+			return fmt.Errorf("verify failed: meta.size is not set (>0)")
+		}
+		if written != expected {
+			return fmt.Errorf("verify failed: written %d bytes, expected %d bytes", written, expected)
+		}
+		fmt.Fprintf(os.Stderr, "[verify] OK: %d bytes\n", written)
 	}
 
 	fmt.Printf("Downloaded %s\n", outPath)
+	return nil
 }
 
-func doDownloadToStdout(sha1 string) {
+func doDownloadToStdout(sha1 string, opts dlOpts) error {
 	if sha1 == "" {
-		fmt.Fprintln(os.Stderr, "usage: get-stdout <sha1>")
-		return
+		return fmt.Errorf("usage: get-stdout [--progress] [--verify] <sha1>")
 	}
 
 	cfg := config.Get()
 
 	conn, client, err := dialPlasma(cfg)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		return
+		return err
 	}
 	defer conn.Close()
 
-	// stdout must be raw bytes only; all messages go to stderr.
-	if err := streamToWriter(client, sha1, os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		return
+	expected := int64(0)
+	if opts.Progress || opts.Verify {
+		ctx := context.Background()
+		metaResp, err := client.GetMeta(ctx, &libraryv1.GetMetaRequest{
+			Id: &libraryv1.BookId{Sha1: sha1},
+		})
+		if err != nil {
+			return fmt.Errorf("GetMeta error: %v", err)
+		}
+		expected = metaResp.Meta.GetSize()
+
+		if opts.Progress {
+			if expected > 0 {
+				fmt.Fprintf(os.Stderr, "[start] streaming sha1=%s to stdout (expected %d bytes)\n", sha1, expected)
+			} else {
+				fmt.Fprintf(os.Stderr, "[start] streaming sha1=%s to stdout\n", sha1)
+			}
+		}
 	}
+
+	written, err := streamToWriter(client, sha1, os.Stdout, opts, expected)
+	if err != nil {
+		return err
+	}
+
+	if opts.Verify {
+		if expected <= 0 {
+			return fmt.Errorf("verify failed: meta.size is not set (>0)")
+		}
+		if written != expected {
+			return fmt.Errorf("verify failed: written %d bytes, expected %d bytes", written, expected)
+		}
+		fmt.Fprintf(os.Stderr, "[verify] OK: %d bytes\n", written)
+	}
+
+	return nil
 }
