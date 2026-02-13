@@ -21,8 +21,11 @@ QB_JAR  := query-builder.jar
 DSL_ASSEMBLY_JAR := cmd/dsl-scala/dsl-server.jar
 QB_ASSEMBLY_JAR  := cmd/query-builder/query-builder.jar
 
-# Временный способ вытащить порт tier-node из ebusta.yaml
-TIER_PORT := $(shell sed -n '/tier_node:/,/port:/p' $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
+# Временный способ вытащить порты downloads-нод из ebusta.yaml
+ARCHIVE_PORT    := $(shell sed -n '/archive_node:/,/listen_port:/p'    $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
+TIER_PORT       := $(shell sed -n '/tier_node:/,/listen_port:/p'       $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
+PLASMA_PORT     := $(shell sed -n '/plasma_node:/,/listen_port:/p'     $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
+DOWNLOADER_PORT := $(shell sed -n '/downloader:/,/listen_port:/p'      $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 
 .PHONY: all build proto build-scala build-go build-cli build-search-go build-downloads-go up down restart test clean
 
@@ -66,13 +69,15 @@ build-cli:
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/ebusta-cli ./cmd/cli
 
-# 3) сборка archive + tier + downloader (downloads-import)
+# 3) сборка downloads: archive + tier + plasma + downloader (+ downloads-import)
 build-downloads-go: proto
 	@echo "🛠 Building Go downloads components..."
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/archive-node     ./cmd/archive-node
-	@go build -o $(BIN_DIR)/downloads-import ./cmd/downloads-import
 	@go build -o $(BIN_DIR)/tier-node        ./cmd/tier-node
+	@go build -o $(BIN_DIR)/plasma-node      ./cmd/plasma-node
+	@go build -o $(BIN_DIR)/downloader       ./downloader/cmd/downloader
+	@go build -o $(BIN_DIR)/downloads-import ./cmd/downloads-import
 
 # build-go обязан собрать: (1) поиск, (2) cli, (3) downloads
 build-go: build-search-go build-cli build-downloads-go
@@ -83,7 +88,7 @@ build: proto build-scala build-go
 
 down:
 	@echo "🛑 Stopping all services..."
-	@-pkill -9 -f "datamanager|orchestrator|web-adapter|dsl-server.jar|query-builder.jar|archive-node|tier-node" || true
+	@-pkill -9 -f "datamanager|orchestrator|web-adapter|dsl-server.jar|query-builder.jar|archive-node|tier-node|plasma-node|downloader" || true
 	@sleep 1
 
 up: down
@@ -110,12 +115,24 @@ up: down
 	@$(BIN_DIR)/web-adapter >> $(LOG_DIR)/web.log 2>&1 & sleep 0.5
 	@pgrep -f web-adapter > /dev/null && echo "✅ RUNNING" || echo "❌ FAILED (check web.log)"
 
+	@echo -n "   - Archive Node (downloads): "
+	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/archive-node >> $(LOG_DIR)/archive.log 2>&1 & sleep 0.5
+	@pgrep -f "archive-node" > /dev/null && echo "✅ RUNNING on :$(ARCHIVE_PORT)" || echo "❌ FAILED (check archive.log)"
+
 	@echo -n "   - Tier Node (downloads): "
-	@$(BIN_DIR)/tier-node -listen :$(TIER_PORT) >> $(LOG_DIR)/tier.log 2>&1 & sleep 0.5
+	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/tier-node -listen :$(TIER_PORT) >> $(LOG_DIR)/tier.log 2>&1 & sleep 0.5
 	@pgrep -f "tier-node" > /dev/null && echo "✅ RUNNING on :$(TIER_PORT)" || echo "❌ FAILED (check tier.log)"
 
+	@echo -n "   - Plasma Node (downloads): "
+	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/plasma-node >> $(LOG_DIR)/plasma.log 2>&1 & sleep 0.5
+	@pgrep -f "plasma-node" > /dev/null && echo "✅ RUNNING on :$(PLASMA_PORT)" || echo "❌ FAILED (check plasma.log)"
+
+	@echo -n "   - Downloader (HTTP): "
+	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/downloader >> $(LOG_DIR)/downloader.log 2>&1 & sleep 0.5
+	@pgrep -f "downloader" > /dev/null && echo "✅ RUNNING on :$(DOWNLOADER_PORT)" || echo "❌ FAILED (check downloader.log)"
+
 	@echo "\n📊 Final check (Active processes):"
-	@ps aux | grep -v grep | grep -E "datamanager|orchestrator|web-adapter|tier-node|dsl-server.jar|query-builder.jar"
+	@ps aux | grep -v grep | grep -E "datamanager|orchestrator|web-adapter|archive-node|tier-node|plasma-node|downloader|dsl-server.jar|query-builder.jar"
 	@echo "\n✅ Logs are available in $(LOG_DIR)/"
 
 restart: up
