@@ -1,6 +1,7 @@
 package main
 
 import (
+        "encoding/json"
         "fmt"
         "io"
         "net/http"
@@ -44,11 +45,14 @@ func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
                 page = 1
         }
 
+        // Вычисление offset
+        offset := (page - 1) * h.pageSize
+
         // Генерация TraceID
         traceID := fmt.Sprintf("wf-%d", time.Now().UnixNano())
 
         // Выполнение поиска
-        result, err := h.searchSvc.Search(r.Context(), query, h.pageSize, traceID)
+        result, err := h.searchSvc.Search(r.Context(), query, h.pageSize, offset, traceID)
         if err != nil {
                 renderError(w, "Ошибка поиска", traceID)
                 return
@@ -114,7 +118,7 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
 
         // Прокси запрос на скачивание
         downloadURL := fmt.Sprintf("http://%s/books/%s", h.downloaderAddr, sha1)
-           dlResp, err := http.Get(downloadURL)
+        dlResp, err := http.Get(downloadURL)
         if err != nil {
                 http.Error(w, "downloader unavailable", http.StatusServiceUnavailable)
                 return
