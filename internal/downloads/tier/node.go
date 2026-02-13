@@ -92,6 +92,22 @@ func (n *Node) Close() error {
 	return nil
 }
 
+func isValidSha1Hex40(s string) bool {
+	if len(s) != 40 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= '0' && c <= '9') ||
+			(c >= 'a' && c <= 'f') ||
+			(c >= 'A' && c <= 'F') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func (n *Node) filePath(container, filename string) string {
 	return filepath.Join(n.rootPath, container, filename)
 }
@@ -138,12 +154,16 @@ ON CONFLICT(sha1) DO UPDATE SET
 
 func (n *Node) Has(ctx context.Context, req *libraryv1.HasRequest) (*libraryv1.HasResponse, error) {
 	sha1 := req.GetId().GetSha1()
+	if !isValidSha1Hex40(sha1) {
+		return nil, status.Error(codes.InvalidArgument, "invalid sha1 (expected 40 hex)")
+	}
+
 	m, err := n.loadMeta(ctx, sha1)
 	if err == sql.ErrNoRows {
 		return &libraryv1.HasResponse{Exists: false}, nil
 	}
 	if err != nil {
-		return &libraryv1.HasResponse{Exists: false, Error: &libraryv1.Error{Code: "INTERNAL", Message: err.Error()}}, nil
+		return nil, status.Errorf(codes.Internal, "INTERNAL: %v", err)
 	}
 	if !n.hasLocalFile(m) {
 		return &libraryv1.HasResponse{Exists: false}, nil
@@ -153,23 +173,40 @@ func (n *Node) Has(ctx context.Context, req *libraryv1.HasRequest) (*libraryv1.H
 
 func (n *Node) GetMeta(ctx context.Context, req *libraryv1.GetMetaRequest) (*libraryv1.GetMetaResponse, error) {
 	sha1 := req.GetId().GetSha1()
+	if !isValidSha1Hex40(sha1) {
+		return nil, status.Error(codes.InvalidArgument, "invalid sha1 (expected 40 hex)")
+	}
+
 	m, err := n.loadMeta(ctx, sha1)
+	// miss в sqlite или нет файла на диске -> пытаемся подтянуть у parent
 	if err == sql.ErrNoRows || (err == nil && !n.hasLocalFile(m)) {
-		if err := n.ensureLocal(ctx, sha1); err != nil {
-			if status.Code(err) == codes.NotFound {
-				return &libraryv1.GetMetaResponse{Error: &libraryv1.Error{Code: "NOT_FOUND", Message: err.Error()}}, nil
-			}
-			return &libraryv1.GetMetaResponse{Error: &libraryv1.Error{Code: "INTERNAL", Message: err.Error()}}, nil
+		if err2 := n.ensureLocal(ctx, sha1); err2 != nil {
+			// IMPORTANT: не перекодируем — просто отдаём gRPC статус parent/ensureLocal
+			return nil, err2
 		}
+
 		m2, err2 := n.loadMeta(ctx, sha1)
+		if err2 == sql.ErrNoRows {
+			// странно, ensureLocal прошло, но meta нет — трактуем как NotFound
+			return nil, status.Error(codes.NotFound, "NOT_FOUND")
+		}
 		if err2 != nil {
-			return &libraryv1.GetMetaResponse{Error: &libraryv1.Error{Code: "INTERNAL", Message: err2.Error()}}, nil
+			return nil, status.Errorf(codes.Internal, "INTERNAL: %v", err2)
+		}
+		if !n.hasLocalFile(m2) {
+			return nil, status.Error(codes.NotFound, "NOT_FOUND")
 		}
 		return &libraryv1.GetMetaResponse{Meta: m2}, nil
 	}
+
 	if err != nil {
-		return &libraryv1.GetMetaResponse{Error: &libraryv1.Error{Code: "INTERNAL", Message: err.Error()}}, nil
+		return nil, status.Errorf(codes.Internal, "INTERNAL: %v", err)
 	}
+
+	if !n.hasLocalFile(m) {
+		return nil, status.Error(codes.NotFound, "NOT_FOUND")
+	}
+
 	return &libraryv1.GetMetaResponse{Meta: m}, nil
 }
 
@@ -187,6 +224,9 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
 			return status.Error(codes.NotFound, "NOT_FOUND")
 		}
 		return status.Errorf(codes.Internal, "INTERNAL: %v", err)
+	}
+	if !n.hasLocalFile(m) {
+		return status.Error(codes.NotFound, "NOT_FOUND")
 	}
 
 	p := n.filePath(m.GetContainer(), m.GetFilename())
@@ -227,6 +267,9 @@ func (n *Node) Put(stream libraryv1.StorageNode_PutServer) error {
 	meta := first.GetMeta()
 	if meta == nil || meta.GetSha1() == "" || meta.GetContainer() == "" || meta.GetFilename() == "" {
 		return status.Error(codes.InvalidArgument, "first message must include meta with sha1/container/filename")
+	}
+	if !isValidSha1Hex40(meta.GetSha1()) {
+		return status.Error(codes.InvalidArgument, "invalid sha1 (expected 40 hex)")
 	}
 
 	dir := filepath.Join(n.rootPath, meta.GetContainer())
@@ -301,6 +344,10 @@ func (n *Node) Put(stream libraryv1.StorageNode_PutServer) error {
 }
 
 func (n *Node) ensureLocal(ctx context.Context, sha1 string) error {
+	if !isValidSha1Hex40(sha1) {
+		return status.Error(codes.InvalidArgument, "invalid sha1 (expected 40 hex)")
+	}
+
 	if m, err := n.loadMeta(ctx, sha1); err == nil && n.hasLocalFile(m) {
 		return nil
 	}
@@ -327,15 +374,10 @@ func (n *Node) ensureLocal(ctx context.Context, sha1 string) error {
 }
 
 func (n *Node) fetchFromParent(ctx context.Context, sha1 string) error {
+	// IMPORTANT: parent теперь возвращает gRPC status codes.
 	metaResp, err := n.parent.GetMeta(ctx, &libraryv1.GetMetaRequest{Id: &libraryv1.BookId{Sha1: sha1}})
 	if err != nil {
-		return err
-	}
-	if metaResp.GetError() != nil {
-		if metaResp.GetError().GetCode() == "NOT_FOUND" {
-			return status.Error(codes.NotFound, "NOT_FOUND")
-		}
-		return status.Errorf(codes.Internal, "UPSTREAM_ERROR: %s", metaResp.GetError().GetMessage())
+		return err // прокидываем NotFound/Unavailable/DeadlineExceeded/etc
 	}
 	meta := metaResp.GetMeta()
 	if meta == nil {
@@ -363,7 +405,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1 string) error {
 	if err != nil {
 		_ = tf.Close()
 		_ = os.Remove(tmpPath)
-		return err
+		return err // прокидываем gRPC статус
 	}
 
 	written := int64(0)
@@ -375,6 +417,11 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1 string) error {
 		if rerr != nil {
 			_ = tf.Close()
 			_ = os.Remove(tmpPath)
+
+			// если это gRPC status от parent — прокидываем как есть
+			if _, ok := status.FromError(rerr); ok {
+				return rerr
+			}
 			return status.Errorf(codes.Internal, "UPSTREAM_STREAM_ERROR: %v", rerr)
 		}
 		if len(ch.GetData()) == 0 {

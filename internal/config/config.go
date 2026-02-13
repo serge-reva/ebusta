@@ -35,17 +35,41 @@ type MetricsConfig struct {
 	Port int `yaml:"port"`
 }
 
+/* ---------- DOWNLOADS ROOT ---------- */
+
 type DownloadsConfig struct {
-	ArchiveNode ArchiveNodeConfig `yaml:"archive_node"`
-	TierNode    TierNodeConfig    `yaml:"tier_node"`
-	PlasmaNode  PlasmaNodeConfig  `yaml:"plasma_node"`
-	CLI         DownloadsCLIConfig `yaml:"cli"`
+	ArchiveNode ArchiveNodeConfig   `yaml:"archive_node"`
+	TierNode    TierNodeConfig      `yaml:"tier_node"`
+	PlasmaNode  PlasmaNodeConfig    `yaml:"plasma_node"`
+	CLI         DownloadsCLIConfig  `yaml:"cli"`
+	Downloader  DownloaderConfig    `yaml:"downloader"`
 }
 
 /* ---------- CLI (downloads) ---------- */
 
 type DownloadsCLIConfig struct {
 	DownloadDir string `yaml:"download_dir"`
+}
+
+/* ---------- DOWNLOADER (HTTP) ---------- */
+
+type DownloaderConfig struct {
+	ListenPort int    `yaml:"listen_port"`
+	PlasmaAddr string `yaml:"plasma"`
+}
+
+func (c DownloaderConfig) Validate() error {
+	if c.ListenPort == 0 {
+		return fmt.Errorf("downloads.downloader.listen_port is required")
+	}
+	if c.PlasmaAddr == "" {
+		return fmt.Errorf("downloads.downloader.plasma is required")
+	}
+	return nil
+}
+
+func (c DownloaderConfig) ListenAddr() string {
+	return fmt.Sprintf(":%d", c.ListenPort)
 }
 
 /* ---------- ARCHIVE ---------- */

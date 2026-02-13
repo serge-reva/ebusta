@@ -24,7 +24,7 @@ QB_ASSEMBLY_JAR  := cmd/query-builder/query-builder.jar
 # Временный способ вытащить порт tier-node из ebusta.yaml
 TIER_PORT := $(shell sed -n '/tier_node:/,/port:/p' $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 
-.PHONY: all build proto build-scala build-go build-cli up down restart test clean
+.PHONY: all build proto build-scala build-go build-cli build-search-go build-downloads-go up down restart test clean
 
 all: build
 
@@ -51,21 +51,32 @@ $(QB_JAR): $(QB_SCALA_SRC) $(PROTO_SRC)
 	@cd $(QB_DIR) && sbt assembly
 	@cp $(QB_ASSEMBLY_JAR) ./$(QB_JAR)
 
-build-cli:
-	@echo "🛠 Building ebusta-cli..."
-	@mkdir -p $(BIN_DIR)
-	@go build -o $(BIN_DIR)/ebusta-cli ./cmd/cli
-
-build-go: proto build-cli
-	@echo "🛠 Building Go binaries..."
+# 1) сборка компонент поиска (Go)
+build-search-go: proto
+	@echo "🛠 Building Go search components..."
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/auth-manager     ./cmd/auth-manager
 	@go build -o $(BIN_DIR)/datamanager      ./cmd/datamanager
 	@go build -o $(BIN_DIR)/orchestrator     ./cmd/orchestrator
 	@go build -o $(BIN_DIR)/web-adapter      ./cmd/web-adapter
+
+# 2) сборка cli
+build-cli:
+	@echo "🛠 Building ebusta-cli..."
+	@mkdir -p $(BIN_DIR)
+	@go build -o $(BIN_DIR)/ebusta-cli ./cmd/cli
+
+# 3) сборка archive + tier + downloader (downloads-import)
+build-downloads-go: proto
+	@echo "🛠 Building Go downloads components..."
+	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/archive-node     ./cmd/archive-node
 	@go build -o $(BIN_DIR)/downloads-import ./cmd/downloads-import
 	@go build -o $(BIN_DIR)/tier-node        ./cmd/tier-node
+
+# build-go обязан собрать: (1) поиск, (2) cli, (3) downloads
+build-go: build-search-go build-cli build-downloads-go
+	@echo "✅ Go build done."
 
 build: proto build-scala build-go
 	@echo "✅ Build done."

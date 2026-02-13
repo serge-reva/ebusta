@@ -57,6 +57,22 @@ func requestIDFromCtx(ctx context.Context) string {
 	return ""
 }
 
+func isValidSha1Hex40(s string) bool {
+	if len(s) != 40 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= '0' && c <= '9') ||
+			(c >= 'a' && c <= 'f') ||
+			(c >= 'A' && c <= 'F') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 type metaRow struct {
 	sha1      string
 	container string
@@ -79,43 +95,32 @@ func (n *Node) getMeta(ctx context.Context, sha1 string) (*metaRow, error) {
 
 func (n *Node) Has(ctx context.Context, req *libraryv1.HasRequest) (*libraryv1.HasResponse, error) {
 	sha1 := req.GetId().GetSha1()
+	if !isValidSha1Hex40(sha1) {
+		return nil, status.Error(codes.InvalidArgument, "invalid sha1 (expected 40 hex)")
+	}
+
 	_, err := n.getMeta(ctx, sha1)
 	if err == sql.ErrNoRows {
 		return &libraryv1.HasResponse{Exists: false}, nil
 	}
 	if err != nil {
-		return &libraryv1.HasResponse{
-			Exists: false,
-			Error: &libraryv1.Error{
-				Code:      "INTERNAL",
-				Message:   err.Error(),
-				RequestId: requestIDFromCtx(ctx),
-			},
-		}, nil
+		return nil, status.Errorf(codes.Internal, "INTERNAL: %v", err)
 	}
 	return &libraryv1.HasResponse{Exists: true}, nil
 }
 
 func (n *Node) GetMeta(ctx context.Context, req *libraryv1.GetMetaRequest) (*libraryv1.GetMetaResponse, error) {
 	sha1 := req.GetId().GetSha1()
+	if !isValidSha1Hex40(sha1) {
+		return nil, status.Error(codes.InvalidArgument, "invalid sha1 (expected 40 hex)")
+	}
+
 	r, err := n.getMeta(ctx, sha1)
 	if err == sql.ErrNoRows {
-		return &libraryv1.GetMetaResponse{
-			Error: &libraryv1.Error{
-				Code:      "NOT_FOUND",
-				Message:   "book not found in archive index",
-				RequestId: requestIDFromCtx(ctx),
-			},
-		}, nil
+		return nil, status.Error(codes.NotFound, "NOT_FOUND")
 	}
 	if err != nil {
-		return &libraryv1.GetMetaResponse{
-			Error: &libraryv1.Error{
-				Code:      "INTERNAL",
-				Message:   err.Error(),
-				RequestId: requestIDFromCtx(ctx),
-			},
-		}, nil
+		return nil, status.Errorf(codes.Internal, "INTERNAL: %v", err)
 	}
 
 	return &libraryv1.GetMetaResponse{
@@ -136,9 +141,13 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
 	// request_id сейчас используется только для логов/ошибок higher-level; для gRPC status — стандартные коды
 	_ = requestIDFromCtx(ctx)
 
+	if !isValidSha1Hex40(sha1) {
+		return status.Error(codes.InvalidArgument, "invalid sha1 (expected 40 hex)")
+	}
+
 	r, err := n.getMeta(ctx, sha1)
 	if err == sql.ErrNoRows {
-		return status.Error(codes.NotFound, "NOT_FOUND: book not found in archive index")
+		return status.Error(codes.NotFound, "NOT_FOUND")
 	}
 	if err != nil {
 		return status.Errorf(codes.Internal, "INTERNAL: %v", err)

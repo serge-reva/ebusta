@@ -55,6 +55,10 @@ downloads:
     max_items: 1000
     debug: ":8091"
 
+  downloader:
+    listen_port: 50081
+    plasma: "localhost:50112"
+
   cli:
     download_dir: "./downloads"
 
