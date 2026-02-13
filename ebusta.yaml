@@ -33,6 +33,12 @@ web_adapter:
   port: 50080
   debug: false
 
+web_frontend:
+  port: 3000
+  page_size: 20
+  downloader_addr: "localhost:50081"
+  debug: false
+
 metrics:
   port: 50090
 
