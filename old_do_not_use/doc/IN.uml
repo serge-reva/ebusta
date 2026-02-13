@@ -1,0 +1,42 @@
+@startuml
+skinparam actorStyle awesome
+autonumber
+skinparam backgroundColor #EEEBDC
+skinparam handwritten false
+
+actor "User" as U
+participant "Adapter (The Door)" as Gateway
+participant "Orchestrator (Core)" as Core
+participant "Parser" as Parser
+participant "Data Manager" as DM
+database "OpenSearch (Mercury)" as OS
+
+U -> Gateway : Ввод DSL-запроса (e.g. author:Кинг)
+activate Gateway
+
+Gateway -> Core : Process(RawInput, Context)
+activate Core
+
+Core -> Parser : Parse(string)
+activate Parser
+Parser --> Core : SearchQuery (AST)
+deactivate Parser
+
+Core -> DM : Search(UnifiedMessage{SearchQuery})
+activate DM
+
+DM -> OS : Поиск по шаблону (Stored Templates)
+activate OS
+OS --> DM : Raw JSON
+deactivate OS
+
+DM --> Core : UnifiedMessage{Results}
+deactivate DM
+
+Core --> Gateway : Standardized Data
+deactivate Core
+
+Gateway -> U : Render (ANSI Table / HTML)
+deactivate Gateway
+
+@enduml

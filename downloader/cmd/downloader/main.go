@@ -69,8 +69,8 @@ func main() {
 				writeGRPCError(w, err)
 				return
 			}
-			if perr := metaResp.GetError(); perr != nil {
-				writePayloadError(w, perr)
+			if metaResp.GetError() != nil {
+				writeUpstreamPayloadError(w, metaResp.GetError())
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -78,7 +78,7 @@ func main() {
 			return
 		}
 
-		// default: stream file bytes
+		// For HEAD and GET (download bytes): we need meta first
 		metaResp, err := client.GetMeta(ctx, &libraryv1.GetMetaRequest{
 			Id: &libraryv1.BookId{Sha1: sha1},
 		})
@@ -86,16 +86,32 @@ func main() {
 			writeGRPCError(w, err)
 			return
 		}
-		if perr := metaResp.GetError(); perr != nil {
-			writePayloadError(w, perr)
+		if metaResp.GetError() != nil {
+			writeUpstreamPayloadError(w, metaResp.GetError())
 			return
 		}
+
 		meta := metaResp.GetMeta()
 		if meta == nil {
 			http.Error(w, "upstream error: empty meta", http.StatusBadGateway)
 			return
 		}
 
+		expected := meta.GetSize()
+		// Заголовки для скачивания
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", meta.GetFilename()))
+		if expected > 0 {
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", expected))
+		}
+
+		// HEAD: только заголовки, без тела
+		if r.Method == http.MethodHead {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// GET: stream file bytes
 		st, err := client.GetStream(ctx, &libraryv1.GetStreamRequest{
 			Id: &libraryv1.BookId{Sha1: sha1},
 		})
@@ -104,25 +120,16 @@ func main() {
 			return
 		}
 
-		// Заголовки для скачивания
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", meta.GetFilename()))
-
 		flusher, _ := w.(http.Flusher)
 
+		var written int64
 		for {
 			ch, rerr := st.Recv()
 			if rerr != nil {
 				if rerr == io.EOF {
-					// нормальное завершение стрима
-					return
+					break
 				}
 				if rerr == context.Canceled {
-					return
-				}
-				if _, ok := status.FromError(rerr); ok {
-					// после начала стрима заголовки уже отданы — статусом HTTP не исправить
-					log.Printf("[%s] stream error after headers: %v", tid, rerr)
 					return
 				}
 				log.Printf("[%s] stream recv error: %v", tid, rerr)
@@ -131,10 +138,15 @@ func main() {
 			if len(ch.GetData()) == 0 {
 				continue
 			}
-			_, _ = w.Write(ch.GetData())
+			n, _ := w.Write(ch.GetData())
+			written += int64(n)
 			if flusher != nil {
 				flusher.Flush()
 			}
+		}
+
+		if expected > 0 && written != expected {
+			log.Printf("[%s] size mismatch sha1=%s expected=%d written=%d", tid, sha1, expected, written)
 		}
 	})
 
@@ -148,59 +160,18 @@ func withTraceID(ctx context.Context, tid string) context.Context {
 	return metadata.NewOutgoingContext(ctx, md)
 }
 
-func isValidSHA1(s string) bool {
-	if len(s) != 40 {
-		return false
-	}
-	for _, c := range s {
-		switch {
-		case c >= '0' && c <= '9':
-		case c >= 'a' && c <= 'f':
-		case c >= 'A' && c <= 'F':
-		default:
-			return false
-		}
-	}
-	return true
-}
-
-func writePayloadError(w http.ResponseWriter, e *libraryv1.Error) {
-	code := strings.ToUpper(strings.TrimSpace(e.GetCode()))
-	msg := strings.TrimSpace(e.GetMessage())
-	statusCode := http.StatusBadGateway
-
-	switch code {
+func writeUpstreamPayloadError(w http.ResponseWriter, e *libraryv1.Error) {
+	// Upstream payload envelope: code is string (e.g. NOT_FOUND/INTERNAL)
+	switch strings.ToUpper(strings.TrimSpace(e.GetCode())) {
 	case "NOT_FOUND":
-		statusCode = http.StatusNotFound
+		http.Error(w, e.GetMessage(), http.StatusNotFound)
 	case "INVALID_ARGUMENT":
-		statusCode = http.StatusBadRequest
+		http.Error(w, e.GetMessage(), http.StatusBadRequest)
 	case "UNAVAILABLE":
-		statusCode = http.StatusServiceUnavailable
-	case "DEADLINE_EXCEEDED":
-		statusCode = http.StatusGatewayTimeout
-	case "INTERNAL":
-		// в plasma сейчас может приходить INTERNAL, но message содержит grpc code
-		m := strings.ToLower(msg)
-		switch {
-		case strings.Contains(m, "code = invalidargument"):
-			statusCode = http.StatusBadRequest
-		case strings.Contains(m, "code = notfound"):
-			statusCode = http.StatusNotFound
-		case strings.Contains(m, "code = unavailable"):
-			statusCode = http.StatusServiceUnavailable
-		case strings.Contains(m, "code = deadlineexceeded"):
-			statusCode = http.StatusGatewayTimeout
-		default:
-			statusCode = http.StatusBadGateway
-		}
+		http.Error(w, e.GetMessage(), http.StatusServiceUnavailable)
 	default:
-		statusCode = http.StatusBadGateway
+		http.Error(w, e.GetMessage(), http.StatusBadGateway)
 	}
-
-	if msg == "" {
-		msg = code
-	}
-	http.Error(w, msg, statusCode)
 }
 
 func writeGRPCError(w http.ResponseWriter, err error) {
@@ -222,4 +193,18 @@ func writeGRPCError(w http.ResponseWriter, err error) {
 	default:
 		http.Error(w, st.Message(), http.StatusBadGateway)
 	}
+}
+
+func isValidSHA1(s string) bool {
+	if len(s) != 40 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
+			continue
+		}
+		return false
+	}
+	return true
 }

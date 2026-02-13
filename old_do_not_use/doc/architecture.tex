@@ -1,0 +1,70 @@
+\documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{geometry}
+\usepackage{listings}
+\usepackage{hyperref}
+
+\geometry{a4paper, margin=1in}
+
+\title{Архитектура системы "Eboost-Library" (v2.0)}
+\author{Проект личной библиотеки на Go}
+\date{2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Описание проблемы}
+[cite_start]Владельцы больших личных коллекций электронных книг часто сталкиваются с проблемой «мертвого груза»: книги хранятся локально, но доступ к ним извне (с телефона, в дороге, для друзей) ограничен или неудобен[cite: 1]. Существующие решения часто привязаны к одному интерфейсу. [cite_start]Необходима система, которая абстрагирует хранилище и поиск, предоставляя единый доступ через разные каналы коммуникации с сохранением контекста пользователя[cite: 3, 39].
+
+\section{Предметная область (DDD Contexts)}
+Согласно принципам Domain-Driven Design, система разделена на следующие ограниченные контексты:
+\begin{itemize}
+    \item \textbf{Interaction (Взаимодействие):} Трансформация специфичных протоколов (Telegram, IRC, CLI) в единый бизнес-язык системы $UnifiedMessage$.
+    [cite_start]\item \textbf{Identity \& Access (Доступ):} Идентификация пользователей, проверка прав по Bot Token или белым спискам[cite: 6].
+    [cite_start]\item \textbf{Library Core (Ядро):} Оркестрация процессов разбора команд, навигации и формирования ответов[cite: 14].
+    [cite_start]\item \textbf{Catalog (Каталог):} Полнотекстовый поиск и управление метаданными книг в OpenSearch[cite: 2, 28].
+    [cite_start]\item \textbf{Delivery (Доставка):} Извлечение файлов из хранилища и предоставление ссылок или бинарных данных[cite: 25, 28].
+\end{itemize}
+
+\section{Компоненты системы}
+
+\subsection{Слой адаптеров (Front-end)}
+\begin{itemize}
+    [cite_start]\item \textbf{Adapters (TG, IRC, CLI):} Реализуют интерфейсы соответствующих платформ[cite: 4, 7, 10].
+    \item \textbf{Translator:} Компонент, выполняющий функцию отображения $f: RawPayload \to UnifiedMessage$.
+\end{itemize}
+
+\subsection{Слой управления и состояния}
+\begin{itemize}
+    \item \textbf{Auth-Manager:} Проверяет права доступа на основе идентификаторов пользователей.
+    \item \textbf{Session-Manager:} Обеспечивает персистентность состояния поиска в Redis.
+    [cite_start]\item \textbf{Config-Manager:} Сервис конфигурации и локализации[cite: 23, 24].
+\end{itemize}
+
+\subsection{Слой данных (Backend Services)}
+\begin{itemize}
+    [cite_start]\item \textbf{Processor:} Центральный микросервис с бизнес-логикой[cite: 14].
+    [cite_start]\item \textbf{Data-Manager:} Прокси к OpenSearch для поиска по метаданным[cite: 19, 20].
+    [cite_start]\item \textbf{Book-Fetcher:} Выдача файлов по ключу $fileKey$ и формату $format$[cite: 25, 26].
+\end{itemize}
+
+\section{Структура проекта (Go Layout)}
+\begin{lstlisting}[basicstyle=\ttfamily\small]
+.
+|-- cmd/                # Точки входа для адаптеров
+|-- internal/           # Приватный код приложения
+|   |-- domain/         # Чистые структуры данных
+|   |-- processor/      # Ядро (бизнес-сценарии)
+|   |-- auth/           # Логика авторизации
+|   |-- session/        # Интеграция с Redis
+|   |-- translator/     # Маппинг сообщений
+|   |-- storage/        # OpenSearch и FS клиенты
+|   `-- config/         # Config-Manager
+|-- pkg/                # Публичные библиотеки
+|-- api/                # Протоколы (gRPC/Proto)
+`-- deployments/        # Docker-compose
+\end{lstlisting}
+
+\end{document}

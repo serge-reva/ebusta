@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,44 +13,31 @@ import (
 
 func main() {
 	cfg := config.Get()
+	svc := search.NewService()
 
-	searchSvc, err := search.New()
-	if err != nil {
-		log.Fatalf("failed to initialize search service: %v", err)
-	}
-	defer searchSvc.Close()
-
-	http.HandleFunc("/input", func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query().Get("msg")
-		if query == "" {
-			http.Error(w, "missing 'msg' query parameter", http.StatusBadRequest)
-			return
+	http.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("q")
+		
+		tid := r.Header.Get("X-Trace-Id")
+		if tid == "" {
+			tid = fmt.Sprintf("web-%d", time.Now().UnixNano())
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-		defer cancel()
+		log.Printf("[%s] Incoming search: %s", tid, query)
 
-		res, err := searchSvc.Search(ctx, query, 5)
+		resp, err := svc.Search(r.Context(), query, 20, tid)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Search error: %v", err), http.StatusInternalServerError)
+			log.Printf("[%s] Error: %v", tid, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		if res.Total == 0 || len(res.Books) == 0 {
-			fmt.Fprintf(w, "No books found for: %s\n", query)
-			return
-		}
-
-		fmt.Fprintf(w, "Found %d books:\n", res.Total)
-		fmt.Fprintln(w, "----------------------------------------")
-		for _, b := range res.Books {
-			fmt.Fprintf(w, "[%s] %s — %s\n", b.ID, b.Title, b.FullAuthors)
-		}
+		w.Header().Set("X-Trace-Id", resp.TraceId)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
 	})
 
-	addr := cfg.WebAdapter.Address()
-	log.Printf("🌐 Web Adapter started on http://%s", addr)
-	if err := http.ListenAndServe(addr, nil); err != nil {
-		log.Fatalf("failed to start web server: %v", err)
-	}
+	addr := fmt.Sprintf(":%d", cfg.WebAdapter.Port)
+	log.Printf("🌐 Web-Adapter with TraceID on %s", addr)
+	log.Fatal(http.ListenAndServe(addr, nil))
 }

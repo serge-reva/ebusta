@@ -1,0 +1,40 @@
+@startuml
+skinparam actorStyle awesome
+autonumber
+skinparam backgroundColor #F9F9F9
+
+actor "User" as U
+participant "Adapter (The Door)" as Gateway
+queue "Message Broker / Event Bus" as Bus
+participant "Parser Service" as Parser
+participant "Data Manager" as DM
+database "OpenSearch (Mercury)" as OS
+
+U -> Gateway : Ввод DSL-запроса
+activate Gateway
+
+Gateway -> Bus : Publish Event: "SearchRequested"\n{Payload: "author:Кинг", RequestID: 101}
+deactivate Gateway
+
+== Асинхронная магия ==
+
+activate Parser
+Bus -> Parser : Listen: "SearchRequested"
+Parser -> Parser : Parse String to SearchQuery
+Parser -> Bus : Publish Event: "QueryParsed"\n{Query: AST, RequestID: 101}
+deactivate Parser
+
+activate DM
+Bus -> DM : Listen: "QueryParsed"
+DM -> OS : Execute OpenSearch Template
+OS --> DM : Raw Data
+DM -> Bus : Publish Event: "ResultsReady"\n{Data: [...], RequestID: 101}
+deactivate DM
+
+== Возврат к пользователю ==
+
+activate Gateway
+Bus -> Gateway : Listen: "ResultsReady" (for ID 101)
+Gateway -> U : Render ANSI/HTML/JSON
+deactivate Gateway
+@enduml

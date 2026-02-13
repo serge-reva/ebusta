@@ -1,0 +1,1623 @@
+query-builder:
+total 16
+-rw-rw-r-- 1 serge serge 1004 Feb  2 03:11 build.sbt
+drwxrwxr-x 4 serge serge 4096 Feb  2 03:14 project
+drwxrwxr-x 3 serge serge 4096 Feb  1 23:37 src
+drwxrwxr-x 6 serge serge 4096 Feb  2 03:14 target
+
+query-builder/project:
+total 16
+-rw-rw-r-- 1 serge serge   18 Feb  1 23:40 build.properties
+-rw-rw-r-- 1 serge serge  113 Feb  1 23:40 plugins.sbt
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 project
+drwxrwxr-x 5 serge serge 4096 Feb  2 03:14 target
+
+query-builder/project/project:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 target
+
+query-builder/project/project/target:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 config-classes
+
+query-builder/project/project/target/config-classes:
+total 24
+-rw-rw-r-- 1 serge serge 1635 Feb  2 03:14 $625b54dbd0ce1d6ed3bc$.class
+-rw-rw-r-- 1 serge serge   21 Feb  2 03:14 $625b54dbd0ce1d6ed3bc.cache
+-rw-rw-r-- 1 serge serge  656 Feb  2 03:14 $625b54dbd0ce1d6ed3bc.class
+-rw-rw-r-- 1 serge serge 1636 Feb  2 03:14 $fa33960fdfa3dfbdd968$.class
+-rw-rw-r-- 1 serge serge   21 Feb  2 03:14 $fa33960fdfa3dfbdd968.cache
+-rw-rw-r-- 1 serge serge  656 Feb  2 03:14 $fa33960fdfa3dfbdd968.class
+
+query-builder/project/target:
+total 12
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 config-classes
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 scala-2.12
+drwxrwxr-x 5 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/config-classes:
+total 96
+-rw-rw-r-- 1 serge serge 2976 Feb  2 03:14 $1fecd3f825b0b2737c47$.class
+-rw-rw-r-- 1 serge serge   21 Feb  2 03:14 $1fecd3f825b0b2737c47.cache
+-rw-rw-r-- 1 serge serge  646 Feb  2 03:14 $1fecd3f825b0b2737c47.class
+-rw-rw-r-- 1 serge serge 3705 Feb  2 03:14 $282b399bc8541b4e0003$.class
+-rw-rw-r-- 1 serge serge   21 Feb  2 03:14 $282b399bc8541b4e0003.cache
+-rw-rw-r-- 1 serge serge  646 Feb  2 03:14 $282b399bc8541b4e0003.class
+-rw-rw-r-- 1 serge serge 2913 Feb  2 03:14 $45269fc30bf02127a636$.class
+-rw-rw-r-- 1 serge serge   21 Feb  2 03:14 $45269fc30bf02127a636.cache
+-rw-rw-r-- 1 serge serge  646 Feb  2 03:14 $45269fc30bf02127a636.class
+-rw-rw-r-- 1 serge serge 3433 Feb  2 03:14 $95e7176a2f7890cc85f6$.class
+-rw-rw-r-- 1 serge serge   21 Feb  2 03:14 $95e7176a2f7890cc85f6.cache
+-rw-rw-r-- 1 serge serge  646 Feb  2 03:14 $95e7176a2f7890cc85f6.class
+-rw-rw-r-- 1 serge serge 3815 Feb  2 03:14 $bca1f1220a36f4a72377$.class
+-rw-rw-r-- 1 serge serge   21 Feb  2 03:14 $bca1f1220a36f4a72377.cache
+-rw-rw-r-- 1 serge serge  646 Feb  2 03:14 $bca1f1220a36f4a72377.class
+-rw-rw-r-- 1 serge serge 2365 Feb  2 03:14 $dc7f3b183ff05486b5ef$.class
+-rw-rw-r-- 1 serge serge   21 Feb  2 03:14 $dc7f3b183ff05486b5ef.cache
+-rw-rw-r-- 1 serge serge  646 Feb  2 03:14 $dc7f3b183ff05486b5ef.class
+-rw-rw-r-- 1 serge serge 3708 Feb  2 03:14 $e5e8f02d9e3d10312184$.class
+-rw-rw-r-- 1 serge serge   21 Feb  2 03:14 $e5e8f02d9e3d10312184.cache
+-rw-rw-r-- 1 serge serge  646 Feb  2 03:14 $e5e8f02d9e3d10312184.class
+-rw-rw-r-- 1 serge serge  940 Feb  2 03:14 $eb24bd11733f9d09e8fa$.class
+-rw-rw-r-- 1 serge serge   21 Feb  2 03:14 $eb24bd11733f9d09e8fa.cache
+-rw-rw-r-- 1 serge serge  646 Feb  2 03:14 $eb24bd11733f9d09e8fa.class
+
+query-builder/project/target/scala-2.12:
+total 4
+drwxrwxr-x 4 serge serge 4096 Feb  2 03:14 sbt-1.0
+
+query-builder/project/target/scala-2.12/sbt-1.0:
+total 8
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 sync
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 update
+
+query-builder/project/target/scala-2.12/sbt-1.0/sync:
+total 4
+-rw-rw-r-- 1 serge serge 12 Feb  2 03:14 copy-resource
+
+query-builder/project/target/scala-2.12/sbt-1.0/update:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 update_cache_2.12
+
+query-builder/project/target/scala-2.12/sbt-1.0/update/update_cache_2.12:
+total 228
+-rw-rw-r-- 1 serge serge     11 Feb  2 03:14 inputs
+-rw-rw-r-- 1 serge serge 226259 Feb  2 03:14 output
+
+query-builder/project/target/streams:
+total 12
+drwxrwxr-x 16 serge serge 4096 Feb  2 03:14 compile
+drwxrwxr-x 12 serge serge 4096 Feb  2 03:14 _global
+drwxrwxr-x 10 serge serge 4096 Feb  2 03:14 runtime
+
+query-builder/project/target/streams/compile:
+total 56
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 bspReporter
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 compile
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 compileIncremental
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 copyResources
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 dependencyClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 exportedProducts
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 externalDependencyClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 incOptions
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 internalDependencyClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 managedClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 scalacOptions
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 unmanagedClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 unmanagedJars
+
+query-builder/project/target/streams/compile/bspReporter:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/bspReporter/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/compile/bspReporter/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/compile/compile:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/compile/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/compile/compile/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/compile/compileIncremental:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/compileIncremental/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/compile/compileIncremental/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge   0 Feb  2 03:14 export
+-rw-rw-r-- 1 serge serge 565 Feb  2 03:14 out
+
+query-builder/project/target/streams/compile/copyResources:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/copyResources/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/compile/copyResources/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 99 Feb  2 03:14 out
+
+query-builder/project/target/streams/compile/dependencyClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/dependencyClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/compile/dependencyClasspath/_global/streams:
+total 12
+-rw-rw-r-- 1 serge serge 9538 Feb  2 03:14 export
+
+query-builder/project/target/streams/compile/exportedProducts:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/exportedProducts/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/compile/exportedProducts/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 84 Feb  2 03:14 export
+
+query-builder/project/target/streams/compile/externalDependencyClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/externalDependencyClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/compile/externalDependencyClasspath/_global/streams:
+total 12
+-rw-rw-r-- 1 serge serge 9538 Feb  2 03:14 export
+
+query-builder/project/target/streams/compile/_global:
+total 4
+drwxrwxr-x 4 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/_global/_global:
+total 8
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 compileOutputs
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 discoveredMainClasses
+
+query-builder/project/target/streams/compile/_global/_global/compileOutputs:
+total 4
+-rw-rw-r-- 1 serge serge 160 Feb  2 03:14 previous
+
+query-builder/project/target/streams/compile/_global/_global/discoveredMainClasses:
+total 4
+-rw-rw-r-- 1 serge serge 2 Feb  2 03:14 data
+
+query-builder/project/target/streams/compile/incOptions:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/incOptions/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/compile/incOptions/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 670 Feb  2 03:14 out
+
+query-builder/project/target/streams/compile/internalDependencyClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/internalDependencyClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/compile/internalDependencyClasspath/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 1 Feb  2 03:14 export
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/compile/managedClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/managedClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/compile/managedClasspath/_global/streams:
+total 12
+-rw-rw-r-- 1 serge serge 9538 Feb  2 03:14 export
+
+query-builder/project/target/streams/compile/scalacOptions:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/scalacOptions/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/compile/scalacOptions/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/compile/unmanagedClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/unmanagedClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/compile/unmanagedClasspath/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 1 Feb  2 03:14 export
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/compile/unmanagedJars:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/compile/unmanagedJars/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/compile/unmanagedJars/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 1 Feb  2 03:14 export
+
+query-builder/project/target/streams/_global:
+total 40
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 csrConfiguration
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 csrProject
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 dependencyPositions
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 ivyConfiguration
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 ivySbt
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 moduleSettings
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 projectDescriptors
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 scalaCompilerBridgeScope
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 update
+
+query-builder/project/target/streams/_global/csrConfiguration:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/_global/csrConfiguration/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/_global/csrConfiguration/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/_global/csrProject:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/_global/csrProject/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/_global/csrProject/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/_global/dependencyPositions:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/_global/dependencyPositions/_global:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/_global/dependencyPositions/_global/streams:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 update_cache_2.12
+
+query-builder/project/target/streams/_global/dependencyPositions/_global/streams/update_cache_2.12:
+total 8
+-rw-rw-r-- 1 serge serge   10 Feb  2 03:14 input_dsp
+-rw-rw-r-- 1 serge serge 1523 Feb  2 03:14 output_dsp
+
+query-builder/project/target/streams/_global/_global:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/_global/_global/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/_global/_global/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/_global/ivyConfiguration:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/_global/ivyConfiguration/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/_global/ivyConfiguration/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/_global/ivySbt:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/_global/ivySbt/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/_global/ivySbt/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/_global/moduleSettings:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/_global/moduleSettings/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/_global/moduleSettings/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/_global/projectDescriptors:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/_global/projectDescriptors/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/_global/projectDescriptors/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/_global/scalaCompilerBridgeScope:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/_global/scalaCompilerBridgeScope/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/_global/scalaCompilerBridgeScope/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/_global/update:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/_global/update/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/_global/update/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 378 Feb  2 03:14 out
+
+query-builder/project/target/streams/runtime:
+total 32
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 dependencyClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 exportedProducts
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 externalDependencyClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 fullClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 internalDependencyClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 managedClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 unmanagedClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 unmanagedJars
+
+query-builder/project/target/streams/runtime/dependencyClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/runtime/dependencyClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/runtime/dependencyClasspath/_global/streams:
+total 12
+-rw-rw-r-- 1 serge serge 9622 Feb  2 03:14 export
+
+query-builder/project/target/streams/runtime/exportedProducts:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/runtime/exportedProducts/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/runtime/exportedProducts/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 84 Feb  2 03:14 export
+
+query-builder/project/target/streams/runtime/externalDependencyClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/runtime/externalDependencyClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/runtime/externalDependencyClasspath/_global/streams:
+total 12
+-rw-rw-r-- 1 serge serge 9538 Feb  2 03:14 export
+
+query-builder/project/target/streams/runtime/fullClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/runtime/fullClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/runtime/fullClasspath/_global/streams:
+total 12
+-rw-rw-r-- 1 serge serge 9622 Feb  2 03:14 export
+
+query-builder/project/target/streams/runtime/internalDependencyClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/runtime/internalDependencyClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/runtime/internalDependencyClasspath/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 84 Feb  2 03:14 export
+-rw-rw-r-- 1 serge serge  0 Feb  2 03:14 out
+
+query-builder/project/target/streams/runtime/managedClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/runtime/managedClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/runtime/managedClasspath/_global/streams:
+total 12
+-rw-rw-r-- 1 serge serge 9538 Feb  2 03:14 export
+
+query-builder/project/target/streams/runtime/unmanagedClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/runtime/unmanagedClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/runtime/unmanagedClasspath/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 1 Feb  2 03:14 export
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/project/target/streams/runtime/unmanagedJars:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/project/target/streams/runtime/unmanagedJars/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/project/target/streams/runtime/unmanagedJars/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 1 Feb  2 03:14 export
+
+query-builder/src:
+total 4
+drwxrwxr-x 4 serge serge 4096 Feb  1 23:37 main
+
+query-builder/src/main:
+total 8
+drwxrwxr-x 2 serge serge 4096 Feb  1 23:37 resources
+drwxrwxr-x 2 serge serge 4096 Feb  1 23:38 scala
+
+query-builder/src/main/resources:
+total 0
+
+query-builder/src/main/scala:
+total 8
+-rw-rw-r-- 1 serge serge 7862 Feb  2 23:36 Main.scala
+
+query-builder/target:
+total 16
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 global-logging
+drwxrwxr-x 7 serge serge 4096 Feb  2 03:14 scala-3.3.1
+drwxrwxr-x 5 serge serge 4096 Feb  2 03:14 streams
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 task-temp-directory
+
+query-builder/target/global-logging:
+total 0
+
+query-builder/target/scala-3.3.1:
+total 20
+drwxrwxr-x 4 serge serge 4096 Feb  2 03:14 classes
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 src_managed
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 sync
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 update
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 zinc
+
+query-builder/target/scala-3.3.1/classes:
+total 156
+-rw-rw-r-- 1 serge serge  4559 Feb  2 02:57 auth_grpc.pb.go
+-rw-rw-r-- 1 serge serge  6418 Feb  2 02:57 auth.pb.go
+-rw-rw-r-- 1 serge serge   740 Jan 27 23:27 auth.proto
+-rw-rw-r-- 1 serge serge  9933 Feb  2 02:57 common.pb.go
+-rw-rw-r-- 1 serge serge   604 Feb  1 04:52 common.proto
+-rw-rw-r-- 1 serge serge  4723 Feb  2 02:57 converter_grpc.pb.go
+-rw-rw-r-- 1 serge serge  2307 Feb  2 02:57 converter.pb.go
+-rw-rw-r-- 1 serge serge   265 Feb  1 04:52 converter.proto
+-rw-rw-r-- 1 serge serge  4644 Feb  2 02:57 dsl_grpc.pb.go
+-rw-rw-r-- 1 serge serge  5993 Feb  2 02:57 dsl.pb.go
+-rw-rw-r-- 1 serge serge   585 Feb  2 02:57 dsl.proto
+drwxrwxr-x 6 serge serge  4096 Feb  2 03:14 ebusta
+-rw-rw-r-- 1 serge serge 22697 Feb  2 02:57 library_grpc.pb.go
+-rw-rw-r-- 1 serge serge 23203 Feb  2 02:57 library.pb.go
+-rw-rw-r-- 1 serge serge  2135 Feb  2 02:40 library.proto
+drwxrwxr-x 4 serge serge  4096 Feb  2 03:14 libraryv1
+-rw-rw-r-- 1 serge serge  4407 Feb  2 02:57 query_builder_grpc.pb.go
+-rw-rw-r-- 1 serge serge  8385 Feb  2 02:57 query_builder.pb.go
+-rw-rw-r-- 1 serge serge   828 Feb  2 02:55 query_builder.proto
+
+query-builder/target/scala-3.3.1/classes/ebusta:
+total 16
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 dsl
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 library
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 qb
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 querybuilder
+
+query-builder/target/scala-3.3.1/classes/ebusta/dsl:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 v1
+
+query-builder/target/scala-3.3.1/classes/ebusta/dsl/v1:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 dsl
+
+query-builder/target/scala-3.3.1/classes/ebusta/dsl/v1/dsl:
+total 220
+-rw-rw-r-- 1 serge serge  9107 Feb  2 03:14 DslProto$.class
+-rw-rw-r-- 1 serge serge  1042 Feb  2 03:14 DslProto.class
+-rw-rw-r-- 1 serge serge  3252 Feb  2 03:14 DslProto.tasty
+-rw-rw-r-- 1 serge serge 15039 Feb  2 03:14 DslRequest$.class
+-rw-rw-r-- 1 serge serge  2612 Feb  2 03:14 DslRequest$DslRequestLens.class
+-rw-rw-r-- 1 serge serge 12316 Feb  2 03:14 DslRequest.class
+-rw-rw-r-- 1 serge serge  9100 Feb  2 03:14 DslRequest.tasty
+-rw-rw-r-- 1 serge serge  4435 Feb  2 03:14 DslTransformerFs2Grpc$$anon$1.class
+-rw-rw-r-- 1 serge serge 14185 Feb  2 03:14 DslTransformerFs2Grpc$.class
+-rw-rw-r-- 1 serge serge  5435 Feb  2 03:14 DslTransformerFs2Grpc.class
+-rw-rw-r-- 1 serge serge  3749 Feb  2 03:14 DslTransformerFs2Grpc.tasty
+-rw-rw-r-- 1 serge serge  5929 Feb  2 03:14 DslTransformerGrpc$.class
+-rw-rw-r-- 1 serge serge  5836 Feb  2 03:14 DslTransformerGrpc$DslTransformer$.class
+-rw-rw-r-- 1 serge serge  1082 Feb  2 03:14 DslTransformerGrpc$DslTransformerBlockingClient.class
+-rw-rw-r-- 1 serge serge   996 Feb  2 03:14 DslTransformerGrpc$DslTransformerBlockingStub$.class
+-rw-rw-r-- 1 serge serge  2703 Feb  2 03:14 DslTransformerGrpc$DslTransformerBlockingStub.class
+-rw-rw-r-- 1 serge serge  1764 Feb  2 03:14 DslTransformerGrpc$DslTransformer.class
+-rw-rw-r-- 1 serge serge  2108 Feb  2 03:14 DslTransformerGrpc$DslTransformerStub$.class
+-rw-rw-r-- 1 serge serge  2851 Feb  2 03:14 DslTransformerGrpc$DslTransformerStub.class
+-rw-rw-r-- 1 serge serge  1987 Feb  2 03:14 DslTransformerGrpc.class
+-rw-rw-r-- 1 serge serge  7200 Feb  2 03:14 DslTransformerGrpc.tasty
+-rw-rw-r-- 1 serge serge 19289 Feb  2 03:14 SQuery$.class
+-rw-rw-r-- 1 serge serge  5566 Feb  2 03:14 SQuery$SQueryLens.class
+-rw-rw-r-- 1 serge serge 19219 Feb  2 03:14 SQuery.class
+-rw-rw-r-- 1 serge serge 16199 Feb  2 03:14 SQuery.tasty
+
+query-builder/target/scala-3.3.1/classes/ebusta/library:
+total 4
+drwxrwxr-x 4 serge serge 4096 Feb  2 03:14 v1
+
+query-builder/target/scala-3.3.1/classes/ebusta/library/v1:
+total 8
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 common
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 converter
+
+query-builder/target/scala-3.3.1/classes/ebusta/library/v1/common:
+total 304
+-rw-rw-r-- 1 serge serge  9618 Feb  2 03:14 CommonProto$.class
+-rw-rw-r-- 1 serge serge  1075 Feb  2 03:14 CommonProto.class
+-rw-rw-r-- 1 serge serge  3574 Feb  2 03:14 CommonProto.tasty
+-rw-rw-r-- 1 serge serge 15320 Feb  2 03:14 ConvertRequest$.class
+-rw-rw-r-- 1 serge serge  2777 Feb  2 03:14 ConvertRequest$ConvertRequestLens.class
+-rw-rw-r-- 1 serge serge 12625 Feb  2 03:14 ConvertRequest.class
+-rw-rw-r-- 1 serge serge  9011 Feb  2 03:14 ConvertRequest.tasty
+-rw-rw-r-- 1 serge serge 16724 Feb  2 03:14 FilterNode$.class
+-rw-rw-r-- 1 serge serge  4137 Feb  2 03:14 FilterNode$FilterNodeLens.class
+-rw-rw-r-- 1 serge serge 14846 Feb  2 03:14 FilterNode.class
+-rw-rw-r-- 1 serge serge 12459 Feb  2 03:14 FilterNode.tasty
+-rw-rw-r-- 1 serge serge 17237 Feb  2 03:14 LogicalNode$.class
+-rw-rw-r-- 1 serge serge  3806 Feb  2 03:14 LogicalNode$LogicalNodeLens.class
+-rw-rw-r-- 1 serge serge 17708 Feb  2 03:14 LogicalNode.class
+-rw-rw-r-- 1 serge serge 12561 Feb  2 03:14 LogicalNode.tasty
+-rw-rw-r-- 1 serge serge 21583 Feb  2 03:14 SearchQuery$.class
+-rw-rw-r-- 1 serge serge  1914 Feb  2 03:14 SearchQuery$Query$.class
+-rw-rw-r-- 1 serge serge  3964 Feb  2 03:14 SearchQuery$Query$Empty$.class
+-rw-rw-r-- 1 serge serge  2085 Feb  2 03:14 SearchQuery$Query$Filter$.class
+-rw-rw-r-- 1 serge serge  4733 Feb  2 03:14 SearchQuery$Query$Filter.class
+-rw-rw-r-- 1 serge serge  2099 Feb  2 03:14 SearchQuery$Query$Logical$.class
+-rw-rw-r-- 1 serge serge  4747 Feb  2 03:14 SearchQuery$Query$Logical.class
+-rw-rw-r-- 1 serge serge  1977 Feb  2 03:14 SearchQuery$Query.class
+-rw-rw-r-- 1 serge serge  6479 Feb  2 03:14 SearchQuery$SearchQueryLens.class
+-rw-rw-r-- 1 serge serge 20637 Feb  2 03:14 SearchQuery.class
+-rw-rw-r-- 1 serge serge 20806 Feb  2 03:14 SearchQuery.tasty
+
+query-builder/target/scala-3.3.1/classes/ebusta/library/v1/converter:
+total 108
+-rw-rw-r-- 1 serge serge  8677 Feb  2 03:14 ConverterProto$.class
+-rw-rw-r-- 1 serge serge  1096 Feb  2 03:14 ConverterProto.class
+-rw-rw-r-- 1 serge serge  2828 Feb  2 03:14 ConverterProto.tasty
+-rw-rw-r-- 1 serge serge  4639 Feb  2 03:14 MessageConverterFs2Grpc$$anon$1.class
+-rw-rw-r-- 1 serge serge 14498 Feb  2 03:14 MessageConverterFs2Grpc$.class
+-rw-rw-r-- 1 serge serge  5601 Feb  2 03:14 MessageConverterFs2Grpc.class
+-rw-rw-r-- 1 serge serge  3809 Feb  2 03:14 MessageConverterFs2Grpc.tasty
+-rw-rw-r-- 1 serge serge  6280 Feb  2 03:14 MessageConverterGrpc$.class
+-rw-rw-r-- 1 serge serge  6104 Feb  2 03:14 MessageConverterGrpc$MessageConverter$.class
+-rw-rw-r-- 1 serge serge  1219 Feb  2 03:14 MessageConverterGrpc$MessageConverterBlockingClient.class
+-rw-rw-r-- 1 serge serge  1040 Feb  2 03:14 MessageConverterGrpc$MessageConverterBlockingStub$.class
+-rw-rw-r-- 1 serge serge  2959 Feb  2 03:14 MessageConverterGrpc$MessageConverterBlockingStub.class
+-rw-rw-r-- 1 serge serge  1898 Feb  2 03:14 MessageConverterGrpc$MessageConverter.class
+-rw-rw-r-- 1 serge serge  2210 Feb  2 03:14 MessageConverterGrpc$MessageConverterStub$.class
+-rw-rw-r-- 1 serge serge  3076 Feb  2 03:14 MessageConverterGrpc$MessageConverterStub.class
+-rw-rw-r-- 1 serge serge  2200 Feb  2 03:14 MessageConverterGrpc.class
+-rw-rw-r-- 1 serge serge  7058 Feb  2 03:14 MessageConverterGrpc.tasty
+
+query-builder/target/scala-3.3.1/classes/ebusta/qb:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 v1
+
+query-builder/target/scala-3.3.1/classes/ebusta/qb/v1:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 query_builder
+
+query-builder/target/scala-3.3.1/classes/ebusta/qb/v1/query_builder:
+total 280
+-rw-rw-r-- 1 serge serge  5255 Feb  2 03:14 BuildRequest$BuildRequestLens.class
+-rw-rw-r-- 1 serge serge 18672 Feb  2 03:14 BuildRequest$.class
+-rw-rw-r-- 1 serge serge 17872 Feb  2 03:14 BuildRequest.class
+-rw-rw-r-- 1 serge serge 13910 Feb  2 03:14 BuildRequest.tasty
+-rw-rw-r-- 1 serge serge  5132 Feb  2 03:14 BuildResponse$BuildResponseLens.class
+-rw-rw-r-- 1 serge serge 18404 Feb  2 03:14 BuildResponse$.class
+-rw-rw-r-- 1 serge serge 17038 Feb  2 03:14 BuildResponse.class
+-rw-rw-r-- 1 serge serge 14961 Feb  2 03:14 BuildResponse.tasty
+-rw-rw-r-- 1 serge serge  4567 Feb  2 03:14 QueryBuilderFs2Grpc$$anon$1.class
+-rw-rw-r-- 1 serge serge 14380 Feb  2 03:14 QueryBuilderFs2Grpc$.class
+-rw-rw-r-- 1 serge serge  5535 Feb  2 03:14 QueryBuilderFs2Grpc.class
+-rw-rw-r-- 1 serge serge  3762 Feb  2 03:14 QueryBuilderFs2Grpc.tasty
+-rw-rw-r-- 1 serge serge  6110 Feb  2 03:14 QueryBuilderGrpc$.class
+-rw-rw-r-- 1 serge serge  5970 Feb  2 03:14 QueryBuilderGrpc$QueryBuilder$.class
+-rw-rw-r-- 1 serge serge  1141 Feb  2 03:14 QueryBuilderGrpc$QueryBuilderBlockingClient.class
+-rw-rw-r-- 1 serge serge  1009 Feb  2 03:14 QueryBuilderGrpc$QueryBuilderBlockingStub$.class
+-rw-rw-r-- 1 serge serge  2812 Feb  2 03:14 QueryBuilderGrpc$QueryBuilderBlockingStub.class
+-rw-rw-r-- 1 serge serge  1829 Feb  2 03:14 QueryBuilderGrpc$QueryBuilder.class
+-rw-rw-r-- 1 serge serge  2139 Feb  2 03:14 QueryBuilderGrpc$QueryBuilderStub$.class
+-rw-rw-r-- 1 serge serge  2947 Feb  2 03:14 QueryBuilderGrpc$QueryBuilderStub.class
+-rw-rw-r-- 1 serge serge  2065 Feb  2 03:14 QueryBuilderGrpc.class
+-rw-rw-r-- 1 serge serge  6838 Feb  2 03:14 QueryBuilderGrpc.tasty
+-rw-rw-r-- 1 serge serge  9470 Feb  2 03:14 QueryBuilderProto$.class
+-rw-rw-r-- 1 serge serge  1105 Feb  2 03:14 QueryBuilderProto.class
+-rw-rw-r-- 1 serge serge  3555 Feb  2 03:14 QueryBuilderProto.tasty
+-rw-rw-r-- 1 serge serge  5528 Feb  2 03:14 QueryType$.class
+-rw-rw-r-- 1 serge serge  2585 Feb  2 03:14 QueryType$DSL$.class
+-rw-rw-r-- 1 serge serge   238 Feb  2 03:14 QueryType$Recognized.class
+-rw-rw-r-- 1 serge serge  2610 Feb  2 03:14 QueryType$TEMPLATE$.class
+-rw-rw-r-- 1 serge serge  1971 Feb  2 03:14 QueryType$Unrecognized$.class
+-rw-rw-r-- 1 serge serge  3467 Feb  2 03:14 QueryType$Unrecognized.class
+-rw-rw-r-- 1 serge serge  4610 Feb  2 03:14 QueryType.class
+-rw-rw-r-- 1 serge serge  5649 Feb  2 03:14 QueryType.tasty
+
+query-builder/target/scala-3.3.1/classes/ebusta/querybuilder:
+total 100
+-rw-rw-r-- 1 serge serge 14808 Feb  2 03:14 Main$.class
+-rw-rw-r-- 1 serge serge   807 Feb  2 03:14 Main.class
+-rw-rw-r-- 1 serge serge  5616 Feb  2 03:14 Main.tasty
+-rw-rw-r-- 1 serge serge 10300 Feb  2 03:14 OsDslBuilder$.class
+-rw-rw-r-- 1 serge serge   376 Feb  2 03:14 OsDslBuilder.class
+-rw-rw-r-- 1 serge serge  9898 Feb  2 03:14 OsDslBuilder.tasty
+-rw-rw-r-- 1 serge serge  6620 Feb  2 03:14 OsStrategy$.class
+-rw-rw-r-- 1 serge serge   507 Feb  2 03:14 OsStrategy.class
+-rw-rw-r-- 1 serge serge  4920 Feb  2 03:14 OsStrategy.tasty
+-rw-rw-r-- 1 serge serge  6731 Feb  2 03:14 QueryBuilderImpl.class
+-rw-rw-r-- 1 serge serge  3760 Feb  2 03:14 QueryBuilderImpl.tasty
+-rw-rw-r-- 1 serge serge   756 Feb  2 03:14 SimpleLogger$.class
+-rw-rw-r-- 1 serge serge  3949 Feb  2 03:14 SimpleLogger.class
+-rw-rw-r-- 1 serge serge  2885 Feb  2 03:14 SimpleLogger.tasty
+
+query-builder/target/scala-3.3.1/classes/libraryv1:
+total 16
+drwxrwxr-x 2 serge serge  4096 Feb  2 03:14 auth
+drwxrwxr-x 2 serge serge 12288 Feb  2 03:14 library
+
+query-builder/target/scala-3.3.1/classes/libraryv1/auth:
+total 216
+-rw-rw-r-- 1 serge serge  3589 Feb  2 03:14 AccessRequest$AccessRequestLens.class
+-rw-rw-r-- 1 serge serge 16529 Feb  2 03:14 AccessRequest$.class
+-rw-rw-r-- 1 serge serge 14464 Feb  2 03:14 AccessRequest.class
+-rw-rw-r-- 1 serge serge 12231 Feb  2 03:14 AccessRequest.tasty
+-rw-rw-r-- 1 serge serge  4085 Feb  2 03:14 AccessResponse$AccessResponseLens.class
+-rw-rw-r-- 1 serge serge 16633 Feb  2 03:14 AccessResponse$.class
+-rw-rw-r-- 1 serge serge 14808 Feb  2 03:14 AccessResponse.class
+-rw-rw-r-- 1 serge serge 12572 Feb  2 03:14 AccessResponse.tasty
+-rw-rw-r-- 1 serge serge  9043 Feb  2 03:14 AuthProto$.class
+-rw-rw-r-- 1 serge serge  1037 Feb  2 03:14 AuthProto.class
+-rw-rw-r-- 1 serge serge  3125 Feb  2 03:14 AuthProto.tasty
+-rw-rw-r-- 1 serge serge  4369 Feb  2 03:14 AuthServiceFs2Grpc$$anon$1.class
+-rw-rw-r-- 1 serge serge 14069 Feb  2 03:14 AuthServiceFs2Grpc$.class
+-rw-rw-r-- 1 serge serge  5362 Feb  2 03:14 AuthServiceFs2Grpc.class
+-rw-rw-r-- 1 serge serge  3647 Feb  2 03:14 AuthServiceFs2Grpc.tasty
+-rw-rw-r-- 1 serge serge  5711 Feb  2 03:14 AuthServiceGrpc$AuthService$.class
+-rw-rw-r-- 1 serge serge  1011 Feb  2 03:14 AuthServiceGrpc$AuthServiceBlockingClient.class
+-rw-rw-r-- 1 serge serge   966 Feb  2 03:14 AuthServiceGrpc$AuthServiceBlockingStub$.class
+-rw-rw-r-- 1 serge serge  2577 Feb  2 03:14 AuthServiceGrpc$AuthServiceBlockingStub.class
+-rw-rw-r-- 1 serge serge  1702 Feb  2 03:14 AuthServiceGrpc$AuthService.class
+-rw-rw-r-- 1 serge serge  2039 Feb  2 03:14 AuthServiceGrpc$AuthServiceStub$.class
+-rw-rw-r-- 1 serge serge  2741 Feb  2 03:14 AuthServiceGrpc$AuthServiceStub.class
+-rw-rw-r-- 1 serge serge  5770 Feb  2 03:14 AuthServiceGrpc$.class
+-rw-rw-r-- 1 serge serge  1863 Feb  2 03:14 AuthServiceGrpc.class
+-rw-rw-r-- 1 serge serge  6895 Feb  2 03:14 AuthServiceGrpc.tasty
+
+query-builder/target/scala-3.3.1/classes/libraryv1/library:
+total 1072
+-rw-rw-r-- 1 serge serge  4739 Feb  2 03:14 Book$BookLens.class
+-rw-rw-r-- 1 serge serge 18808 Feb  2 03:14 Book$.class
+-rw-rw-r-- 1 serge serge 20147 Feb  2 03:14 Book.class
+-rw-rw-r-- 1 serge serge 16831 Feb  2 03:14 Book.tasty
+-rw-rw-r-- 1 serge serge 12287 Feb  2 03:14 LibraryProto$.class
+-rw-rw-r-- 1 serge serge  1058 Feb  2 03:14 LibraryProto.class
+-rw-rw-r-- 1 serge serge  5943 Feb  2 03:14 LibraryProto.tasty
+-rw-rw-r-- 1 serge serge  5444 Feb  2 03:14 LibraryServiceFs2Grpc$$anon$1.class
+-rw-rw-r-- 1 serge serge 15693 Feb  2 03:14 LibraryServiceFs2Grpc$.class
+-rw-rw-r-- 1 serge serge  5601 Feb  2 03:14 LibraryServiceFs2Grpc.class
+-rw-rw-r-- 1 serge serge  4706 Feb  2 03:14 LibraryServiceFs2Grpc.tasty
+-rw-rw-r-- 1 serge serge  6525 Feb  2 03:14 LibraryServiceGrpc$.class
+-rw-rw-r-- 1 serge serge  6689 Feb  2 03:14 LibraryServiceGrpc$LibraryService$.class
+-rw-rw-r-- 1 serge serge  1195 Feb  2 03:14 LibraryServiceGrpc$LibraryServiceBlockingClient.class
+-rw-rw-r-- 1 serge serge   996 Feb  2 03:14 LibraryServiceGrpc$LibraryServiceBlockingStub$.class
+-rw-rw-r-- 1 serge serge  3014 Feb  2 03:14 LibraryServiceGrpc$LibraryServiceBlockingStub.class
+-rw-rw-r-- 1 serge serge  1976 Feb  2 03:14 LibraryServiceGrpc$LibraryService.class
+-rw-rw-r-- 1 serge serge  2108 Feb  2 03:14 LibraryServiceGrpc$LibraryServiceStub$.class
+-rw-rw-r-- 1 serge serge  3214 Feb  2 03:14 LibraryServiceGrpc$LibraryServiceStub.class
+-rw-rw-r-- 1 serge serge  2169 Feb  2 03:14 LibraryServiceGrpc.class
+-rw-rw-r-- 1 serge serge  8237 Feb  2 03:14 LibraryServiceGrpc.tasty
+-rw-rw-r-- 1 serge serge 15073 Feb  2 03:14 ListRequest$.class
+-rw-rw-r-- 1 serge serge  2630 Feb  2 03:14 ListRequest$ListRequestLens.class
+-rw-rw-r-- 1 serge serge 12347 Feb  2 03:14 ListRequest.class
+-rw-rw-r-- 1 serge serge  8816 Feb  2 03:14 ListRequest.tasty
+-rw-rw-r-- 1 serge serge 15888 Feb  2 03:14 ListResponse$.class
+-rw-rw-r-- 1 serge serge  2752 Feb  2 03:14 ListResponse$ListResponseLens.class
+-rw-rw-r-- 1 serge serge 15826 Feb  2 03:14 ListResponse.class
+-rw-rw-r-- 1 serge serge  9973 Feb  2 03:14 ListResponse.tasty
+-rw-rw-r-- 1 serge serge  4532 Feb  2 03:14 MessageConverterServiceFs2Grpc$$anon$1.class
+-rw-rw-r-- 1 serge serge 14354 Feb  2 03:14 MessageConverterServiceFs2Grpc$.class
+-rw-rw-r-- 1 serge serge  5546 Feb  2 03:14 MessageConverterServiceFs2Grpc.class
+-rw-rw-r-- 1 serge serge  3681 Feb  2 03:14 MessageConverterServiceFs2Grpc.tasty
+-rw-rw-r-- 1 serge serge  6319 Feb  2 03:14 MessageConverterServiceGrpc$.class
+-rw-rw-r-- 1 serge serge  6084 Feb  2 03:14 MessageConverterServiceGrpc$MessageConverterService$.class
+-rw-rw-r-- 1 serge serge  1252 Feb  2 03:14 MessageConverterServiceGrpc$MessageConverterServiceBlockingClient.class
+-rw-rw-r-- 1 serge serge  1059 Feb  2 03:14 MessageConverterServiceGrpc$MessageConverterServiceBlockingStub$.class
+-rw-rw-r-- 1 serge serge  3007 Feb  2 03:14 MessageConverterServiceGrpc$MessageConverterServiceBlockingStub.class
+-rw-rw-r-- 1 serge serge  1914 Feb  2 03:14 MessageConverterServiceGrpc$MessageConverterService.class
+-rw-rw-r-- 1 serge serge  2252 Feb  2 03:14 MessageConverterServiceGrpc$MessageConverterServiceStub$.class
+-rw-rw-r-- 1 serge serge  3096 Feb  2 03:14 MessageConverterServiceGrpc$MessageConverterServiceStub.class
+-rw-rw-r-- 1 serge serge  2274 Feb  2 03:14 MessageConverterServiceGrpc.class
+-rw-rw-r-- 1 serge serge  6672 Feb  2 03:14 MessageConverterServiceGrpc.tasty
+-rw-rw-r-- 1 serge serge 18025 Feb  2 03:14 MessageMeta$.class
+-rw-rw-r-- 1 serge serge  4567 Feb  2 03:14 MessageMeta$MessageMetaLens.class
+-rw-rw-r-- 1 serge serge 16544 Feb  2 03:14 MessageMeta.class
+-rw-rw-r-- 1 serge serge 15251 Feb  2 03:14 MessageMeta.tasty
+-rw-rw-r-- 1 serge serge  4506 Feb  2 03:14 OrchestratorServiceFs2Grpc$$anon$1.class
+-rw-rw-r-- 1 serge serge 14302 Feb  2 03:14 OrchestratorServiceFs2Grpc$.class
+-rw-rw-r-- 1 serge serge  5503 Feb  2 03:14 OrchestratorServiceFs2Grpc.class
+-rw-rw-r-- 1 serge serge  3667 Feb  2 03:14 OrchestratorServiceFs2Grpc.tasty
+-rw-rw-r-- 1 serge serge  6160 Feb  2 03:14 OrchestratorServiceGrpc$.class
+-rw-rw-r-- 1 serge serge  5990 Feb  2 03:14 OrchestratorServiceGrpc$OrchestratorService$.class
+-rw-rw-r-- 1 serge serge  1180 Feb  2 03:14 OrchestratorServiceGrpc$OrchestratorServiceBlockingClient.class
+-rw-rw-r-- 1 serge serge  1031 Feb  2 03:14 OrchestratorServiceGrpc$OrchestratorServiceBlockingStub$.class
+-rw-rw-r-- 1 serge serge  2879 Feb  2 03:14 OrchestratorServiceGrpc$OrchestratorServiceBlockingStub.class
+-rw-rw-r-- 1 serge serge  1855 Feb  2 03:14 OrchestratorServiceGrpc$OrchestratorService.class
+-rw-rw-r-- 1 serge serge  2188 Feb  2 03:14 OrchestratorServiceGrpc$OrchestratorServiceStub$.class
+-rw-rw-r-- 1 serge serge  2997 Feb  2 03:14 OrchestratorServiceGrpc$OrchestratorServiceStub.class
+-rw-rw-r-- 1 serge serge  2150 Feb  2 03:14 OrchestratorServiceGrpc.class
+-rw-rw-r-- 1 serge serge  6637 Feb  2 03:14 OrchestratorServiceGrpc.tasty
+-rw-rw-r-- 1 serge serge  4471 Feb  2 03:14 ProcessorServiceFs2Grpc$$anon$1.class
+-rw-rw-r-- 1 serge serge 14242 Feb  2 03:14 ProcessorServiceFs2Grpc$.class
+-rw-rw-r-- 1 serge serge  5465 Feb  2 03:14 ProcessorServiceFs2Grpc.class
+-rw-rw-r-- 1 serge serge  3660 Feb  2 03:14 ProcessorServiceFs2Grpc.tasty
+-rw-rw-r-- 1 serge serge  6042 Feb  2 03:14 ProcessorServiceGrpc$.class
+-rw-rw-r-- 1 serge serge  5908 Feb  2 03:14 ProcessorServiceGrpc$ProcessorService$.class
+-rw-rw-r-- 1 serge serge  1127 Feb  2 03:14 ProcessorServiceGrpc$ProcessorServiceBlockingClient.class
+-rw-rw-r-- 1 serge serge  1010 Feb  2 03:14 ProcessorServiceGrpc$ProcessorServiceBlockingStub$.class
+-rw-rw-r-- 1 serge serge  2785 Feb  2 03:14 ProcessorServiceGrpc$ProcessorServiceBlockingStub.class
+-rw-rw-r-- 1 serge serge  1808 Feb  2 03:14 ProcessorServiceGrpc$ProcessorService.class
+-rw-rw-r-- 1 serge serge  2140 Feb  2 03:14 ProcessorServiceGrpc$ProcessorServiceStub$.class
+-rw-rw-r-- 1 serge serge  2918 Feb  2 03:14 ProcessorServiceGrpc$ProcessorServiceStub.class
+-rw-rw-r-- 1 serge serge  2058 Feb  2 03:14 ProcessorServiceGrpc.class
+-rw-rw-r-- 1 serge serge  6617 Feb  2 03:14 ProcessorServiceGrpc.tasty
+-rw-rw-r-- 1 serge serge 15741 Feb  2 03:14 RawInput$.class
+-rw-rw-r-- 1 serge serge  3059 Feb  2 03:14 RawInput$RawInputLens.class
+-rw-rw-r-- 1 serge serge 13304 Feb  2 03:14 RawInput.class
+-rw-rw-r-- 1 serge serge 10358 Feb  2 03:14 RawInput.tasty
+-rw-rw-r-- 1 serge serge 19311 Feb  2 03:14 Response$.class
+-rw-rw-r-- 1 serge serge  4977 Feb  2 03:14 Response$ResponseLens.class
+-rw-rw-r-- 1 serge serge 20616 Feb  2 03:14 Response.class
+-rw-rw-r-- 1 serge serge 15875 Feb  2 03:14 ResponseMeta$.class
+-rw-rw-r-- 1 serge serge  3158 Feb  2 03:14 ResponseMeta$ResponseMetaLens.class
+-rw-rw-r-- 1 serge serge 13460 Feb  2 03:14 ResponseMeta.class
+-rw-rw-r-- 1 serge serge 10417 Feb  2 03:14 ResponseMeta.tasty
+-rw-rw-r-- 1 serge serge 15394 Feb  2 03:14 Response.tasty
+-rw-rw-r-- 1 serge serge 22508 Feb  2 03:14 SearchRequest$.class
+-rw-rw-r-- 1 serge serge  7945 Feb  2 03:14 SearchRequest$SearchRequestLens.class
+-rw-rw-r-- 1 serge serge 23629 Feb  2 03:14 SearchRequest.class
+-rw-rw-r-- 1 serge serge 23580 Feb  2 03:14 SearchRequest.tasty
+-rw-rw-r-- 1 serge serge 18009 Feb  2 03:14 SearchResponse$.class
+-rw-rw-r-- 1 serge serge  4475 Feb  2 03:14 SearchResponse$SearchResponseLens.class
+-rw-rw-r-- 1 serge serge 18935 Feb  2 03:14 SearchResponse.class
+-rw-rw-r-- 1 serge serge 14138 Feb  2 03:14 SearchResponse.tasty
+-rw-rw-r-- 1 serge serge  4462 Feb  2 03:14 StorageServiceFs2Grpc$$anon$1.class
+-rw-rw-r-- 1 serge serge 14213 Feb  2 03:14 StorageServiceFs2Grpc$.class
+-rw-rw-r-- 1 serge serge  5443 Feb  2 03:14 StorageServiceFs2Grpc.class
+-rw-rw-r-- 1 serge serge  3663 Feb  2 03:14 StorageServiceFs2Grpc.tasty
+-rw-rw-r-- 1 serge serge  5971 Feb  2 03:14 StorageServiceGrpc$.class
+-rw-rw-r-- 1 serge serge  5861 Feb  2 03:14 StorageServiceGrpc$StorageService$.class
+-rw-rw-r-- 1 serge serge  1095 Feb  2 03:14 StorageServiceGrpc$StorageServiceBlockingClient.class
+-rw-rw-r-- 1 serge serge   996 Feb  2 03:14 StorageServiceGrpc$StorageServiceBlockingStub$.class
+-rw-rw-r-- 1 serge serge  2730 Feb  2 03:14 StorageServiceGrpc$StorageServiceBlockingStub.class
+-rw-rw-r-- 1 serge serge  1780 Feb  2 03:14 StorageServiceGrpc$StorageService.class
+-rw-rw-r-- 1 serge serge  2108 Feb  2 03:14 StorageServiceGrpc$StorageServiceStub$.class
+-rw-rw-r-- 1 serge serge  2873 Feb  2 03:14 StorageServiceGrpc$StorageServiceStub.class
+-rw-rw-r-- 1 serge serge  2001 Feb  2 03:14 StorageServiceGrpc.class
+-rw-rw-r-- 1 serge serge  6615 Feb  2 03:14 StorageServiceGrpc.tasty
+-rw-rw-r-- 1 serge serge 18646 Feb  2 03:14 UnmarshaledMessage$.class
+-rw-rw-r-- 1 serge serge  5026 Feb  2 03:14 UnmarshaledMessage$UnmarshaledMessageLens.class
+-rw-rw-r-- 1 serge serge 18238 Feb  2 03:14 UnmarshaledMessage.class
+-rw-rw-r-- 1 serge serge 13238 Feb  2 03:14 UnmarshaledMessage.tasty
+
+query-builder/target/scala-3.3.1/src_managed:
+total 4
+drwxrwxr-x 4 serge serge 4096 Feb  2 03:14 main
+
+query-builder/target/scala-3.3.1/src_managed/main:
+total 8
+drwxrwxr-x 4 serge serge 4096 Feb  2 03:14 fs2-grpc
+drwxrwxr-x 4 serge serge 4096 Feb  2 03:14 scalapb
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc:
+total 8
+drwxrwxr-x 5 serge serge 4096 Feb  2 03:14 ebusta
+drwxrwxr-x 4 serge serge 4096 Feb  2 03:14 libraryv1
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc/ebusta:
+total 12
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 dsl
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 library
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 qb
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc/ebusta/dsl:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 v1
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc/ebusta/dsl/v1:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 dsl
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc/ebusta/dsl/v1/dsl:
+total 4
+-rw-rw-r-- 1 serge serge 1622 Feb  2 03:14 DslTransformerFs2Grpc.scala
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc/ebusta/library:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 v1
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc/ebusta/library/v1:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 converter
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc/ebusta/library/v1/converter:
+total 4
+-rw-rw-r-- 1 serge serge 1739 Feb  2 03:14 MessageConverterFs2Grpc.scala
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc/ebusta/qb:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 v1
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc/ebusta/qb/v1:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 query_builder
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc/ebusta/qb/v1/query_builder:
+total 4
+-rw-rw-r-- 1 serge serge 1701 Feb  2 03:14 QueryBuilderFs2Grpc.scala
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc/libraryv1:
+total 8
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 auth
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 library
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc/libraryv1/auth:
+total 4
+-rw-rw-r-- 1 serge serge 1610 Feb  2 03:14 AuthServiceFs2Grpc.scala
+
+query-builder/target/scala-3.3.1/src_managed/main/fs2-grpc/libraryv1/library:
+total 20
+-rw-rw-r-- 1 serge serge 2392 Feb  2 03:14 LibraryServiceFs2Grpc.scala
+-rw-rw-r-- 1 serge serge 1723 Feb  2 03:14 MessageConverterServiceFs2Grpc.scala
+-rw-rw-r-- 1 serge serge 1685 Feb  2 03:14 OrchestratorServiceFs2Grpc.scala
+-rw-rw-r-- 1 serge serge 1663 Feb  2 03:14 ProcessorServiceFs2Grpc.scala
+-rw-rw-r-- 1 serge serge 1667 Feb  2 03:14 StorageServiceFs2Grpc.scala
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb:
+total 8
+drwxrwxr-x 5 serge serge 4096 Feb  2 03:14 ebusta
+drwxrwxr-x 4 serge serge 4096 Feb  2 03:14 libraryv1
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/ebusta:
+total 12
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 dsl
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 library
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 qb
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/ebusta/dsl:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 v1
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/ebusta/dsl/v1:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 dsl
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/ebusta/dsl/v1/dsl:
+total 32
+-rw-rw-r-- 1 serge serge 2122 Feb  2 03:14 DslProto.scala
+-rw-rw-r-- 1 serge serge 5528 Feb  2 03:14 DslRequest.scala
+-rw-rw-r-- 1 serge serge 5343 Feb  2 03:14 DslTransformerGrpc.scala
+-rw-rw-r-- 1 serge serge 9488 Feb  2 03:14 SQuery.scala
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/ebusta/library:
+total 4
+drwxrwxr-x 4 serge serge 4096 Feb  2 03:14 v1
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/ebusta/library/v1:
+total 8
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 common
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 converter
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/ebusta/library/v1/common:
+total 44
+-rw-rw-r-- 1 serge serge  2469 Feb  2 03:14 CommonProto.scala
+-rw-rw-r-- 1 serge serge  5638 Feb  2 03:14 ConvertRequest.scala
+-rw-rw-r-- 1 serge serge  7653 Feb  2 03:14 FilterNode.scala
+-rw-rw-r-- 1 serge serge  7358 Feb  2 03:14 LogicalNode.scala
+-rw-rw-r-- 1 serge serge 12659 Feb  2 03:14 SearchQuery.scala
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/ebusta/library/v1/converter:
+total 12
+-rw-rw-r-- 1 serge serge 1689 Feb  2 03:14 ConverterProto.scala
+-rw-rw-r-- 1 serge serge 5398 Feb  2 03:14 MessageConverterGrpc.scala
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/ebusta/qb:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 v1
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/ebusta/qb/v1:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 query_builder
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/ebusta/qb/v1/query_builder:
+total 40
+-rw-rw-r-- 1 serge serge 8382 Feb  2 03:14 BuildRequest.scala
+-rw-rw-r-- 1 serge serge 9643 Feb  2 03:14 BuildResponse.scala
+-rw-rw-r-- 1 serge serge 5141 Feb  2 03:14 QueryBuilderGrpc.scala
+-rw-rw-r-- 1 serge serge 2413 Feb  2 03:14 QueryBuilderProto.scala
+-rw-rw-r-- 1 serge serge 2074 Feb  2 03:14 QueryType.scala
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/libraryv1:
+total 8
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 auth
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 library
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/libraryv1/auth:
+total 28
+-rw-rw-r-- 1 serge serge 7937 Feb  2 03:14 AccessRequest.scala
+-rw-rw-r-- 1 serge serge 7887 Feb  2 03:14 AccessResponse.scala
+-rw-rw-r-- 1 serge serge 2059 Feb  2 03:14 AuthProto.scala
+-rw-rw-r-- 1 serge serge 5204 Feb  2 03:14 AuthServiceGrpc.scala
+
+query-builder/target/scala-3.3.1/src_managed/main/scalapb/libraryv1/library:
+total 156
+-rw-rw-r-- 1 serge serge 10211 Feb  2 03:14 Book.scala
+-rw-rw-r-- 1 serge serge  4846 Feb  2 03:14 LibraryProto.scala
+-rw-rw-r-- 1 serge serge  7005 Feb  2 03:14 LibraryServiceGrpc.scala
+-rw-rw-r-- 1 serge serge  5408 Feb  2 03:14 ListRequest.scala
+-rw-rw-r-- 1 serge serge  5911 Feb  2 03:14 ListResponse.scala
+-rw-rw-r-- 1 serge serge  5311 Feb  2 03:14 MessageConverterServiceGrpc.scala
+-rw-rw-r-- 1 serge serge 10092 Feb  2 03:14 MessageMeta.scala
+-rw-rw-r-- 1 serge serge  5179 Feb  2 03:14 OrchestratorServiceGrpc.scala
+-rw-rw-r-- 1 serge serge  5094 Feb  2 03:14 ProcessorServiceGrpc.scala
+-rw-rw-r-- 1 serge serge  6459 Feb  2 03:14 RawInput.scala
+-rw-rw-r-- 1 serge serge  6715 Feb  2 03:14 ResponseMeta.scala
+-rw-rw-r-- 1 serge serge  8974 Feb  2 03:14 Response.scala
+-rw-rw-r-- 1 serge serge 14554 Feb  2 03:14 SearchRequest.scala
+-rw-rw-r-- 1 serge serge  8335 Feb  2 03:14 SearchResponse.scala
+-rw-rw-r-- 1 serge serge  5079 Feb  2 03:14 StorageServiceGrpc.scala
+-rw-rw-r-- 1 serge serge  8243 Feb  2 03:14 UnmarshaledMessage.scala
+
+query-builder/target/scala-3.3.1/sync:
+total 8
+-rw-rw-r-- 1 serge serge 6030 Feb  2 03:14 copy-resource
+
+query-builder/target/scala-3.3.1/update:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 update_cache_3
+
+query-builder/target/scala-3.3.1/update/update_cache_3:
+total 332
+-rw-rw-r-- 1 serge serge      9 Feb  2 03:14 inputs
+-rw-rw-r-- 1 serge serge 334801 Feb  2 03:14 output
+
+query-builder/target/scala-3.3.1/zinc:
+total 92
+-rw-rw-r-- 1 serge serge 91041 Feb  2 03:14 inc_compile_3.zip
+
+query-builder/target/streams:
+total 12
+drwxrwxr-x 18 serge serge 4096 Feb  2 03:14 compile
+drwxrwxr-x 13 serge serge 4096 Feb  2 03:14 _global
+drwxrwxr-x 10 serge serge 4096 Feb  2 03:14 runtime
+
+query-builder/target/streams/compile:
+total 64
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 bspReporter
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 compile
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 compileIncremental
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 copyResources
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 dependencyClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 exportedProducts
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 externalDependencyClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 incOptions
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 internalDependencyClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 managedClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 protocGenerate
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 protocRunProtoc
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 scalacOptions
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 unmanagedClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 unmanagedJars
+
+query-builder/target/streams/compile/bspReporter:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/bspReporter/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/bspReporter/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/compile/compile:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/compile/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/compile/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/compile/compileIncremental:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/compileIncremental/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/compileIncremental/_global/streams:
+total 16
+-rw-rw-r-- 1 serge serge     0 Feb  2 03:14 export
+-rw-rw-r-- 1 serge serge 15642 Feb  2 03:14 out
+
+query-builder/target/streams/compile/copyResources:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/copyResources/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/copyResources/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 3411 Feb  2 03:14 out
+
+query-builder/target/streams/compile/dependencyClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/dependencyClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/dependencyClasspath/_global/streams:
+total 8
+-rw-rw-r-- 1 serge serge 5183 Feb  2 03:14 export
+
+query-builder/target/streams/compile/exportedProducts:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/exportedProducts/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/exportedProducts/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 69 Feb  2 03:14 export
+
+query-builder/target/streams/compile/externalDependencyClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/externalDependencyClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/externalDependencyClasspath/_global/streams:
+total 8
+-rw-rw-r-- 1 serge serge 5183 Feb  2 03:14 export
+
+query-builder/target/streams/compile/_global:
+total 4
+drwxrwxr-x 4 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/_global/_global:
+total 8
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 compileOutputs
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 discoveredMainClasses
+
+query-builder/target/streams/compile/_global/_global/compileOutputs:
+total 28
+-rw-rw-r-- 1 serge serge 25406 Feb  2 03:14 previous
+
+query-builder/target/streams/compile/_global/_global/discoveredMainClasses:
+total 4
+-rw-rw-r-- 1 serge serge 28 Feb  2 03:14 data
+
+query-builder/target/streams/compile/incOptions:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/incOptions/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/incOptions/_global/streams:
+total 32
+-rw-rw-r-- 1 serge serge 29256 Feb  2 03:14 out
+
+query-builder/target/streams/compile/internalDependencyClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/internalDependencyClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/internalDependencyClasspath/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 1 Feb  2 03:14 export
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/compile/managedClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/managedClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/managedClasspath/_global/streams:
+total 8
+-rw-rw-r-- 1 serge serge 5183 Feb  2 03:14 export
+
+query-builder/target/streams/compile/protocGenerate:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/protocGenerate/_global:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/protocGenerate/_global/streams:
+total 8
+-rw-rw-r-- 1 serge serge 1111 Feb  2 03:14 out
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 protobuf_3
+
+query-builder/target/streams/compile/protocGenerate/_global/streams/protobuf_3:
+total 16
+-rw-rw-r-- 1 serge serge    10 Feb  2 03:14 input
+-rw-rw-r-- 1 serge serge 11129 Feb  2 03:14 output
+
+query-builder/target/streams/compile/protocRunProtoc:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/protocRunProtoc/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/protocRunProtoc/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 1044 Feb  2 03:14 out
+
+query-builder/target/streams/compile/scalacOptions:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/scalacOptions/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/scalacOptions/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/compile/unmanagedClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/unmanagedClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/unmanagedClasspath/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 1 Feb  2 03:14 export
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/compile/unmanagedJars:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/compile/unmanagedJars/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/compile/unmanagedJars/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 1 Feb  2 03:14 export
+
+query-builder/target/streams/_global:
+total 44
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 assembly
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 csrConfiguration
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 csrProject
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 dependencyPositions
+drwxrwxr-x 6 serge serge 4096 Feb  2 03:14 _global
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 ivyConfiguration
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 ivySbt
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 moduleSettings
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 projectDescriptors
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 scalaCompilerBridgeScope
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 update
+
+query-builder/target/streams/_global/assembly:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/_global/assembly/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/assembly/_global/streams:
+total 32
+-rw-rw-r-- 1 serge serge     9 Feb  2 03:14 assembly-cacheKey-3.3.1
+-rw-rw-r-- 1 serge serge    89 Feb  2 03:14 assembly-outputs-3.3.1
+-rw-rw-r-- 1 serge serge 23791 Feb  2 03:14 out
+
+query-builder/target/streams/_global/csrConfiguration:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/_global/csrConfiguration/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/csrConfiguration/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/_global/csrProject:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/_global/csrProject/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/csrProject/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/_global/dependencyPositions:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/_global/dependencyPositions/_global:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/dependencyPositions/_global/streams:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 update_cache_3
+
+query-builder/target/streams/_global/dependencyPositions/_global/streams/update_cache_3:
+total 12
+-rw-rw-r-- 1 serge serge   10 Feb  2 03:14 input_dsp
+-rw-rw-r-- 1 serge serge 6109 Feb  2 03:14 output_dsp
+
+query-builder/target/streams/_global/_global:
+total 16
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 artifactResolver
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 dependencyResolution
+drwxrwxr-x 4 serge serge 4096 Feb  2 03:14 _global
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 protocCache
+
+query-builder/target/streams/_global/_global/artifactResolver:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/_global/_global/artifactResolver/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/_global/artifactResolver/_global/streams:
+total 8
+-rw-rw-r-- 1 serge serge 6477 Feb  2 03:14 out
+
+query-builder/target/streams/_global/_global/dependencyResolution:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/_global/_global/dependencyResolution/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/_global/dependencyResolution/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/_global/_global/_global:
+total 8
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 protocUnpackDependencies
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/_global/_global/protocUnpackDependencies:
+total 4
+-rw-rw-r-- 1 serge serge 62 Feb  2 03:14 previous
+
+query-builder/target/streams/_global/_global/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/_global/_global/protocCache:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/_global/_global/protocCache/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/_global/protocCache/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/_global/ivyConfiguration:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/_global/ivyConfiguration/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/ivyConfiguration/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/_global/ivySbt:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/_global/ivySbt/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/ivySbt/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/_global/moduleSettings:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/_global/moduleSettings/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/moduleSettings/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/_global/projectDescriptors:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/_global/projectDescriptors/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/projectDescriptors/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/_global/scalaCompilerBridgeScope:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/_global/scalaCompilerBridgeScope/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/scalaCompilerBridgeScope/_global/streams:
+total 0
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/_global/update:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/_global/update/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/_global/update/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 184 Feb  2 03:14 out
+
+query-builder/target/streams/runtime:
+total 32
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 dependencyClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 exportedProducts
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 externalDependencyClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 fullClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 internalDependencyClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 managedClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 unmanagedClasspath
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 unmanagedJars
+
+query-builder/target/streams/runtime/dependencyClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/runtime/dependencyClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/runtime/dependencyClasspath/_global/streams:
+total 8
+-rw-rw-r-- 1 serge serge 5252 Feb  2 03:14 export
+
+query-builder/target/streams/runtime/exportedProducts:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/runtime/exportedProducts/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/runtime/exportedProducts/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 69 Feb  2 03:14 export
+
+query-builder/target/streams/runtime/externalDependencyClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/runtime/externalDependencyClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/runtime/externalDependencyClasspath/_global/streams:
+total 8
+-rw-rw-r-- 1 serge serge 5183 Feb  2 03:14 export
+
+query-builder/target/streams/runtime/fullClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/runtime/fullClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/runtime/fullClasspath/_global/streams:
+total 8
+-rw-rw-r-- 1 serge serge 5252 Feb  2 03:14 export
+
+query-builder/target/streams/runtime/internalDependencyClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/runtime/internalDependencyClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/runtime/internalDependencyClasspath/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 69 Feb  2 03:14 export
+-rw-rw-r-- 1 serge serge  0 Feb  2 03:14 out
+
+query-builder/target/streams/runtime/managedClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/runtime/managedClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/runtime/managedClasspath/_global/streams:
+total 8
+-rw-rw-r-- 1 serge serge 5183 Feb  2 03:14 export
+
+query-builder/target/streams/runtime/unmanagedClasspath:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/runtime/unmanagedClasspath/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/runtime/unmanagedClasspath/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 1 Feb  2 03:14 export
+-rw-rw-r-- 1 serge serge 0 Feb  2 03:14 out
+
+query-builder/target/streams/runtime/unmanagedJars:
+total 4
+drwxrwxr-x 3 serge serge 4096 Feb  2 03:14 _global
+
+query-builder/target/streams/runtime/unmanagedJars/_global:
+total 4
+drwxrwxr-x 2 serge serge 4096 Feb  2 03:14 streams
+
+query-builder/target/streams/runtime/unmanagedJars/_global/streams:
+total 4
+-rw-rw-r-- 1 serge serge 1 Feb  2 03:14 export
+
+query-builder/target/task-temp-directory:
+total 0

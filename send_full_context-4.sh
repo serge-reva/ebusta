@@ -25,11 +25,15 @@ find . -type f \
      -o -name "*.asd" \
      -o -name "*.sexp" \) \
   -not -path "./bin/*" \
+  -not -path "./old*" \
+  -not -path "./lisp*" \
   -not -path "./grpc/*" \
   -not -path "*/data/*" \
   -not -path "./.git/*" \
   -not -path "*/uploader.log" \
   -not -name "*.log" \
+  -not -name "*.md" \
+  -not -name "*bak*" \
   -not -name "*_context_*.txt" \
   -print0 | sort -z | tr '\0' '\n' > "$FILELIST"
 
