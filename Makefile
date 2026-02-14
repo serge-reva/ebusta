@@ -128,6 +128,11 @@ up: down
 	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/downloader >> $(LOG_DIR)/downloader.log 2>&1 & sleep 0.5
 	@pgrep -f downloader > /dev/null && echo "✅ RUNNING on :$(DOWNLOADER_PORT)" || echo "❌ FAILED"
 
+
+        @echo -n "   - Web Frontend: "
+        @EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/web-frontend >> $(LOG_DIR)/web-frontend.log 2>&1 & sleep 0.5
+        @pgrep -f web-frontend > /dev/null && echo "✅ RUNNING on :$(WEB_FRONTEND_PORT)" || echo "❌ FAILED"
+
 	@echo "\n📊 Active processes:"
 	@ps aux | grep -v grep | grep -E "archive-node|tier-node|plasma-node|downloader|web-adapter|orchestrator|datamanager"
 

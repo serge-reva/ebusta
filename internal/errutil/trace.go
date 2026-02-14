@@ -17,7 +17,21 @@ func GenerateTraceID(prefix string) string {
     return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 }
 
-// TraceIDFromContext извлекает TraceID из gRPC контекста
+// TraceIDFromHeader извлекает TraceID из HTTP заголовка
+func TraceIDFromHeader(h http.Header) string {
+    tid := h.Get("X-Trace-Id")
+    if tid == "" {
+        tid = h.Get("Trace-Id")
+    }
+    return tid
+}
+
+// TraceIDFromRequest извлекает TraceID из HTTP запроса
+func TraceIDFromRequest(r *http.Request) string {
+    return TraceIDFromHeader(r.Header)
+}
+
+// TraceIDFromContext извлекает TraceID из контекста (gRPC metadata)
 func TraceIDFromContext(ctx context.Context) string {
     // Из gRPC metadata
     if md, ok := metadata.FromIncomingContext(ctx); ok {
@@ -31,25 +45,7 @@ func TraceIDFromContext(ctx context.Context) string {
     return ""
 }
 
-// TraceIDFromHeader извлекает TraceID из HTTP заголовка
-func TraceIDFromHeader(r *http.Request) string {
-    tid := r.Header.Get("X-Trace-Id")
-    if tid == "" {
-        tid = r.Header.Get("Trace-Id")
-    }
-    return tid
-}
-
-// TraceIDFromRequest извлекает TraceID из HTTP запроса или генерирует новый
-func TraceIDFromRequest(r *http.Request, prefix string) string {
-    tid := TraceIDFromHeader(r)
-    if tid == "" {
-        tid = GenerateTraceID(prefix)
-    }
-    return tid
-}
-
-// ContextWithTraceID добавляет TraceID в исходящий gRPC контекст
+// ContextWithTraceID добавляет TraceID в контекст (gRPC outgoing metadata)
 func ContextWithTraceID(ctx context.Context, traceID string) context.Context {
     md := metadata.Pairs("x-trace-id", traceID)
     return metadata.NewOutgoingContext(ctx, md)

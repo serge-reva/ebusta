@@ -4,6 +4,7 @@ import (
     "encoding/json"
     "io"
     "net/http"
+    "strings"
 )
 
 // JSONEnvelope — обёртка для JSON-ответа
@@ -33,7 +34,8 @@ func WriteJSONErrorSimple(w http.ResponseWriter, statusCode int, code, message, 
 // ParseDownloaderError парсит JSON-ошибку от downloader
 func ParseDownloaderError(body []byte, traceID string) *AppError {
     var env JSONEnvelope
-    if err := json.Unmarshal(body, &env.Error); err != nil {
+    // ИСПРАВЛЕНО: анмаршал в &env, а не в &env.Error
+    if err := json.Unmarshal(body, &env); err != nil {
         return &AppError{
             Code:     CodeBadGateway,
             Message:  "Ошибка связи с сервисом скачивания",
@@ -51,7 +53,9 @@ func ParseDownloaderError(body []byte, traceID string) *AppError {
 // FromHTTPResponse создаёт ошибку из HTTP ответа
 func FromHTTPResponse(resp *http.Response, body []byte, traceID string) *AppError {
     // Попытка парсить как JSON
-    if ct := resp.Header.Get("Content-Type"); ct == "application/json" {
+    ct := resp.Header.Get("Content-Type")
+    // ИСПРАВЛЕНО: проверяем Content-Type более гибко
+    if ct == "application/json" || strings.Contains(ct, "application/json") {
         return ParseDownloaderError(body, traceID)
     }
 

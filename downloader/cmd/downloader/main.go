@@ -20,6 +20,16 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type errorEnvelope struct {
+	Error errorBody `json:"error"`
+}
+
+type errorBody struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	TraceID string `json:"trace_id"`
+}
+
 func main() {
 	cfg := config.Get()
 
@@ -39,8 +49,11 @@ func main() {
 	client := libraryv1.NewStorageNodeClient(conn)
 
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/books/", func(w http.ResponseWriter, r *http.Request) {
-		// TraceID — как в web-adapter
+
+		start := time.Now()
+
 		tid := r.Header.Get("X-Trace-Id")
 		if tid == "" {
 			tid = fmt.Sprintf("dl-%d", time.Now().UnixNano())
@@ -50,104 +63,96 @@ func main() {
 		sha1 := strings.TrimPrefix(r.URL.Path, "/books/")
 		sha1 = strings.Trim(sha1, "/")
 		if sha1 == "" {
-			http.Error(w, "missing id", http.StatusBadRequest)
+			writeJSONError(w, http.StatusBadRequest, "INVALID_ARGUMENT", "missing id", tid)
 			return
 		}
+
 		if !isValidSHA1(sha1) {
-			http.Error(w, "invalid sha1 (expected 40 hex)", http.StatusBadRequest)
+			writeJSONError(w, http.StatusBadRequest, "INVALID_ARGUMENT", "invalid sha1 (expected 40 hex)", tid)
 			return
 		}
 
 		ctx := withTraceID(r.Context(), tid)
 
-		// meta-only mode
-		if r.URL.Query().Get("meta") == "1" {
-			metaResp, err := client.GetMeta(ctx, &libraryv1.GetMetaRequest{
-				Id: &libraryv1.BookId{Sha1: sha1},
-			})
-			if err != nil {
-				writeGRPCError(w, err)
-				return
-			}
-			if metaResp.GetError() != nil {
-				writeUpstreamPayloadError(w, metaResp.GetError())
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(metaResp.GetMeta())
-			return
-		}
-
-		// For HEAD and GET (download bytes): we need meta first
 		metaResp, err := client.GetMeta(ctx, &libraryv1.GetMetaRequest{
 			Id: &libraryv1.BookId{Sha1: sha1},
 		})
 		if err != nil {
-			writeGRPCError(w, err)
+			writeGRPCError(w, err, tid)
 			return
 		}
+
 		if metaResp.GetError() != nil {
-			writeUpstreamPayloadError(w, metaResp.GetError())
+			writeJSONError(w, http.StatusBadGateway, metaResp.GetError().GetCode(), metaResp.GetError().GetMessage(), tid)
 			return
 		}
 
 		meta := metaResp.GetMeta()
 		if meta == nil {
-			http.Error(w, "upstream error: empty meta", http.StatusBadGateway)
+			writeJSONError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "empty meta", tid)
 			return
 		}
 
-		expected := meta.GetSize()
-		// Заголовки для скачивания
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", meta.GetFilename()))
-		if expected > 0 {
-			w.Header().Set("Content-Length", fmt.Sprintf("%d", expected))
-		}
-
-		// HEAD: только заголовки, без тела
+		// HEAD support
 		if r.Method == http.MethodHead {
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", meta.GetSize()))
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", meta.GetFilename()))
 			w.WriteHeader(http.StatusOK)
+			log.Printf("[%s] HEAD %s 200 (%d bytes) %dms",
+				tid, sha1, meta.GetSize(), time.Since(start).Milliseconds())
 			return
 		}
 
-		// GET: stream file bytes
-		st, err := client.GetStream(ctx, &libraryv1.GetStreamRequest{
+		// meta-only mode
+		if r.URL.Query().Get("meta") == "1" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(meta)
+			log.Printf("[%s] GET(meta) %s 200 %dms",
+				tid, sha1, time.Since(start).Milliseconds())
+			return
+		}
+
+		stream, err := client.GetStream(ctx, &libraryv1.GetStreamRequest{
 			Id: &libraryv1.BookId{Sha1: sha1},
 		})
 		if err != nil {
-			writeGRPCError(w, err)
+			writeGRPCError(w, err, tid)
 			return
 		}
+
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", meta.GetFilename()))
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", meta.GetSize()))
 
 		flusher, _ := w.(http.Flusher)
 
 		var written int64
+
 		for {
-			ch, rerr := st.Recv()
+			ch, rerr := stream.Recv()
+			if rerr == io.EOF {
+				break
+			}
 			if rerr != nil {
-				if rerr == io.EOF {
-					break
-				}
-				if rerr == context.Canceled {
+				if stErr, ok := status.FromError(rerr); ok {
+					log.Printf("[%s] stream error: %v", tid, stErr.Message())
 					return
 				}
 				log.Printf("[%s] stream recv error: %v", tid, rerr)
 				return
 			}
-			if len(ch.GetData()) == 0 {
-				continue
-			}
+
 			n, _ := w.Write(ch.GetData())
 			written += int64(n)
+
 			if flusher != nil {
 				flusher.Flush()
 			}
 		}
 
-		if expected > 0 && written != expected {
-			log.Printf("[%s] size mismatch sha1=%s expected=%d written=%d", tid, sha1, expected, written)
-		}
+		log.Printf("[%s] GET %s 200 (%d bytes) %dms",
+			tid, sha1, written, time.Since(start).Milliseconds())
 	})
 
 	addr := dcfg.ListenAddr()
@@ -155,56 +160,55 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
+func isValidSHA1(s string) bool {
+	if len(s) != 40 {
+		return false
+	}
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return true
+}
+
 func withTraceID(ctx context.Context, tid string) context.Context {
 	md := metadata.Pairs("x-trace-id", tid)
 	return metadata.NewOutgoingContext(ctx, md)
 }
 
-func writeUpstreamPayloadError(w http.ResponseWriter, e *libraryv1.Error) {
-	// Upstream payload envelope: code is string (e.g. NOT_FOUND/INTERNAL)
-	switch strings.ToUpper(strings.TrimSpace(e.GetCode())) {
-	case "NOT_FOUND":
-		http.Error(w, e.GetMessage(), http.StatusNotFound)
-	case "INVALID_ARGUMENT":
-		http.Error(w, e.GetMessage(), http.StatusBadRequest)
-	case "UNAVAILABLE":
-		http.Error(w, e.GetMessage(), http.StatusServiceUnavailable)
-	default:
-		http.Error(w, e.GetMessage(), http.StatusBadGateway)
-	}
-}
-
-func writeGRPCError(w http.ResponseWriter, err error) {
+func writeGRPCError(w http.ResponseWriter, err error, tid string) {
 	st, ok := status.FromError(err)
 	if !ok {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		writeJSONError(w, http.StatusBadGateway, "BAD_GATEWAY", err.Error(), tid)
 		return
 	}
 
 	switch st.Code() {
 	case codes.InvalidArgument:
-		http.Error(w, st.Message(), http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, "INVALID_ARGUMENT", st.Message(), tid)
 	case codes.NotFound:
-		http.Error(w, st.Message(), http.StatusNotFound)
+		writeJSONError(w, http.StatusNotFound, "NOT_FOUND", st.Message(), tid)
 	case codes.Unavailable:
-		http.Error(w, st.Message(), http.StatusServiceUnavailable)
+		writeJSONError(w, http.StatusServiceUnavailable, "UNAVAILABLE", st.Message(), tid)
 	case codes.DeadlineExceeded:
-		http.Error(w, st.Message(), http.StatusGatewayTimeout)
+		writeJSONError(w, http.StatusGatewayTimeout, "DEADLINE_EXCEEDED", st.Message(), tid)
 	default:
-		http.Error(w, st.Message(), http.StatusBadGateway)
+		writeJSONError(w, http.StatusBadGateway, "UPSTREAM_ERROR", st.Message(), tid)
 	}
 }
 
-func isValidSHA1(s string) bool {
-	if len(s) != 40 {
-		return false
+func writeJSONError(w http.ResponseWriter, statusCode int, code, message, tid string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	resp := errorEnvelope{
+		Error: errorBody{
+			Code:    code,
+			Message: message,
+			TraceID: tid,
+		},
 	}
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
-			continue
-		}
-		return false
-	}
-	return true
+
+	_ = json.NewEncoder(w).Encode(resp)
 }

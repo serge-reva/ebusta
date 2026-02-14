@@ -1,15 +1,15 @@
 package main
 
 import (
-    "encoding/json"
     "fmt"
     "io"
+    "mime"
     "net/http"
     "net/url"
     "strconv"
     "strings"
-    "time"
 
+    "ebusta/internal/errutil"
     "ebusta/internal/search"
 )
 
@@ -33,9 +33,15 @@ func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
     query := r.URL.Query().Get("q")
     pageStr := r.URL.Query().Get("page")
 
+    // Получаем или генерируем TraceID
+    traceID := errutil.TraceIDFromRequest(r)
+    if traceID == "" {
+        traceID = errutil.GenerateTraceID("wf")
+    }
+
     // Валидация запроса
     if err := search.ValidateQuery(query); err != nil {
-        renderError(w, err.Error(), "")
+        renderError(w, err.Error(), traceID)
         return
     }
 
@@ -47,9 +53,6 @@ func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
 
     // Вычисление offset для пагинации
     offset := (page - 1) * h.pageSize
-
-    // Генерация TraceID
-    traceID := fmt.Sprintf("wf-%d", time.Now().UnixNano())
 
     // Выполнение поиска с offset
     result, err := h.searchSvc.Search(r.Context(), query, h.pageSize, offset, traceID)
@@ -68,87 +71,99 @@ func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
     renderResults(w, result, query, page, totalPages)
 }
 
-// handleDownload — скачивание файла через proxy к Downloader
+// handleDownload — скачивание файла (один HTTP-запрос к Downloader)
+// Согласно ТЗ v1.4: имя файла извлекается из Content-Disposition, формат {Filename}
+// Согласно ТЗ errutil: возвращает JSON-ошибки с TraceID
 func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
+    // Получаем или генерируем TraceID
+    traceID := errutil.TraceIDFromRequest(r)
+    if traceID == "" {
+        traceID = errutil.GenerateTraceID("wf")
+    }
+
     // Извлечение SHA1 из URL: /download/{sha1}
     sha1 := strings.TrimPrefix(r.URL.Path, "/download/")
     sha1 = strings.TrimSpace(sha1)
 
     if sha1 == "" {
-        http.Error(w, "missing id", http.StatusBadRequest)
+        errutil.WriteJSONError(w, errutil.New(
+            errutil.CodeInvalidArgument,
+            "missing id",
+        ).WithTrace(traceID))
         return
     }
 
     // Валидация SHA1
     if !search.ValidateSHA1(sha1) {
-        http.Error(w, "invalid sha1 (expected 40 hex)", http.StatusBadRequest)
+        errutil.WriteJSONError(w, errutil.New(
+            errutil.CodeInvalidArgument,
+            "invalid sha1 (expected 40 hex)",
+        ).WithTrace(traceID))
         return
     }
 
-    // Сначала получаем метаданные для формирования имени файла
-    metaURL := fmt.Sprintf("http://%s/books/%s?meta=1", h.downloaderAddr, sha1)
-    metaResp, err := http.Get(metaURL)
-    if err != nil {
-        http.Error(w, "downloader unavailable", http.StatusServiceUnavailable)
-        return
-    }
-    defer metaResp.Body.Close()
-
-    if metaResp.StatusCode != http.StatusOK {
-        body, _ := io.ReadAll(metaResp.Body)
-        http.Error(w, string(body), metaResp.StatusCode)
-        return
-    }
-
-    // Парсим метаданные
-    var meta struct {
-        Sha1      string `json:"sha1"`
-        Container string `json:"container"`
-        Filename  string `json:"filename"`
-        Size      int64  `json:"size"`
-        Title     string `json:"title"`
-    }
-    if err := json.NewDecoder(metaResp.Body).Decode(&meta); err != nil {
-        http.Error(w, "failed to parse metadata", http.StatusInternalServerError)
-        return
-    }
-
-    // Формируем имя файла: {Container}_{Filename}
-    downloadFilename := fmt.Sprintf("%s_%s", meta.Container, meta.Filename)
-
-    // Прокси запрос на скачивание
+    // Один запрос к Downloader
     downloadURL := fmt.Sprintf("http://%s/books/%s", h.downloaderAddr, sha1)
     dlResp, err := http.Get(downloadURL)
     if err != nil {
-        http.Error(w, "downloader unavailable", http.StatusServiceUnavailable)
+        errutil.WriteJSONError(w, errutil.New(
+            errutil.CodeUnavailable,
+            "сервис скачивания недоступен",
+        ).WithTrace(traceID).WithDetails(err.Error()))
         return
     }
     defer dlResp.Body.Close()
 
     if dlResp.StatusCode != http.StatusOK {
         body, _ := io.ReadAll(dlResp.Body)
-        http.Error(w, string(body), dlResp.StatusCode)
+        appErr := errutil.FromHTTPResponse(dlResp, body, traceID)
+        errutil.WriteJSONError(w, appErr)
         return
     }
 
-    // Установка заголовков
+    // Извлечение имени файла из Content-Disposition
+    // Формат: attachment; filename="king_arrow.fb2"
+    filename := extractFilename(dlResp.Header.Get("Content-Disposition"))
+
+    // Установка заголовков ответа
     w.Header().Set("Content-Type", "application/octet-stream")
-    w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, downloadFilename))
-    if meta.Size > 0 {
-        w.Header().Set("Content-Length", strconv.FormatInt(meta.Size, 10))
+    w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+    w.Header().Set("X-Trace-Id", traceID)
+    if contentLength := dlResp.Header.Get("Content-Length"); contentLength != "" {
+        w.Header().Set("Content-Length", contentLength)
     }
 
     // Потоковая передача
     io.Copy(w, dlResp.Body)
 }
 
+// extractFilename извлекает имя файла из Content-Disposition заголовка
+// Ожидаемый формат: attachment; filename="king_arrow.fb2"
+// Возвращает только имя файла (без контейнера), например: "king_arrow.fb2"
+func extractFilename(contentDisposition string) string {
+    if contentDisposition == "" {
+        return "unknown.bin"
+    }
+
+    // Используем mime.ParseMediaType для корректного парсинга
+    _, params, err := mime.ParseMediaType(contentDisposition)
+    if err != nil {
+        return "unknown.bin"
+    }
+
+    filename := params["filename"]
+    if filename == "" {
+        return "unknown.bin"
+    }
+
+    return filename
+}
+
 // handleHealth — health check endpoint для мониторинга
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(http.StatusOK)
-    json.NewEncoder(w).Encode(map[string]string{
-        "status": "ok",
-    })
+    w.Write([]byte(`{"status":"ok"}`))
 }
 
 func urlEscape(s string) string {
