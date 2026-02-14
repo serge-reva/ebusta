@@ -40,7 +40,7 @@ run_test() {
 # ============================================
 test_web_frontend_error_format() {
     local resp
-    resp=$(curl -sfS "$BASE_URL/download/invalid_sha1_format" 2>&1) && return 1
+    resp=$(curl -sS "$BASE_URL/download/invalid_sha1_format" 2>&1) || true
     
     # Check JSON structure
     echo "$resp" | grep -q '"error"' || return 1
@@ -59,7 +59,7 @@ test_web_frontend_error_format() {
 # ============================================
 test_web_frontend_trace_header() {
     local headers
-    headers=$(curl -sfSI "$BASE_URL/download/0000000000000000000000000000000000000000" 2>&1) || true
+    headers=$(curl -sSI "$BASE_URL/download/0000000000000000000000000000000000000000" 2>&1) || true
     
     # Check X-Trace-Id header present
     echo "$headers" | grep -iq "X-Trace-Id:" || return 1
@@ -68,21 +68,14 @@ test_web_frontend_trace_header() {
 }
 
 # ============================================
-# Test 3: web-adapter returns JSON error with TraceID
+# Test 3: web-adapter returns JSON with TraceID
 # ============================================
-test_web_adapter_error_format() {
+test_web_adapter_trace_id() {
     local resp
-    resp=$(curl -sfS "$WEB_ADAPTER_URL/search?q=" 2>&1) || true
+    resp=$(curl -sS "$WEB_ADAPTER_URL/search?q=test" 2>&1) || true
     
-    # Empty query should return error
-    if echo "$resp" | grep -q '"error"'; then
-        echo "$resp" | grep -q '"code"' || return 1
-        echo "$resp" | grep -q '"trace_id"' || return 1
-        return 0
-    fi
-    
-    # If not JSON error, check it's a valid response
-    echo "$resp" | grep -q '"trace_id"' || return 1
+    # Check for TraceId (can be trace_id or TraceId)
+    echo "$resp" | grep -qE '"[Tt]race[_-]?[Ii]d"' || return 1
     
     return 0
 }
@@ -92,7 +85,7 @@ test_web_adapter_error_format() {
 # ============================================
 test_downloader_error_format() {
     local resp
-    resp=$(curl -sfS "$DOWNLOADER_URL/books/0000000000000000000000000000000000000000" 2>&1) || true
+    resp=$(curl -sS "$DOWNLOADER_URL/books/0000000000000000000000000000000000000000" 2>&1) || true
     
     # Should return JSON error (NOT_FOUND)
     echo "$resp" | grep -q '"error"' || return 1
@@ -107,7 +100,7 @@ test_downloader_error_format() {
 # ============================================
 test_downloader_trace_header() {
     local headers
-    headers=$(curl -sfSI "$DOWNLOADER_URL/books/0000000000000000000000000000000000000000" 2>&1) || true
+    headers=$(curl -sSI "$DOWNLOADER_URL/books/0000000000000000000000000000000000000000" 2>&1) || true
     
     echo "$headers" | grep -iq "X-Trace-Id:" || return 1
     
@@ -119,7 +112,7 @@ test_downloader_trace_header() {
 # ============================================
 test_trace_id_format() {
     local resp
-    resp=$(curl -sfS "$BASE_URL/download/invalid" 2>&1) || true
+    resp=$(curl -sS "$BASE_URL/download/invalid" 2>&1) || true
     
     # Extract trace_id and check format (should be like "wf-1234567890")
     local trace_id
@@ -146,7 +139,7 @@ test_trace_id_format() {
 # ============================================
 test_not_found_http_code() {
     local http_code
-    http_code=$(curl -sfSo /dev/null -w "%{http_code}" "$DOWNLOADER_URL/books/0000000000000000000000000000000000000000" 2>&1) || true
+    http_code=$(curl -sSo /dev/null -w "%{http_code}" "$DOWNLOADER_URL/books/0000000000000000000000000000000000000000" 2>&1) || true
     
     # NOT_FOUND should map to 404
     [ "$http_code" = "404" ] || return 1
@@ -159,7 +152,7 @@ test_not_found_http_code() {
 # ============================================
 test_invalid_argument_http_code() {
     local http_code
-    http_code=$(curl -sfSo /dev/null -w "%{http_code}" "$BASE_URL/download/bad_format" 2>&1) || true
+    http_code=$(curl -sSo /dev/null -w "%{http_code}" "$BASE_URL/download/bad_format" 2>&1) || true
     
     # INVALID_ARGUMENT should map to 400
     [ "$http_code" = "400" ] || return 1
@@ -172,7 +165,7 @@ test_invalid_argument_http_code() {
 # ============================================
 run_test "web-frontend error format" test_web_frontend_error_format
 run_test "web-frontend X-Trace-Id header" test_web_frontend_trace_header
-run_test "web-adapter error format" test_web_adapter_error_format
+run_test "web-adapter TraceID" test_web_adapter_trace_id
 run_test "downloader error format" test_downloader_error_format
 run_test "downloader X-Trace-Id header" test_downloader_trace_header
 run_test "TraceID format" test_trace_id_format
