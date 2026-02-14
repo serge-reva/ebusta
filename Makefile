@@ -74,7 +74,7 @@ build-downloads-go: proto
 	@go build -o $(BIN_DIR)/archive-node     ./cmd/archive-node
 	@go build -o $(BIN_DIR)/tier-node        ./cmd/tier-node
 	@go build -o $(BIN_DIR)/plasma-node      ./cmd/plasma-node
-	@go build -o $(BIN_DIR)/downloader       ./downloader/cmd/downloader
+	@go build -o $(BIN_DIR)/downloader       ./cmd/downloader
 	@go build -o $(BIN_DIR)/downloads-import ./cmd/downloads-import
 
 build-go: build-search-go build-cli build-web-frontend build-downloads-go
