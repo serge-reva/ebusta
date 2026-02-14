@@ -1,13 +1,10 @@
 package main
 
 import (
-        "encoding/json"
-        "fmt"
-        "html/template"
-        "net/http"
-        "strings"
+    "html/template"
+    "net/http"
 
-        "ebusta/internal/search"
+    "ebusta/internal/search"
 )
 
 // cssStyles — стили для визуальных компонентов
@@ -40,10 +37,15 @@ const cssStyles = `
 #back-link { display: inline-block; margin-top: 15px; color: #4a90a4; }
 `
 
-// tmpl — шаблонизатор
-var tmpl = template.Must(template.New("base").Funcs(template.FuncMap{
-        "urlEscape": urlEscape,
-}).Parse(`<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+// templateFuncs — функции для использования в шаблонах
+var templateFuncs = template.FuncMap{
+    "urlEscape": urlEscape,
+    "sub":       func(a, b int) int { return a - b },
+    "add":       func(a, b int) int { return a + b },
+}
+
+// tmpl — базовый шаблонизатор
+var tmpl = template.Must(template.New("base").Funcs(templateFuncs).Parse(`<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html lang="ru">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
@@ -142,94 +144,78 @@ var errorTmpl = template.Must(template.Must(tmpl.Clone()).Parse(`
 
 // renderIndex — рендеринг главной страницы
 func renderIndex(w http.ResponseWriter) {
-        if err := indexTmpl.ExecuteTemplate(w, "base", nil); err != nil {
-                http.Error(w, err.Error(), http.StatusInternalServerError)
-        }
+    if err := indexTmpl.ExecuteTemplate(w, "base", nil); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+    }
 }
 
 // renderResults — рендеринг результатов поиска
 func renderResults(w http.ResponseWriter, result *search.SearchResult, query string, currentPage, totalPages int) {
-        // Генерация списка номеров страниц для пагинации
-        pageNumbers := generatePageNumbers(currentPage, totalPages)
+    pageNumbers := generatePageNumbers(currentPage, totalPages)
 
-        data := struct {
-                Result      *search.SearchResult
-                Query       string
-                CurrentPage int
-                TotalPages  int
-                PageNumbers []int
-        }{
-                Result:      result,
-                Query:       query,
-                CurrentPage: currentPage,
-                TotalPages:  totalPages,
-                PageNumbers: pageNumbers,
-        }
+    data := struct {
+        Result      *search.SearchResult
+        Query       string
+        CurrentPage int
+        TotalPages  int
+        PageNumbers []int
+    }{
+        Result:      result,
+        Query:       query,
+        CurrentPage: currentPage,
+        TotalPages:  totalPages,
+        PageNumbers: pageNumbers,
+    }
 
-        // Добавляем функции для шаблона
-        funcMap := template.FuncMap{
-                "sub": func(a, b int) int { return a - b },
-                "add": func(a, b int) int { return a + b },
-                "urlEscape": urlEscape,
-        }
-
-        t, err := resultsTmpl.Clone()
-        if err != nil {
-                http.Error(w, err.Error(), http.StatusInternalServerError)
-                return
-        }
-        t = template.Must(t.Funcs(funcMap).Parse(""))
-
-        if err := t.ExecuteTemplate(w, "base", data); err != nil {
-                http.Error(w, err.Error(), http.StatusInternalServerError)
-        }
+    if err := resultsTmpl.ExecuteTemplate(w, "base", data); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+    }
 }
 
 // renderError — рендеринг страницы ошибки
 func renderError(w http.ResponseWriter, message, traceID string) {
-        data := struct {
-                Message string
-                TraceID string
-        }{
-                Message: message,
-                TraceID: traceID,
-        }
-        if err := errorTmpl.ExecuteTemplate(w, "base", data); err != nil {
-                http.Error(w, err.Error(), http.StatusInternalServerError)
-        }
+    data := struct {
+        Message string
+        TraceID string
+    }{
+        Message: message,
+        TraceID: traceID,
+    }
+    if err := errorTmpl.ExecuteTemplate(w, "base", data); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+    }
 }
 
 // generatePageNumbers — генерирует список номеров страниц для пагинации
 func generatePageNumbers(current, total int) []int {
-        if total <= 7 {
-                pages := make([]int, total)
-                for i := 0; i < total; i++ {
-                        pages[i] = i + 1
-                }
-                return pages
+    if total <= 7 {
+        pages := make([]int, total)
+        for i := 0; i < total; i++ {
+            pages[i] = i + 1
         }
-
-        // Показываем: 1 ... current-1 current current+1 ... total
-        var pages []int
-        pages = append(pages, 1)
-
-        if current > 3 {
-                pages = append(pages, 0) // 0 = "..."
-        }
-
-        for i := current - 1; i <= current+1; i++ {
-                if i > 1 && i < total {
-                        pages = append(pages, i)
-                }
-        }
-
-        if current < total-2 {
-                pages = append(pages, 0) // 0 = "..."
-        }
-
-        if total > 1 {
-                pages = append(pages, total)
-        }
-
         return pages
+    }
+
+    var pages []int
+    pages = append(pages, 1)
+
+    if current > 3 {
+        pages = append(pages, 0)
+    }
+
+    for i := current - 1; i <= current+1; i++ {
+        if i > 1 && i < total {
+            pages = append(pages, i)
+        }
+    }
+
+    if current < total-2 {
+        pages = append(pages, 0)
+    }
+
+    if total > 1 {
+        pages = append(pages, total)
+    }
+
+    return pages
 }
