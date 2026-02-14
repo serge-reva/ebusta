@@ -2,13 +2,12 @@ package main
 
 import (
     "encoding/json"
-    "fmt"
     "log"
     "net/http"
     "strconv"
-    "time"
 
     "ebusta/internal/config"
+    "ebusta/internal/errutil"
     "ebusta/internal/search"
 )
 
@@ -20,6 +19,12 @@ func main() {
         query := r.URL.Query().Get("q")
         limitStr := r.URL.Query().Get("limit")
         offsetStr := r.URL.Query().Get("offset")
+
+        // Получаем или генерируем TraceID
+        traceID := errutil.TraceIDFromRequest(r)
+        if traceID == "" {
+            traceID = errutil.GenerateTraceID("wa")
+        }
 
         // Парсинг limit (по умолчанию 20)
         limit := 20
@@ -33,17 +38,15 @@ func main() {
             offset = o
         }
 
-        tid := r.Header.Get("X-Trace-Id")
-        if tid == "" {
-            tid = fmt.Sprintf("web-%d", time.Now().UnixNano())
-        }
+        log.Printf("[%s] Incoming search: q=%s limit=%d offset=%d", traceID, query, limit, offset)
 
-        log.Printf("[%s] Incoming search: q=%s limit=%d offset=%d", tid, query, limit, offset)
-
-        resp, err := svc.Search(r.Context(), query, limit, offset, tid)
+        resp, err := svc.Search(r.Context(), query, limit, offset, traceID)
         if err != nil {
-            log.Printf("[%s] Error: %v", tid, err)
-            http.Error(w, err.Error(), http.StatusInternalServerError)
+            log.Printf("[%s] Error: %v", traceID, err)
+            errutil.WriteJSONError(w, errutil.New(
+                errutil.CodeInternal,
+                err.Error(),
+            ).WithTrace(traceID))
             return
         }
 
@@ -52,7 +55,7 @@ func main() {
         json.NewEncoder(w).Encode(resp)
     })
 
-    addr := fmt.Sprintf(":%d", cfg.WebAdapter.Port)
-    log.Printf("🌐 Web-Adapter with TraceID on %s", addr)
+    addr := cfg.WebAdapter.Address()
+    log.Printf("🌐 Web-Adapter with errutil on %s", addr)
     log.Fatal(http.ListenAndServe(addr, nil))
 }
