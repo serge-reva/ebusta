@@ -35,6 +35,31 @@ type MetricsConfig struct {
         Port int `yaml:"port"`
 }
 
+/* ---------- LOGGER ---------- */
+
+type LoggerConfig struct {
+        Level         string        `yaml:"level"`
+        Format        string        `yaml:"format"`
+        DisableColors bool          `yaml:"disable_colors"`
+        Outputs       OutputsConfig `yaml:"outputs"`
+}
+
+type OutputsConfig struct {
+        Console ConsoleConfig    `yaml:"console"`
+        File    FileOutputConfig `yaml:"file"`
+}
+
+type ConsoleConfig struct {
+        Enabled   bool `yaml:"enabled"`
+        UseStderr bool `yaml:"use_stderr"`
+}
+
+type FileOutputConfig struct {
+        Enabled bool   `yaml:"enabled"`
+        Path    string `yaml:"path"`
+        Append  bool   `yaml:"append"`
+}
+
 /* ---------- WEB FRONTEND ---------- */
 
 type WebFrontendConfig struct {
@@ -186,6 +211,8 @@ type Config struct {
         Metrics MetricsConfig `yaml:"metrics"`
 
         Downloads DownloadsConfig `yaml:"downloads"`
+
+        Logger LoggerConfig `yaml:"logger"`
 }
 
 func Get() *Config {
