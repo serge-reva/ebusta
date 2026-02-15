@@ -1,152 +1,82 @@
 package logger
 
 import (
-	"os"
 	"strings"
 )
 
-// ConfigFromEnv creates a Config from environment variables
-// Environment variables:
-//   - LOG_LEVEL: DEBUG, INFO, WARN, ERROR, FATAL (default: INFO)
-//   - LOG_FORMAT: text, json (default: text)
-//   - LOG_OUTPUT: stdout, stderr, file:/path/to/file (default: stdout)
-//   - LOG_FILE_APPEND: true/false (default: false)
-//   - LOG_COLORS: true/false (default: true)
-//   - LOG_COMPONENT: component name (default: empty)
-func ConfigFromEnv() Config {
-	cfg := Config{
-		Level:     INFO,
-		Formatter: NewTextFormatter(),
-		Output:    &StdoutOutput{},
-	}
+// LoggerConfig represents logger configuration section
+// This should be added to internal/config/config.go as:
+//
+//	type Config struct {
+//		...
+//		Logger LoggerConfig `yaml:"logger"`
+//	}
+type LoggerConfig struct {
+	// Level: DEBUG, INFO, WARN, ERROR, FATAL (default: INFO)
+	Level string `yaml:"level"`
+	// Format: text, json (default: text)
+	Format string `yaml:"format"`
+	// Outputs configuration
+	Outputs OutputsConfig `yaml:"outputs"`
+	// DisableColors disables ANSI color codes (default: false)
+	DisableColors bool `yaml:"disable_colors"`
+}
 
-	// Level
-	if level := os.Getenv("LOG_LEVEL"); level != "" {
-		cfg.Level = ParseLevel(level)
-	}
+// OutputsConfig holds configuration for multiple outputs
+type OutputsConfig struct {
+	// Console output
+	Console ConsoleConfig `yaml:"console"`
+	// File outputs
+	File FileOutputConfig `yaml:"file"`
+}
 
-	// Format
-	format := os.Getenv("LOG_FORMAT")
-	switch strings.ToLower(format) {
+// ConsoleConfig holds console output configuration
+type ConsoleConfig struct {
+	// Enabled enables console output (default: true)
+	Enabled bool `yaml:"enabled"`
+	// UseStderr uses stderr instead of stdout
+	UseStderr bool `yaml:"use_stderr"`
+}
+
+// FileOutputConfig holds file output configuration
+type FileOutputConfig struct {
+	// Enabled enables file output (default: false)
+	Enabled bool `yaml:"enabled"`
+	// Path is the log file path
+	Path string `yaml:"path"`
+	// Append appends to existing file (default: false)
+	Append bool `yaml:"append"`
+}
+
+// NewFromConfig creates a new Logger from LoggerConfig
+// This is the main integration point with internal/config
+func NewFromConfig(cfg LoggerConfig, component string) *Logger {
+	// Parse level
+	level := ParseLevel(cfg.Level)
+
+	// Create formatter
+	var formatter Formatter
+	switch strings.ToLower(cfg.Format) {
 	case "json":
-		cfg.Formatter = NewJSONFormatter()
-	case "prettyjson", "pretty-json":
-		cfg.Formatter = NewPrettyJSONFormatter()
-	case "text", "":
+		formatter = NewJSONFormatter()
+	default:
 		tf := NewTextFormatter()
-		// Colors
-		if colors := os.Getenv("LOG_COLORS"); colors == "false" || colors == "0" {
-			tf.DisableColors = true
-		}
-		cfg.Formatter = tf
+		tf.DisableColors = cfg.DisableColors
+		formatter = tf
 	}
 
-	// Output
-	output := os.Getenv("LOG_OUTPUT")
-	switch {
-	case output == "" || output == "stdout":
-		cfg.Output = &StdoutOutput{}
-	case output == "stderr":
-		cfg.Output = &StderrOutput{}
-	case strings.HasPrefix(output, "file:"):
-		path := strings.TrimPrefix(output, "file:")
-		append := os.Getenv("LOG_FILE_APPEND") == "true"
-		fo, err := NewFileOutput(path, append)
-		if err == nil {
-			cfg.Output = fo
-		}
-	}
+	// Create output
+	output := createOutput(cfg.Outputs)
 
-	// Component
-	if component := os.Getenv("LOG_COMPONENT"); component != "" {
-		cfg.Component = component
-	}
-
-	return cfg
+	return New(level, formatter, output, component)
 }
 
-// NewFromEnv creates a new Logger from environment variables
-func NewFromEnv() *Logger {
-	return New(ConfigFromEnv())
-}
-
-// ConfigFromFile creates a Config from a YAML file (requires yaml parsing)
-// This is a helper for integration with the existing config system
-type ConfigFile struct {
-	Level      string            `yaml:"level"`
-	Format     string            `yaml:"format"`
-	Output     string            `yaml:"output"`
-	FileAppend bool              `yaml:"file_append"`
-	Colors     bool              `yaml:"colors"`
-	Component  string            `yaml:"component"`
-	Fields     map[string]string `yaml:"fields"`
-}
-
-// ConfigFromConfigFile creates a Config from ConfigFile struct
-func ConfigFromConfigFile(cf ConfigFile) Config {
-	cfg := Config{
-		Level:     ParseLevel(cf.Level),
-		Formatter: NewTextFormatter(),
-		Output:    &StdoutOutput{},
-		Component: cf.Component,
-		Fields:    make(map[string]interface{}),
-	}
-
-	// Format
-	switch strings.ToLower(cf.Format) {
-	case "json":
-		cfg.Formatter = NewJSONFormatter()
-	case "prettyjson", "pretty-json":
-		cfg.Formatter = NewPrettyJSONFormatter()
-	case "text", "":
-		tf := NewTextFormatter()
-		if !cf.Colors {
-			tf.DisableColors = true
-		}
-		cfg.Formatter = tf
-	}
-
-	// Output
-	switch {
-	case cf.Output == "" || cf.Output == "stdout":
-		cfg.Output = &StdoutOutput{}
-	case cf.Output == "stderr":
-		cfg.Output = &StderrOutput{}
-	case strings.HasPrefix(cf.Output, "file:"):
-		path := strings.TrimPrefix(cf.Output, "file:")
-		fo, err := NewFileOutput(path, cf.FileAppend)
-		if err == nil {
-			cfg.Output = fo
-		}
-	}
-
-	// Convert string fields to interface{}
-	for k, v := range cf.Fields {
-		cfg.Fields[k] = v
-	}
-
-	return cfg
-}
-
-// MultiOutputConfig holds configuration for multiple outputs
-type MultiOutputConfig struct {
-	Console struct {
-		Enabled  bool   `yaml:"enabled"`
-		UseStderr bool  `yaml:"use_stderr"`
-	} `yaml:"console"`
-	File struct {
-		Enabled bool   `yaml:"enabled"`
-		Path    string `yaml:"path"`
-		Append  bool   `yaml:"append"`
-	} `yaml:"file"`
-}
-
-// NewMultiOutputFromConfig creates a MultiOutput from configuration
-func NewMultiOutputFromConfig(cfg MultiOutputConfig) (Output, error) {
+// createOutput creates Output from OutputsConfig
+func createOutput(cfg OutputsConfig) Output {
 	outputs := make([]Output, 0)
 
-	// Console output
-	if cfg.Console.Enabled {
+	// Console output (enabled by default if not explicitly disabled)
+	if cfg.Console.Enabled || (cfg.Console.Enabled == false && cfg.File.Enabled == false && cfg.File.Path == "") {
 		if cfg.Console.UseStderr {
 			outputs = append(outputs, &StderrOutput{})
 		} else {
@@ -157,19 +87,46 @@ func NewMultiOutputFromConfig(cfg MultiOutputConfig) (Output, error) {
 	// File output
 	if cfg.File.Enabled && cfg.File.Path != "" {
 		fo, err := NewFileOutput(cfg.File.Path, cfg.File.Append)
-		if err != nil {
-			return nil, err
+		if err == nil {
+			outputs = append(outputs, fo)
 		}
-		outputs = append(outputs, fo)
 	}
 
 	if len(outputs) == 0 {
-		return &StdoutOutput{}, nil
+		return &StdoutOutput{}
 	}
 
 	if len(outputs) == 1 {
-		return outputs[0], nil
+		return outputs[0]
 	}
 
-	return NewMultiOutput(outputs...), nil
+	return NewMultiOutput(outputs...)
+}
+
+// DefaultConfig returns default LoggerConfig
+func DefaultConfig() LoggerConfig {
+	return LoggerConfig{
+		Level:         "INFO",
+		Format:        "text",
+		DisableColors: false,
+		Outputs: OutputsConfig{
+			Console: ConsoleConfig{
+				Enabled: true,
+			},
+		},
+	}
+}
+
+// MergeWithDefault merges config with defaults
+func (cfg LoggerConfig) MergeWithDefault() LoggerConfig {
+	defaults := DefaultConfig()
+
+	if cfg.Level == "" {
+		cfg.Level = defaults.Level
+	}
+	if cfg.Format == "" {
+		cfg.Format = defaults.Format
+	}
+
+	return cfg
 }

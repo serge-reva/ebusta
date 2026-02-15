@@ -67,16 +67,6 @@ func LoggerFromContext(ctx context.Context) *Logger {
 	return nil
 }
 
-// FromContext gets or creates a Logger for the context
-// If a Logger exists in context, returns it with TraceID from context
-// If not, returns the default logger
-func FromContext(ctx context.Context) *Logger {
-	if l := LoggerFromContext(ctx); l != nil {
-		return l
-	}
-	return Default()
-}
-
 // --- HTTP helpers ---
 
 // TraceIDFromHeader extracts TraceID from HTTP headers
@@ -131,25 +121,5 @@ func HTTPMiddleware(next http.Handler, logger *Logger) http.Handler {
 		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-// RequestLogger returns a logger with request context information
-func RequestLogger(r *http.Request, baseLogger *Logger) *Logger {
-	ctx := r.Context()
-	tid := TraceIDFromContext(ctx)
-	if tid == "" {
-		tid = TraceIDFromRequest(r)
-	}
-
-	if baseLogger == nil {
-		baseLogger = Default()
-	}
-
-	return baseLogger.WithFields(map[string]interface{}{
-		"method":     r.Method,
-		"path":       r.URL.Path,
-		"remote_addr": r.RemoteAddr,
-		"trace_id":   tid,
 	})
 }

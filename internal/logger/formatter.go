@@ -27,8 +27,6 @@ type Entry struct {
 type TextFormatter struct {
 	// DisableColors disables ANSI color codes
 	DisableColors bool
-	// FullTimestamp uses full timestamp format
-	FullTimestamp bool
 	// TimestampFormat specifies the timestamp format (default: "2006-01-02 15:04:05.000")
 	TimestampFormat string
 }
@@ -71,7 +69,6 @@ func (f *TextFormatter) Format(entry *Entry) ([]byte, error) {
 		sb.WriteString("no-trace")
 	}
 	sb.WriteString("] ")
-	sb.WriteString(" ")
 
 	// Component (optional)
 	if entry.Component != "" {
@@ -153,42 +150,4 @@ func (f *JSONFormatter) Format(entry *Entry) ([]byte, error) {
 	}
 
 	return json.Marshal(je)
-}
-
-// PrettyJSONFormatter formats log entries as indented JSON
-type PrettyJSONFormatter struct {
-	TimestampFormat string
-}
-
-// NewPrettyJSONFormatter creates a new pretty JSON formatter
-func NewPrettyJSONFormatter() *PrettyJSONFormatter {
-	return &PrettyJSONFormatter{
-		TimestampFormat: time.RFC3339Nano,
-	}
-}
-
-func (f *PrettyJSONFormatter) Format(entry *Entry) ([]byte, error) {
-	tsFormat := f.TimestampFormat
-	if tsFormat == "" {
-		tsFormat = time.RFC3339Nano
-	}
-
-	je := jsonEntry{
-		Time:      entry.Time.Format(tsFormat),
-		Level:     entry.Level.String(),
-		TraceID:   entry.TraceID,
-		Component: entry.Component,
-		Message:   entry.Message,
-		Fields:    entry.Fields,
-	}
-
-	if entry.Error != nil {
-		je.Error = entry.Error.Error()
-	}
-
-	if je.TraceID == "" {
-		je.TraceID = "no-trace"
-	}
-
-	return json.MarshalIndent(je, "", "  ")
 }

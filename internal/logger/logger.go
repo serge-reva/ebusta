@@ -18,27 +18,13 @@ type Logger struct {
 	fields    map[string]interface{}
 }
 
-// Config holds logger configuration
-type Config struct {
-	// Level is the minimum log level (default: INFO)
-	Level Level
-	// Formatter is the log formatter (default: TextFormatter)
-	Formatter Formatter
-	// Output is the log output (default: Stdout)
-	Output Output
-	// Component is the default component name
-	Component string
-	// DefaultFields are fields added to every log entry
-	DefaultFields map[string]interface{}
-}
-
 // New creates a new Logger with the given configuration
-func New(cfg Config) *Logger {
+func New(level Level, formatter Formatter, output Output, component string) *Logger {
 	l := &Logger{
-		level:     cfg.Level,
-		formatter: cfg.Formatter,
-		output:    cfg.Output,
-		component: cfg.Component,
+		level:     level,
+		formatter: formatter,
+		output:    output,
+		component: component,
 		fields:    make(map[string]interface{}),
 	}
 
@@ -56,31 +42,12 @@ func New(cfg Config) *Logger {
 		l.fields = make(map[string]interface{})
 	}
 
-	// Copy default fields
-	for k, v := range cfg.DefaultFields {
-		l.fields[k] = v
-	}
-
 	return l
 }
 
 // Default creates a new Logger with default settings (INFO level, stdout, text format)
 func Default() *Logger {
-	return New(Config{
-		Level:     INFO,
-		Formatter: NewTextFormatter(),
-		Output:    &StdoutOutput{},
-	})
-}
-
-// DefaultWithComponent creates a logger with a component name
-func DefaultWithComponent(component string) *Logger {
-	return New(Config{
-		Level:     INFO,
-		Formatter: NewTextFormatter(),
-		Output:    &StdoutOutput{},
-		Component: component,
-	})
+	return New(INFO, NewTextFormatter(), &StdoutOutput{}, "")
 }
 
 // WithComponent returns a new Logger with the given component name
@@ -207,10 +174,10 @@ func (l *Logger) log(level Level, traceID, message string, err error, fields map
 	}
 
 	// Format
-	data, err := l.formatter.Format(entry)
-	if err != nil {
+	data, ferr := l.formatter.Format(entry)
+	if ferr != nil {
 		// Fallback: write error message
-		fmt.Fprintf(os.Stderr, "logger format error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "logger format error: %v\n", ferr)
 		return
 	}
 
@@ -235,11 +202,6 @@ func (l *Logger) Debugf(traceID, format string, args ...interface{}) {
 	l.log(DEBUG, traceID, fmt.Sprintf(format, args...), nil, nil)
 }
 
-// DebugWithFields logs a debug message with additional fields
-func (l *Logger) DebugWithFields(traceID, message string, fields map[string]interface{}) {
-	l.log(DEBUG, traceID, message, nil, fields)
-}
-
 // Info logs an info message
 func (l *Logger) Info(traceID, message string) {
 	l.log(INFO, traceID, message, nil, nil)
@@ -248,11 +210,6 @@ func (l *Logger) Info(traceID, message string) {
 // Infof logs a formatted info message
 func (l *Logger) Infof(traceID, format string, args ...interface{}) {
 	l.log(INFO, traceID, fmt.Sprintf(format, args...), nil, nil)
-}
-
-// InfoWithFields logs an info message with additional fields
-func (l *Logger) InfoWithFields(traceID, message string, fields map[string]interface{}) {
-	l.log(INFO, traceID, message, nil, fields)
 }
 
 // Warn logs a warning message
@@ -265,11 +222,6 @@ func (l *Logger) Warnf(traceID, format string, args ...interface{}) {
 	l.log(WARN, traceID, fmt.Sprintf(format, args...), nil, nil)
 }
 
-// WarnWithFields logs a warning message with additional fields
-func (l *Logger) WarnWithFields(traceID, message string, fields map[string]interface{}) {
-	l.log(WARN, traceID, message, nil, fields)
-}
-
 // Error logs an error message
 func (l *Logger) Error(traceID, message string, err error) {
 	l.log(ERROR, traceID, message, err, nil)
@@ -278,11 +230,6 @@ func (l *Logger) Error(traceID, message string, err error) {
 // Errorf logs a formatted error message
 func (l *Logger) Errorf(traceID, format string, args ...interface{}) {
 	l.log(ERROR, traceID, fmt.Sprintf(format, args...), nil, nil)
-}
-
-// ErrorWithFields logs an error message with additional fields
-func (l *Logger) ErrorWithFields(traceID, message string, err error, fields map[string]interface{}) {
-	l.log(ERROR, traceID, message, err, fields)
 }
 
 // Fatal logs a fatal message and exits
@@ -340,16 +287,4 @@ func (l *Logger) ErrorfCtx(ctx context.Context, format string, args ...interface
 // FatalCtx logs a fatal message with TraceID from context and exits
 func (l *Logger) FatalCtx(ctx context.Context, message string, err error) {
 	l.log(FATAL, TraceIDFromContext(ctx), message, err, nil)
-}
-
-// --- Component-prefixed convenience methods ---
-
-// Log is a convenience method for component-style logging: [traceID] [component] message
-func (l *Logger) Log(level Level, traceID, message string) {
-	l.log(level, traceID, message, nil, nil)
-}
-
-// Logf is a convenience method for formatted component-style logging
-func (l *Logger) Logf(level Level, traceID, format string, args ...interface{}) {
-	l.log(level, traceID, fmt.Sprintf(format, args...), nil, nil)
 }

@@ -1,232 +1,172 @@
 # Logger Module for ebusta
 
-Полноценный логгер с уровнями, множественными выходами и встроенной поддержкой TraceID.
-
-## Особенности
-
-- **Уровни логирования**: DEBUG, INFO, WARN, ERROR, FATAL
-- **Множественные выходы**: stdout, stderr, файлы, кастомные Writer
-- **Форматирование**: Text (с цветами) и JSON
-- **TraceID**: Всегда включен, интеграция с контекстом
-- **Конфигурация**: Через переменные окружения или код
-- **Совместимость**: Помощники миграции с `log.Printf`
+Полноценный логгер с уровнями, множественными выходами и интеграцией с `internal/config`.
 
 ## Установка
 
 ```bash
-# Скопируйте папку logger в ваш проект
-cp -r go-modules/logger /path/to/ebusta/internal/logger
+# Скопируйте папку logger в internal/
+cp -r logger /path/to/ebusta/internal/logger
 ```
 
-## Быстрый старт
+## Интеграция с internal/config
 
-### Простейшее использование
+### 1. Добавьте LoggerConfig в internal/config/config.go
 
 ```go
-import "ebusta/internal/logger"
+package config
 
-func main() {
-    log := logger.Default()
-    log.Info("req-123", "Application started")
+// ... existing code ...
+
+// LoggerConfig - секция конфигурации логгера
+type LoggerConfig struct {
+	Level         string        `yaml:"level"`
+	Format        string        `yaml:"format"`
+	DisableColors bool          `yaml:"disable_colors"`
+	Outputs       OutputsConfig `yaml:"outputs"`
+}
+
+type OutputsConfig struct {
+	Console ConsoleConfig    `yaml:"console"`
+	File    FileOutputConfig `yaml:"file"`
+}
+
+type ConsoleConfig struct {
+	Enabled   bool `yaml:"enabled"`
+	UseStderr bool `yaml:"use_stderr"`
+}
+
+type FileOutputConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Path    string `yaml:"path"`
+	Append  bool   `yaml:"append"`
+}
+
+// Добавьте в главный Config:
+type Config struct {
+	OpenSearch   OpenSearchConfig `yaml:"opensearch"`
+	// ... existing fields ...
+	Logger       LoggerConfig     `yaml:"logger"`  // <-- ДОБАВИТЬ
 }
 ```
 
-### С компонентом
+### 2. Добавьте секцию logger в ebusta.yaml
 
-```go
-log := logger.DefaultWithComponent("web-frontend")
-log.Info("req-123", "Search request received")
-// Output: 2024-02-15 12:00:00.000 [INFO] [req-123] [web-frontend] Search request received
+```yaml
+# ebusta.yaml
+logger:
+  level: INFO           # DEBUG, INFO, WARN, ERROR, FATAL
+  format: text          # text, json
+  disable_colors: false
+  outputs:
+    console:
+      enabled: true
+      use_stderr: false
+    file:
+      enabled: true
+      path: /var/log/ebusta/app.log
+      append: true
+
+# ... остальной конфиг ...
 ```
 
-### С контекстом
+### 3. Инициализация в main.go
 
 ```go
-func Handler(ctx context.Context) {
-    log := logger.Default()
-    log.InfoCtx(ctx, "Processing request")
+package main
+
+import (
+	"ebusta/internal/config"
+	"ebusta/internal/logger"
+)
+
+func main() {
+	// Загрузка конфига
+	cfg := config.Get()
+
+	// Инициализация логгера
+	log := logger.InitFromConfig(cfg.Logger, "my-component")
+
+	// Использование
+	log.Info("req-123", "Application started")
+}
+```
+
+## Быстрый старт (без конфига)
+
+```go
+package main
+
+import "ebusta/internal/logger"
+
+var log = logger.Default()
+
+func main() {
+	log.Info("req-123", "Hello world")
 }
 ```
 
 ## Уровни логирования
 
 ```go
-log.Debug("req-123", "Detailed debug info")  // Только при DEBUG уровне
+log.Debug("req-123", "Detailed debug info")
 log.Info("req-123", "General information")
 log.Warn("req-123", "Warning message")
 log.Error("req-123", "Error occurred", err)
-log.Fatal("req-123", "Fatal error", err)     // Вызывает os.Exit(1)
+log.Fatal("req-123", "Fatal error", err)  // os.Exit(1)
 ```
 
-## Форматирование
-
-### Text (по умолчанию)
-
-```
-2024-02-15 12:00:00.000 [INFO] [req-123] [web-frontend] Search request received
-```
-
-### JSON
+## С компонентом
 
 ```go
-log := logger.New(logger.Config{
-    Formatter: logger.NewJSONFormatter(),
-})
-log.Info("req-123", "Search request")
-// Output: {"time":"2024-02-15T12:00:00Z","level":"INFO","trace_id":"req-123","message":"Search request"}
+log := logger.Default().WithComponent("plasma")
+log.Info("req-123", "HIT GetMeta sha1=abc123")
+// Output: 2024-02-15 12:00:00.000 [INFO] [req-123] [plasma] HIT GetMeta sha1=abc123
+```
+
+## С контекстом
+
+```go
+func Handler(ctx context.Context) {
+	log := logger.GetGlobal()
+	log.InfoCtx(ctx, "Processing request")
+}
 ```
 
 ## Множественные выходы
 
-### Консоль + файл
+Конфигурация для stdout + файл:
 
-```go
-fileOut, _ := logger.NewFileOutput("/var/log/ebusta/app.log", true)
-defer fileOut.Close()
-
-multiOut := logger.NewMultiOutput(
-    &logger.StdoutOutput{},
-    fileOut,
-)
-
-log := logger.New(logger.Config{
-    Output: multiOut,
-})
-```
-
-### Динамическое добавление выходов
-
-```go
-log := logger.Default()
-log.AddOutput(fileOut)  // Добавляет файл к существующему stdout
-```
-
-## Конфигурация через переменные окружения
-
-```bash
-# Уровень логирования
-export LOG_LEVEL=DEBUG    # DEBUG, INFO, WARN, ERROR, FATAL
-
-# Формат
-export LOG_FORMAT=json    # text, json, prettyjson
-
-# Выход
-export LOG_OUTPUT=stdout  # stdout, stderr, file:/path/to/file.log
-
-# Дополнительные опции
-export LOG_FILE_APPEND=true
-export LOG_COLORS=false
-export LOG_COMPONENT=my-service
-```
-
-```go
-// Автоматически читает переменные окружения
-log := logger.NewFromEnv()
-```
-
-## Интеграция с HTTP
-
-### Middleware
-
-```go
-func main() {
-    log := logger.DefaultWithComponent("web-frontend")
-
-    handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        ctx := r.Context()
-        log.InfofCtx(ctx, "Request: %s %s", r.Method, r.URL.Path)
-        // ...
-    })
-
-    // Middleware добавляет TraceID в контекст и заголовки
-    http.Handle("/", logger.HTTPMiddleware(handler, log))
-}
-```
-
-### Извлечение TraceID из запроса
-
-```go
-func Handler(w http.ResponseWriter, r *http.Request) {
-    ctx := logger.ContextFromRequest(r, "http")
-    traceID := logger.TraceIDFromContext(ctx)
-
-    log := logger.Default()
-    log.Infof(traceID, "Processing request")
-}
-```
-
-## Интеграция с gRPC
-
-```go
-func (s *MyService) GetMeta(ctx context.Context, req *Request) (*Response, error) {
-    // TraceID из gRPC metadata
-    traceID := logger.TraceIDFromContext(ctx)
-    if traceID == "" {
-        traceID = logger.GenerateTraceID("grpc")
-    }
-
-    log := logger.DefaultWithComponent("tier-node")
-    log.Infof(traceID, "GetMeta sha1=%s", req.GetSha1())
-
-    // Передача TraceID в исходящий контекст
-    outCtx := logger.GRPCContextWithTraceID(ctx, traceID)
-    // ... вызов другого сервиса с outCtx ...
-
-    return &Response{...}, nil
-}
+```yaml
+logger:
+  level: INFO
+  outputs:
+    console:
+      enabled: true
+    file:
+      enabled: true
+      path: /var/log/ebusta/app.log
+      append: true
 ```
 
 ## Миграция с log.Printf
 
 ### Было
-
 ```go
-log.Printf("[%s] [web-frontend] Search request: %s", traceID, query)
+log.Printf("[%s] [plasma] HIT GetMeta sha1=%s", traceID, sha1)
 ```
 
 ### Стало
-
 ```go
-// Вариант 1: Явный логгер
-log := logger.DefaultWithComponent("web-frontend")
-log.Infof(traceID, "Search request: %s", query)
+// Вариант 1: Создать логгер с компонентом
+var log = logger.Default().WithComponent("plasma")
+log.Infof(traceID, "HIT GetMeta sha1=%s", sha1)
 
 // Вариант 2: Package-level функция
-logger.Componentf("web-frontend", traceID, "Search request: %s", query)
+logger.Componentf("plasma", traceID, "HIT GetMeta sha1=%s", sha1)
 ```
 
-## Структурированные поля
-
-```go
-log := logger.Default()
-
-// Добавить поля
-logWithUser := log.WithField("user_id", "user-123")
-logWithUser.Info("req-123", "User action")
-
-// Множественные поля
-logWithFields := log.WithFields(map[string]interface{}{
-    "user_id":  "user-123",
-    "platform": "web",
-    "version":  "1.0.0",
-})
-logWithFields.Info("req-123", "Request processed")
-```
-
-## Архитектура
-
-```
-internal/logger/
-├── level.go      # Уровни логирования
-├── output.go     # Выходы (stdout, file, multi)
-├── formatter.go  # Форматирование (text, JSON)
-├── logger.go     # Основной тип Logger
-├── context.go    # Работа с контекстом и TraceID
-├── config.go     # Конфигурация
-└── global.go     # Глобальный логгер и convenience функции
-```
-
-## Примеры использования в ebusta
+## Примеры интеграции
 
 ### web-frontend
 
@@ -234,41 +174,24 @@ internal/logger/
 package main
 
 import (
-    "net/http"
-    "ebusta/internal/logger"
+	"net/http"
+	"ebusta/internal/config"
+	"ebusta/internal/logger"
 )
 
-var log = logger.DefaultWithComponent("web-frontend")
+var log *logger.Logger
+
+func main() {
+	cfg := config.Get()
+	log = logger.InitFromConfig(cfg.Logger, "web-frontend")
+
+	http.HandleFunc("/search", searchHandler)
+	http.ListenAndServe(":8080", nil)
+}
 
 func searchHandler(w http.ResponseWriter, r *http.Request) {
-    ctx := logger.ContextFromRequest(r, "http")
-    traceID := logger.TraceIDFromContext(ctx)
-
-    log.InfofCtx(ctx, "Search request: %s", r.URL.Query().Get("q"))
-    // ...
-}
-```
-
-### orchestrator
-
-```go
-package main
-
-import (
-    "context"
-    "ebusta/internal/logger"
-)
-
-var log = logger.DefaultWithComponent("orchestrator")
-
-func (s *Server) Search(ctx context.Context, req *SearchRequest) (*SearchResponse, error) {
-    traceID := logger.TraceIDFromContext(ctx)
-    if traceID == "" {
-        traceID = logger.GenerateTraceID("orch")
-    }
-
-    log.Infof(traceID, "Search query=%s limit=%d", req.Query, req.Limit)
-    // ...
+	ctx := logger.ContextFromRequest(r, "http")
+	log.InfofCtx(ctx, "Search: %s", r.URL.Query().Get("q"))
 }
 ```
 
@@ -278,51 +201,67 @@ func (s *Server) Search(ctx context.Context, req *SearchRequest) (*SearchRespons
 package plasma
 
 import (
-    "context"
-    "ebusta/internal/logger"
+	"context"
+	"ebusta/internal/logger"
 )
 
-var log = logger.DefaultWithComponent("plasma")
+var log = logger.Default().WithComponent("plasma")
 
 func (n *Node) GetMeta(ctx context.Context, req *GetMetaRequest) (*GetMetaResponse, error) {
-    traceID := logger.TraceIDFromContext(ctx)
-    if traceID == "" {
-        traceID = logger.GenerateTraceID("plasma")
-    }
+	traceID := logger.TraceIDFromContext(ctx)
+	if traceID == "" {
+		traceID = logger.GenerateTraceID("plasma")
+	}
 
-    if e, ok := n.items[sha1]; ok {
-        log.Infof(traceID, "HIT GetMeta sha1=%s hits=%d", sha1, e.hits)
-        return &GetMetaResponse{Meta: e.meta}, nil
-    }
-
-    log.Infof(traceID, "MISS GetMeta sha1=%s", sha1)
-    // ...
+	log.Infof(traceID, "HIT GetMeta sha1=%s", req.GetSha1())
+	// ...
 }
 ```
 
-## Расширение
-
-### Кастомный форматтер
+### orchestrator
 
 ```go
-type MyFormatter struct{}
+package main
 
-func (f *MyFormatter) Format(entry *logger.Entry) ([]byte, error) {
-    // Ваша логика форматирования
+import (
+	"ebusta/internal/config"
+	"ebusta/internal/logger"
+)
+
+func main() {
+	cfg := config.Get()
+	log := logger.InitFromConfig(cfg.Logger, "orchestrator")
+
+	traceID := logger.GenerateTraceID("orch")
+	log.Infof(traceID, "Search query=%s", query)
 }
 ```
 
-### Кастомный выход
+## Форматы вывода
 
-```go
-type MyOutput struct {
-    // ...
-}
+### Text (по умолчанию)
+```
+2024-02-15 12:00:00.000 [INFO] [req-123] [web-frontend] Search request received
+```
 
-func (o *MyOutput) Write(p []byte) (n int, err error) {
-    // Ваша логика записи
-}
+### JSON
+```yaml
+logger:
+  format: json
+```
+```json
+{"time":"2024-02-15T12:00:00Z","level":"INFO","trace_id":"req-123","component":"web-frontend","message":"Search request received"}
+```
 
-func (o *MyOutput) Close() error { return nil }
-func (o *MyOutput) Name() string { return "my-output" }
+## Файлы модуля
+
+```
+internal/logger/
+├── level.go      # Уровни: DEBUG, INFO, WARN, ERROR, FATAL
+├── output.go     # Выходы: Stdout, Stderr, File, Multi
+├── formatter.go  # Форматирование: Text, JSON
+├── logger.go     # Основной тип Logger
+├── context.go    # TraceID из context, HTTP, gRPC
+├── config.go     # Интеграция с internal/config
+└── global.go     # Глобальный логгер, convenience функции
 ```

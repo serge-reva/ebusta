@@ -13,8 +13,9 @@ var (
 )
 
 func init() {
-	// Initialize global logger from environment
-	globalLogger = NewFromEnv()
+	// Initialize global logger with defaults
+	// Will be replaced by InitFromConfig when config is loaded
+	globalLogger = Default()
 }
 
 // SetGlobal sets the global logger
@@ -29,6 +30,14 @@ func GetGlobal() *Logger {
 	globalMu.RLock()
 	defer globalMu.RUnlock()
 	return globalLogger
+}
+
+// InitFromConfig initializes global logger from LoggerConfig
+// Call this after loading config: logger.InitFromConfig(config.Get().Logger, "component")
+func InitFromConfig(cfg LoggerConfig, component string) *Logger {
+	l := NewFromConfig(cfg.MergeWithDefault(), component)
+	SetGlobal(l)
+	return l
 }
 
 // --- Package-level convenience functions ---
@@ -130,11 +139,10 @@ func FatalCtx(ctx context.Context, message string, err error) {
 	GetGlobal().Fatal(TraceIDFromContext(ctx), message, err)
 }
 
-// --- Simple component-style logging (migration helper) ---
-// These functions help migrate from log.Printf("[%s] [component] message...", traceID, args...)
+// --- Component-style logging (migration helper) ---
 
-// Component logs a message with component prefix: [traceID] [component] message
-// This is a drop-in replacement for: log.Printf("[%s] [%s] %s", traceID, component, message)
+// Component logs a message with component prefix
+// Drop-in replacement for: log.Printf("[%s] [%s] %s", traceID, component, message)
 func Component(component, traceID, message string) {
 	l := GetGlobal().WithComponent(component)
 	l.Info(traceID, message)
@@ -173,8 +181,6 @@ func ComponentErrorf(component, traceID, format string, args ...interface{}) {
 // --- Legacy compatibility ---
 
 // Printf is a compatibility function for log.Printf style logging
-// Format: [traceID] message...
-// This is NOT recommended for new code, use explicit level functions instead
 func Printf(format string, args ...interface{}) {
 	GetGlobal().Info("", fmt.Sprintf(format, args...))
 }
@@ -188,8 +194,6 @@ func Print(args ...interface{}) {
 func Println(args ...interface{}) {
 	GetGlobal().Info("", fmt.Sprintln(args...))
 }
-
-// --- Fatal compatibility ---
 
 // Exit calls os.Exit with the given code
 func Exit(code int) {
