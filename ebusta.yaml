@@ -70,3 +70,16 @@ downloads:
 
 cli:
   debug: false
+
+
+logger:
+  level: INFO
+  format: text
+  disable_colors: false
+  outputs:
+    console:
+      enabled: true
+    file:
+      enabled: true
+      path: /var/log/ebusta/app.log
+      append: true  
