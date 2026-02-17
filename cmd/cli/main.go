@@ -6,11 +6,13 @@ import (
     "io"
     "os"
     "path/filepath"
+    "strconv"
     "strings"
     "time"
 
     libraryv1 "ebusta/api/proto/v1"
     "ebusta/internal/config"
+    "ebusta/internal/presenter"
     "ebusta/internal/search"
 
     "github.com/peterh/liner"
@@ -25,8 +27,6 @@ type dlOpts struct {
 
 func main() {
     // --- download modes (non-interactive) ---
-    // ./bin/ebusta-cli get [--progress] [--verify] <sha1>         -> save to downloads.cli.download_dir
-    // ./bin/ebusta-cli get-stdout [--progress] [--verify] <sha1>  -> write raw bytes to stdout
     if len(os.Args) >= 2 && os.Args[1] == "get" {
         sha1, opts, err := parseDownloadArgs(os.Args[2:])
         if err != nil {
@@ -52,7 +52,6 @@ func main() {
         return
     }
 
-    // --- search mode ---
     svc := search.NewService()
     if svc == nil {
         fmt.Fprintln(os.Stderr, "Error: could not connect to search service")
@@ -63,9 +62,14 @@ func main() {
     line := liner.NewLiner()
     defer line.Close()
 
-    // non-interactive search: ./bin/ebusta-cli "author:Кинг"
+    // non-interactive search with pagination support
     if len(os.Args) > 1 {
-        doSearch(svc, strings.Join(os.Args[1:], " "))
+        query, page := parseSearchArgs(os.Args[1:])
+        if query == "" {
+            fmt.Fprintln(os.Stderr, "Error: empty search query")
+            os.Exit(1)
+        }
+        doSearch(svc, query, page)
         return
     }
 
@@ -80,7 +84,6 @@ func main() {
                 break
             }
 
-            // interactive download: ebusta> get <sha1>
             if strings.HasPrefix(input, "get ") {
                 sha1 := strings.TrimSpace(strings.TrimPrefix(input, "get "))
                 _ = doDownloadToFile(sha1, dlOpts{})
@@ -88,7 +91,6 @@ func main() {
                 continue
             }
 
-            // interactive stdout download: ebusta> get-stdout <sha1>
             if strings.HasPrefix(input, "get-stdout ") {
                 sha1 := strings.TrimSpace(strings.TrimPrefix(input, "get-stdout "))
                 _ = doDownloadToStdout(sha1, dlOpts{})
@@ -96,7 +98,7 @@ func main() {
                 continue
             }
 
-            doSearch(svc, input)
+            doSearch(svc, input, 1)
             line.AppendHistory(input)
         } else {
             break
@@ -104,25 +106,62 @@ func main() {
     }
 }
 
-func doSearch(svc *search.Service, query string) {
-    tid := fmt.Sprintf("cli-%d", time.Now().UnixNano())
+// parseSearchArgs извлекает запрос и номер страницы из аргументов командной строки
+func parseSearchArgs(args []string) (query string, page int) {
+    page = 1
+    var queryParts []string
+    
+    for i := 0; i < len(args); i++ {
+        arg := args[i]
+        
+        // Check for --page=2 format
+        if strings.HasPrefix(arg, "--page=") {
+            pageStr := strings.TrimPrefix(arg, "--page=")
+            if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+                page = p
+            }
+            continue
+        }
+        
+        // Check for --page 2 format
+        if arg == "--page" && i+1 < len(args) {
+            if p, err := strconv.Atoi(args[i+1]); err == nil && p > 0 {
+                page = p
+                i++ // skip next argument
+            }
+            continue
+        }
+        
+        // Skip any other flag that starts with --
+        if strings.HasPrefix(arg, "--") {
+            continue
+        }
+        
+        // Not a flag, add to query
+        queryParts = append(queryParts, arg)
+    }
+    
+    query = strings.Join(queryParts, " ")
+    return
+}
 
-    // ИСПРАВЛЕНО: добавлен offset=0 (5 аргументов)
-    resp, err := svc.Search(context.Background(), query, 10, 0, tid)
+func doSearch(svc *search.Service, query string, page int) {
+    tid := fmt.Sprintf("cli-%d", time.Now().UnixNano())
+    pageSize := 10
+    offset := (page - 1) * pageSize
+
+    fmt.Fprintf(os.Stderr, "Searching for: %q (page %d, offset %d)\n", query, page, offset)
+
+    result, err := svc.SearchWithPagination(context.Background(), query, pageSize, offset, page, tid)
     if err != nil {
         fmt.Fprintf(os.Stderr, "Error: %v (Trace: %s)\n", err, tid)
         return
     }
 
-    fmt.Printf("\n[TRACE: %s] Found %d books:\n", resp.TraceId, resp.Total)
-    fmt.Printf("%-40s | %-32s | %-20s | %s\n", "ID", "Title", "Authors", "File")
-    fmt.Println(strings.Repeat("-", 120))
-
-    for _, b := range resp.Books {
-        fmt.Printf("%-40s | %-32.32s | %-20.20s | %s/%s\n",
-            b.ID, b.Title, b.FullAuthors, b.Container, b.Filename)
+    formatter := &presenter.TextFormatter{}
+    if err := formatter.Format(result, os.Stdout); err != nil {
+        fmt.Fprintf(os.Stderr, "Error formatting results: %v\n", err)
     }
-    fmt.Println()
 }
 
 func parseDownloadArgs(args []string) (string, dlOpts, error) {
@@ -177,7 +216,7 @@ func streamToWriter(client libraryv1.StorageNodeClient, sha1 string, w io.Writer
 
     var written int64
     var lastReport time.Time
-    reportEvery := int64(1 << 20) // 1 MiB
+    reportEvery := int64(1 << 20)
     nextBytes := reportEvery
 
     for {
