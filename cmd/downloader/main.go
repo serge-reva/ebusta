@@ -1,10 +1,10 @@
 package main
 
 import (
+    "context"
     "encoding/json"
     "fmt"
     "io"
-    "log"
     "net/http"
     "strings"
     "time"
@@ -12,6 +12,7 @@ import (
     libraryv1 "ebusta/api/proto/v1"
     "ebusta/internal/config"
     "ebusta/internal/errutil"
+    "ebusta/internal/logger"
 
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials/insecure"
@@ -19,17 +20,16 @@ import (
 
 func main() {
     cfg := config.Get()
+    logger.InitFromConfig(cfg.Logger, "downloader")
 
     dcfg := cfg.Downloads.Downloader
     if err := dcfg.Validate(); err != nil {
-        log.Printf("[downloader] config error: %v", err)
-        panic(err)
+        logger.GetGlobal().FatalCtx(context.Background(), "[downloader] config error", err)
     }
 
     conn, err := grpc.Dial(dcfg.PlasmaAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
     if err != nil {
-        log.Printf("[downloader] plasma connect error: %v", err)
-        panic(err)
+        logger.GetGlobal().FatalCtx(context.Background(), "[downloader] plasma connect error", err)
     }
     defer conn.Close()
 
@@ -38,10 +38,8 @@ func main() {
     mux := http.NewServeMux()
 
     mux.HandleFunc("/books/", func(w http.ResponseWriter, r *http.Request) {
-
         start := time.Now()
 
-        // Получаем или генерируем TraceID
         tid := errutil.TraceIDFromRequest(r)
         if tid == "" {
             tid = errutil.GenerateTraceID("dl")
@@ -51,6 +49,7 @@ func main() {
         sha1 := strings.TrimPrefix(r.URL.Path, "/books/")
         sha1 = strings.Trim(sha1, "/")
         if sha1 == "" {
+            logger.GetGlobal().WithField("trace_id", tid).WarnCtx(r.Context(), "[downloader] missing id")
             errutil.WriteJSONError(w, errutil.New(
                 errutil.CodeInvalidArgument,
                 "missing id",
@@ -59,6 +58,7 @@ func main() {
         }
 
         if !isValidSHA1(sha1) {
+            logger.GetGlobal().WithField("sha1", sha1).WithField("trace_id", tid).WarnCtx(r.Context(), "[downloader] invalid sha1")
             errutil.WriteJSONError(w, errutil.New(
                 errutil.CodeInvalidArgument,
                 "invalid sha1 (expected 40 hex)",
@@ -73,6 +73,7 @@ func main() {
         })
         if err != nil {
             appErr := errutil.FromGRPCError(err, tid)
+            logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[downloader] GetMeta error", err)
             errutil.WriteJSONError(w, appErr)
             return
         }
@@ -86,12 +87,14 @@ func main() {
             if appErr.HTTPCode == 0 {
                 appErr.HTTPCode = 502
             }
+            logger.GetGlobal().WithField("code", appErr.Code).WithField("message", appErr.Message).WarnCtx(ctx, "[downloader] meta error")
             errutil.WriteJSONError(w, appErr)
             return
         }
 
         meta := metaResp.GetMeta()
         if meta == nil {
+            logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[downloader] empty meta", nil)
             errutil.WriteJSONError(w, errutil.New(
                 errutil.CodeBadGateway,
                 "empty meta",
@@ -99,23 +102,24 @@ func main() {
             return
         }
 
-        // HEAD support
         if r.Method == http.MethodHead {
             w.Header().Set("Content-Length", fmt.Sprintf("%d", meta.GetSize()))
             w.Header().Set("Content-Type", "application/octet-stream")
             w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", meta.GetFilename()))
             w.WriteHeader(http.StatusOK)
-            log.Printf("[%s] HEAD %s 200 (%d bytes) %dms",
-                tid, sha1, meta.GetSize(), time.Since(start).Milliseconds())
+            logger.GetGlobal().WithField("sha1", sha1).
+                WithField("size", meta.GetSize()).
+                WithField("duration_ms", time.Since(start).Milliseconds()).
+                InfoCtx(ctx, "[downloader] HEAD")
             return
         }
 
-        // meta-only mode
         if r.URL.Query().Get("meta") == "1" {
             w.Header().Set("Content-Type", "application/json")
             _ = json.NewEncoder(w).Encode(meta)
-            log.Printf("[%s] GET(meta) %s 200 %dms",
-                tid, sha1, time.Since(start).Milliseconds())
+            logger.GetGlobal().WithField("sha1", sha1).
+                WithField("duration_ms", time.Since(start).Milliseconds()).
+                InfoCtx(ctx, "[downloader] GET(meta)")
             return
         }
 
@@ -124,6 +128,7 @@ func main() {
         })
         if err != nil {
             appErr := errutil.FromGRPCError(err, tid)
+            logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[downloader] GetStream error", err)
             errutil.WriteJSONError(w, appErr)
             return
         }
@@ -142,7 +147,7 @@ func main() {
                 break
             }
             if rerr != nil {
-                log.Printf("[%s] stream error: %v", tid, rerr)
+                logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[downloader] stream error", rerr)
                 return
             }
 
@@ -154,13 +159,17 @@ func main() {
             }
         }
 
-        log.Printf("[%s] GET %s 200 (%d bytes) %dms",
-            tid, sha1, written, time.Since(start).Milliseconds())
+        logger.GetGlobal().WithField("sha1", sha1).
+            WithField("size", written).
+            WithField("duration_ms", time.Since(start).Milliseconds()).
+            InfoCtx(ctx, "[downloader] GET")
     })
 
     addr := dcfg.ListenAddr()
-    log.Printf("[downloader] http listening on %s (plasma=%s)", addr, dcfg.PlasmaAddr)
-    log.Fatal(http.ListenAndServe(addr, mux))
+    logger.GetGlobal().WithField("addr", addr).WithField("plasma", dcfg.PlasmaAddr).InfoCtx(context.Background(), "[downloader] listening")
+    if err := http.ListenAndServe(addr, mux); err != nil {
+        logger.GetGlobal().FatalCtx(context.Background(), "[downloader] serve error", err)
+    }
 }
 
 func isValidSHA1(s string) bool {
