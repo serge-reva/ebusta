@@ -2,12 +2,12 @@ package main
 
 import (
     "context"
-    "log"
     "net"
 
     libraryv1 "ebusta/api/proto/v1"
     "ebusta/internal/config"
     "ebusta/internal/errutil"
+    "ebusta/internal/logger"
 
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials/insecure"
@@ -21,52 +21,53 @@ type orchestratorServer struct {
 }
 
 func (s *orchestratorServer) Search(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
-    // Извлекаем TraceID из контекста
     traceID := errutil.TraceIDFromContext(ctx)
     if traceID == "" {
         traceID = errutil.GenerateTraceID("orch")
     }
 
-    log.Printf("[%s] 🎼 Search request: %s", traceID, req.GetQuery())
+    logger.GetGlobal().WithField("query", req.GetQuery()).
+        WithField("trace_id", traceID).
+        InfoCtx(ctx, "[orchestrator] search request")
 
-    // 1. DSL Transformer
     dslResp, err := s.dslClient.Transform(ctx, &libraryv1.DslRequest{
         Query: req.GetQuery(),
     })
     if err != nil {
         appErr := errutil.FromGRPCError(err, traceID)
-        log.Printf("[%s] DSL connection error: %v", traceID, err)
+        logger.GetGlobal().WithField("query", req.GetQuery()).
+            ErrorCtx(ctx, "[orchestrator] DSL connection error", err)
         return nil, errutil.ToGRPCError(appErr)
     }
     if !dslResp.GetIsSuccess() {
         appErr := errutil.New(errutil.CodeInvalidArgument, dslResp.GetErrorMsg()).WithTrace(traceID)
-        log.Printf("[%s] DSL parse error: %s", traceID, dslResp.GetErrorMsg())
+        logger.GetGlobal().WithField("error", dslResp.GetErrorMsg()).
+            WithField("query", req.GetQuery()).
+            WarnCtx(ctx, "[orchestrator] DSL parse error")
         return nil, errutil.ToGRPCError(appErr)
     }
 
-    // 2. Query Builder
     qbResp, err := s.qbClient.Build(ctx, &libraryv1.BuildRequest{
         Ast:  dslResp.GetAst(),
         Size: req.GetLimit(),
     })
     if err != nil {
         appErr := errutil.FromGRPCError(err, traceID)
-        log.Printf("[%s] QueryBuilder connection error: %v", traceID, err)
+        logger.GetGlobal().ErrorCtx(ctx, "[orchestrator] QueryBuilder connection error", err)
         return nil, errutil.ToGRPCError(appErr)
     }
     if !qbResp.GetIsSuccess() {
         appErr := errutil.New(errutil.CodeInternal, qbResp.GetErrorMsg()).WithTrace(traceID)
-        log.Printf("[%s] QueryBuilder build error: %s", traceID, qbResp.GetErrorMsg())
+        logger.GetGlobal().WithField("error", qbResp.GetErrorMsg()).
+            ErrorCtx(ctx, "[orchestrator] QueryBuilder build error", nil)
         return nil, errutil.ToGRPCError(appErr)
     }
 
-    // 3. Определяем тип исполнения (GetType вместо GetQueryType)
     execType := "DSL"
     if qbResp.GetType() == libraryv1.QueryType_TEMPLATE {
         execType = "TEMPLATE"
     }
 
-    // 4. Data Manager
     resp, err := s.dmClient.SearchBooks(ctx, &libraryv1.SearchRequest{
         Query:               req.GetQuery(),
         Ast:                 dslResp.GetAst(),
@@ -76,16 +77,19 @@ func (s *orchestratorServer) Search(ctx context.Context, req *libraryv1.SearchRe
     })
     if err != nil {
         appErr := errutil.FromGRPCError(err, traceID)
-        log.Printf("[%s] DataManager error: %v", traceID, err)
+        logger.GetGlobal().ErrorCtx(ctx, "[orchestrator] DataManager error", err)
         return nil, errutil.ToGRPCError(appErr)
     }
 
-    log.Printf("[%s] ✅ Search complete: %d results", traceID, len(resp.GetBooks()))
+    logger.GetGlobal().WithField("results", len(resp.GetBooks())).
+        WithField("trace_id", traceID).
+        InfoCtx(ctx, "[orchestrator] search complete")
     return resp, nil
 }
 
 func main() {
     cfg := config.Get()
+    logger.InitFromConfig(cfg.Logger, "orchestrator")
 
     dslConn, _ := grpc.Dial(cfg.DslScala.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
     qbConn, _ := grpc.Dial(cfg.QueryBuilder.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -93,7 +97,7 @@ func main() {
 
     lis, err := net.Listen("tcp", cfg.Orchestrator.Address())
     if err != nil {
-        log.Fatalf("failed to listen: %v", err)
+        logger.GetGlobal().FatalCtx(context.Background(), "failed to listen", err)
     }
 
     s := grpc.NewServer()
@@ -103,8 +107,9 @@ func main() {
         dmClient:  libraryv1.NewStorageServiceClient(dmConn),
     })
 
-    log.Printf("🚀 Orchestrator with errutil started on %s", cfg.Orchestrator.Address())
+    logger.GetGlobal().WithField("addr", cfg.Orchestrator.Address()).
+        InfoCtx(context.Background(), "[orchestrator] started")
     if err := s.Serve(lis); err != nil {
-        log.Fatalf("failed to serve: %v", err)
+        logger.GetGlobal().FatalCtx(context.Background(), "failed to serve", err)
     }
 }
