@@ -5,18 +5,17 @@ import (
     "errors"
     "expvar"
     "io"
-    "log"
     "sync"
     "time"
 
     libraryv1 "ebusta/api/proto/v1"
     "ebusta/internal/errutil"
+    "ebusta/internal/logger"
 
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials/insecure"
 )
 
-// expvar: будет видно в /debug/vars сразу после старта процесса
 var (
     hitsTotal      = expvar.NewInt("plasma_hits_total")
     missesTotal    = expvar.NewInt("plasma_misses_total")
@@ -127,13 +126,14 @@ func (n *Node) GetMeta(ctx context.Context, req *libraryv1.GetMetaRequest) (*lib
         m := *e.meta
         n.syncGaugesLocked()
         n.mu.Unlock()
-        log.Printf("[%s] [plasma] HIT GetMeta sha1=%s hits=%d size=%d", traceID, sha1, e.hits, len(e.data))
+        l := logger.GetGlobal().WithField("sha1", sha1).WithField("hits", e.hits).WithField("size", len(e.data))
+        l.InfoCtx(ctx, "[plasma] HIT GetMeta")
         return &libraryv1.GetMetaResponse{Meta: &m}, nil
     }
     missesTotal.Add(1)
     n.syncGaugesLocked()
     n.mu.Unlock()
-    log.Printf("[%s] [plasma] MISS GetMeta sha1=%s", traceID, sha1)
+    logger.GetGlobal().WithField("sha1", sha1).InfoCtx(ctx, "[plasma] MISS GetMeta")
 
     if err := n.ensureLocal(ctx, sha1, traceID); err != nil {
         appErr := errutil.FromGRPCError(err, traceID)
@@ -150,7 +150,8 @@ func (n *Node) GetMeta(ctx context.Context, req *libraryv1.GetMetaRequest) (*lib
     m := *e.meta
     n.syncGaugesLocked()
     n.mu.Unlock()
-    log.Printf("[%s] [plasma] HIT(after-fill) GetMeta sha1=%s hits=%d size=%d", traceID, sha1, e.hits, len(e.data))
+    l := logger.GetGlobal().WithField("sha1", sha1).WithField("hits", e.hits).WithField("size", len(e.data))
+    l.InfoCtx(ctx, "[plasma] HIT(after-fill) GetMeta")
     return &libraryv1.GetMetaResponse{Meta: &m}, nil
 }
 
@@ -169,12 +170,12 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
         hitsTotal.Add(1)
         n.syncGaugesLocked()
         n.mu.Unlock()
-        log.Printf("[%s] [plasma] HIT GetStream sha1=%s", traceID, sha1)
+        logger.GetGlobal().WithField("sha1", sha1).InfoCtx(ctx, "[plasma] HIT GetStream")
     } else {
         missesTotal.Add(1)
         n.syncGaugesLocked()
         n.mu.Unlock()
-        log.Printf("[%s] [plasma] MISS GetStream sha1=%s", traceID, sha1)
+        logger.GetGlobal().WithField("sha1", sha1).InfoCtx(ctx, "[plasma] MISS GetStream")
     }
 
     if err := n.ensureLocal(ctx, sha1, traceID); err != nil {
@@ -195,7 +196,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
             end = len(data)
         }
         if err := stream.Send(&libraryv1.Chunk{Data: data[off:end]}); err != nil {
-            log.Printf("[%s] [plasma] GetStream send error: %v", traceID, err)
+            logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[plasma] GetStream send error", err)
             return errutil.ToGRPCError(errutil.New(
                 errutil.CodeInternal,
                 "stream send error",
@@ -203,7 +204,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
         }
     }
 
-    log.Printf("[%s] [plasma] GetStream sent sha1=%s size=%d", traceID, sha1, len(data))
+    logger.GetGlobal().WithField("sha1", sha1).WithField("size", len(data)).InfoCtx(ctx, "[plasma] GetStream sent")
     return nil
 }
 
@@ -216,7 +217,7 @@ func (n *Node) Put(stream libraryv1.StorageNode_PutServer) error {
 
     first, err := stream.Recv()
     if err != nil {
-        log.Printf("[%s] [plasma] Put recv error: %v", traceID, err)
+        logger.GetGlobal().ErrorCtx(ctx, "[plasma] Put recv error", err)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInvalidArgument,
             "missing first message",
@@ -241,7 +242,7 @@ func (n *Node) Put(stream libraryv1.StorageNode_PutServer) error {
             break
         }
         if rerr != nil {
-            log.Printf("[%s] [plasma] Put stream error: %v", traceID, rerr)
+            logger.GetGlobal().ErrorCtx(ctx, "[plasma] Put stream error", rerr)
             return errutil.ToGRPCError(errutil.New(
                 errutil.CodeInternal,
                 "stream recv error",
@@ -253,12 +254,12 @@ func (n *Node) Put(stream libraryv1.StorageNode_PutServer) error {
     }
 
     n.store(meta, buf)
-    log.Printf("[%s] [plasma] PUT stored sha1=%s size=%d title=%q", traceID, meta.GetSha1(), len(buf), meta.GetTitle())
+    l := logger.GetGlobal().WithField("sha1", meta.GetSha1()).WithField("size", len(buf)).WithField("title", meta.GetTitle())
+    l.InfoCtx(ctx, "[plasma] PUT stored")
 
-    // Проксируем PUT вниз, чтобы пройти "по пути tiers" (plasma -> parent -> ...)
     ps, perr := n.parent.Put(ctx)
     if perr != nil {
-        log.Printf("[%s] [plasma] PUT proxy error: %v", traceID, perr)
+        logger.GetGlobal().ErrorCtx(ctx, "[plasma] PUT proxy error", perr)
         return stream.SendAndClose(&libraryv1.PutResponse{Stored: true, Meta: meta})
     }
     _ = ps.Send(&libraryv1.PutRequest{Meta: meta, Data: buf})
@@ -297,18 +298,18 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
     metaResp, err := n.parent.GetMeta(ctx, &libraryv1.GetMetaRequest{Id: &libraryv1.BookId{Sha1: sha1}})
     if err != nil {
         appErr := errutil.FromGRPCError(err, traceID)
-        log.Printf("[%s] [plasma] fetchFromParent GetMeta error: %v", traceID, err)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[plasma] fetchFromParent GetMeta error", err)
         return errutil.ToGRPCError(appErr)
     }
     if metaResp.GetError() != nil {
         if metaResp.GetError().GetCode() == "NOT_FOUND" {
-            log.Printf("[%s] [plasma] fetchFromParent NOT_FOUND sha1=%s", traceID, sha1)
+            logger.GetGlobal().WithField("sha1", sha1).InfoCtx(ctx, "[plasma] fetchFromParent NOT_FOUND")
             return errutil.ToGRPCError(errutil.New(
                 errutil.CodeNotFound,
                 "NOT_FOUND",
             ).WithTrace(traceID))
         }
-        log.Printf("[%s] [plasma] fetchFromParent error: %s", traceID, metaResp.GetError().GetMessage())
+        logger.GetGlobal().WithField("sha1", sha1).WithField("message", metaResp.GetError().GetMessage()).ErrorCtx(ctx, "[plasma] fetchFromParent error", nil)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             metaResp.GetError().GetMessage(),
@@ -316,7 +317,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
     }
     meta := metaResp.GetMeta()
     if meta == nil {
-        log.Printf("[%s] [plasma] fetchFromParent empty meta", traceID)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[plasma] fetchFromParent empty meta", nil)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             "UPSTREAM_ERROR: empty meta",
@@ -326,7 +327,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
     st, err := n.parent.GetStream(ctx, &libraryv1.GetStreamRequest{Id: &libraryv1.BookId{Sha1: sha1}})
     if err != nil {
         appErr := errutil.FromGRPCError(err, traceID)
-        log.Printf("[%s] [plasma] fetchFromParent GetStream error: %v", traceID, err)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[plasma] fetchFromParent GetStream error", err)
         return errutil.ToGRPCError(appErr)
     }
 
@@ -338,7 +339,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
         }
         if rerr != nil {
             appErr := errutil.FromGRPCError(rerr, traceID)
-            log.Printf("[%s] [plasma] fetchFromParent stream error: %v", traceID, rerr)
+            logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[plasma] fetchFromParent stream error", rerr)
             return errutil.ToGRPCError(appErr)
         }
         if len(ch.GetData()) > 0 {
@@ -347,7 +348,8 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
     }
 
     n.store(meta, buf)
-    log.Printf("[%s] [plasma] FILL from parent sha1=%s size=%d title=%q", traceID, sha1, len(buf), meta.GetTitle())
+    l := logger.GetGlobal().WithField("sha1", sha1).WithField("size", len(buf)).WithField("title", meta.GetTitle())
+    l.InfoCtx(ctx, "[plasma] FILL from parent")
     return nil
 }
 
@@ -358,13 +360,11 @@ func (n *Node) store(meta *libraryv1.BookMeta, data []byte) {
     n.mu.Lock()
     defer n.mu.Unlock()
 
-    // если ключ уже был — корректно пересчитать used
     if old, ok := n.items[sha1]; ok {
         n.used -= int64(len(old.data))
         delete(n.items, sha1)
     }
 
-    // освобождаем место (hits + FIFO)
     for (n.used+size > n.maxBytes) || (len(n.items)+1 > n.maxItems) {
         n.evictOneLocked()
     }
@@ -400,7 +400,7 @@ func (n *Node) evictOneLocked() {
     n.used -= int64(len(victim.data))
     evictionsTotal.Add(1)
     n.syncGaugesLocked()
-    log.Printf("[plasma] EVICT sha1=%s hits=%d size=%d", victimKey, victim.hits, len(victim.data))
+    logger.GetGlobal().WithField("sha1", victimKey).WithField("hits", victim.hits).WithField("size", len(victim.data)).Info("", "[plasma] EVICT")
 }
 
 func (n *Node) syncGaugesLocked() {
