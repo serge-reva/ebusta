@@ -5,11 +5,11 @@ import (
     "context"
     "database/sql"
     "io"
-    "log"
     "path/filepath"
 
     libraryv1 "ebusta/api/proto/v1"
     "ebusta/internal/errutil"
+    "ebusta/internal/logger"
     ds "ebusta/internal/downloads/sqlite"
 
     _ "modernc.org/sqlite"
@@ -85,7 +85,7 @@ func (n *Node) Has(ctx context.Context, req *libraryv1.HasRequest) (*libraryv1.H
 
     sha1 := req.GetId().GetSha1()
     if !isValidSha1Hex40(sha1) {
-        log.Printf("[%s] Has: invalid sha1", traceID)
+        logger.GetGlobal().WithField("sha1", sha1).WarnCtx(ctx, "[archive] Has: invalid sha1")
         return nil, errutil.ToGRPCError(errutil.New(
             errutil.CodeInvalidArgument,
             "invalid sha1 (expected 40 hex)",
@@ -97,7 +97,7 @@ func (n *Node) Has(ctx context.Context, req *libraryv1.HasRequest) (*libraryv1.H
         return &libraryv1.HasResponse{Exists: false}, nil
     }
     if err != nil {
-        log.Printf("[%s] Has: db error: %v", traceID, err)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[archive] Has: db error", err)
         return nil, errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             err.Error(),
@@ -114,7 +114,7 @@ func (n *Node) GetMeta(ctx context.Context, req *libraryv1.GetMetaRequest) (*lib
 
     sha1 := req.GetId().GetSha1()
     if !isValidSha1Hex40(sha1) {
-        log.Printf("[%s] GetMeta: invalid sha1", traceID)
+        logger.GetGlobal().WithField("sha1", sha1).WarnCtx(ctx, "[archive] GetMeta: invalid sha1")
         return nil, errutil.ToGRPCError(errutil.New(
             errutil.CodeInvalidArgument,
             "invalid sha1 (expected 40 hex)",
@@ -123,14 +123,14 @@ func (n *Node) GetMeta(ctx context.Context, req *libraryv1.GetMetaRequest) (*lib
 
     r, err := n.getMeta(ctx, sha1)
     if err == sql.ErrNoRows {
-        log.Printf("[%s] GetMeta: not found sha1=%s", traceID, sha1)
+        logger.GetGlobal().WithField("sha1", sha1).InfoCtx(ctx, "[archive] GetMeta: not found")
         return nil, errutil.ToGRPCError(errutil.New(
             errutil.CodeNotFound,
             "NOT_FOUND",
         ).WithTrace(traceID))
     }
     if err != nil {
-        log.Printf("[%s] GetMeta: db error: %v", traceID, err)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[archive] GetMeta: db error", err)
         return nil, errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             err.Error(),
@@ -157,7 +157,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
 
     sha1 := req.GetId().GetSha1()
     if !isValidSha1Hex40(sha1) {
-        log.Printf("[%s] GetStream: invalid sha1", traceID)
+        logger.GetGlobal().WithField("sha1", sha1).WarnCtx(ctx, "[archive] GetStream: invalid sha1")
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInvalidArgument,
             "invalid sha1 (expected 40 hex)",
@@ -166,14 +166,14 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
 
     r, err := n.getMeta(ctx, sha1)
     if err == sql.ErrNoRows {
-        log.Printf("[%s] GetStream: not found sha1=%s", traceID, sha1)
+        logger.GetGlobal().WithField("sha1", sha1).InfoCtx(ctx, "[archive] GetStream: not found")
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeNotFound,
             "NOT_FOUND",
         ).WithTrace(traceID))
     }
     if err != nil {
-        log.Printf("[%s] GetStream: db error: %v", traceID, err)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[archive] GetStream: db error", err)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             err.Error(),
@@ -183,7 +183,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
     zipPath := filepath.Join(n.zipRoot, r.container)
     zr, err := zip.OpenReader(zipPath)
     if err != nil {
-        log.Printf("[%s] GetStream: zip open error: %v", traceID, err)
+        logger.GetGlobal().WithField("zip", zipPath).ErrorCtx(ctx, "[archive] GetStream: zip open error", err)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             "cannot open archive",
@@ -199,7 +199,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
         }
     }
     if file == nil {
-        log.Printf("[%s] GetStream: file not found in archive: %s/%s", traceID, r.container, r.filename)
+        logger.GetGlobal().WithField("container", r.container).WithField("filename", r.filename).ErrorCtx(ctx, "[archive] GetStream: file not found in archive", nil)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeNotFound,
             "file not found in archive",
@@ -208,7 +208,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
 
     rc, err := file.Open()
     if err != nil {
-        log.Printf("[%s] GetStream: file open error: %v", traceID, err)
+        logger.GetGlobal().WithField("container", r.container).WithField("filename", r.filename).ErrorCtx(ctx, "[archive] GetStream: file open error", err)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             "cannot open file in archive",
@@ -221,7 +221,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
         n, err := rc.Read(buf)
         if n > 0 {
             if err := stream.Send(&libraryv1.Chunk{Data: buf[:n]}); err != nil {
-                log.Printf("[%s] GetStream: send error: %v", traceID, err)
+                logger.GetGlobal().ErrorCtx(ctx, "[archive] GetStream: send error", err)
                 return errutil.ToGRPCError(errutil.New(
                     errutil.CodeInternal,
                     "stream send error",
@@ -232,7 +232,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
             break
         }
         if err != nil {
-            log.Printf("[%s] GetStream: read error: %v", traceID, err)
+            logger.GetGlobal().ErrorCtx(ctx, "[archive] GetStream: read error", err)
             return errutil.ToGRPCError(errutil.New(
                 errutil.CodeInternal,
                 "file read error",
@@ -240,6 +240,6 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
         }
     }
 
-    log.Printf("[%s] GetStream: sent sha1=%s size=%d", traceID, sha1, r.size)
+    logger.GetGlobal().WithField("sha1", sha1).WithField("size", r.size).InfoCtx(ctx, "[archive] GetStream: sent")
     return nil
 }
