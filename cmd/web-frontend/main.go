@@ -2,7 +2,6 @@ package main
 
 import (
     "context"
-    "log"
     "net/http"
     "os"
     "os/signal"
@@ -10,16 +9,19 @@ import (
     "time"
 
     "ebusta/internal/config"
+    "ebusta/internal/logger"
     "ebusta/internal/search"
 )
 
 func main() {
     cfg := config.Get()
+    logger.InitFromConfig(cfg.Logger, "web-frontend")
+
     wfCfg := cfg.WebFrontend
 
     svc, err := search.New()
     if err != nil {
-        log.Fatalf("[web-frontend] failed to connect to orchestrator: %v", err)
+        logger.GetGlobal().FatalCtx(context.Background(), "failed to connect to orchestrator", err)
     }
     defer svc.Close()
 
@@ -29,43 +31,37 @@ func main() {
         pageSize:       wfCfg.PageSize,
     }
 
-    // Роутинг
     mux := http.NewServeMux()
     mux.HandleFunc("/", h.handleIndex)
     mux.HandleFunc("/search", h.handleSearch)
     mux.HandleFunc("/download/", h.handleDownload)
     mux.HandleFunc("/healthz", h.handleHealth)
 
-    // HTTP сервер
     addr := wfCfg.ListenAddr()
     server := &http.Server{
         Addr:    addr,
         Handler: mux,
     }
 
-    // Канал для graceful shutdown
     stop := make(chan os.Signal, 1)
     signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
-    // Запуск сервера в горутине
     go func() {
-        log.Printf("[web-frontend] listening on %s", addr)
+        logger.GetGlobal().WithField("addr", addr).InfoCtx(context.Background(), "[web-frontend] listening")
         if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-            log.Fatalf("[web-frontend] server error: %v", err)
+            logger.GetGlobal().FatalCtx(context.Background(), "server error", err)
         }
     }()
 
-    // Ожидание сигнала
     sig := <-stop
-    log.Printf("[web-frontend] received signal %v, shutting down...", sig)
+    logger.GetGlobal().WithField("signal", sig).InfoCtx(context.Background(), "[web-frontend] shutting down")
 
-    // Graceful shutdown с таймаутом
     ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
     defer cancel()
 
     if err := server.Shutdown(ctx); err != nil {
-        log.Printf("[web-frontend] shutdown error: %v", err)
+        logger.GetGlobal().ErrorCtx(context.Background(), "[web-frontend] shutdown error", err)
     }
 
-    log.Println("[web-frontend] stopped")
+    logger.GetGlobal().InfoCtx(context.Background(), "[web-frontend] stopped")
 }

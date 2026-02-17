@@ -10,6 +10,7 @@ import (
     "strings"
 
     "ebusta/internal/errutil"
+    "ebusta/internal/logger"
     "ebusta/internal/search"
 )
 
@@ -19,7 +20,6 @@ type Handler struct {
     pageSize       int
 }
 
-// handleIndex — главная страница с формой поиска
 func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
     if r.URL.Path != "/" {
         http.NotFound(w, r)
@@ -28,64 +28,70 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
     renderIndex(w)
 }
 
-// handleSearch — обработка поиска
 func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
     query := r.URL.Query().Get("q")
     pageStr := r.URL.Query().Get("page")
 
-    // Получаем или генерируем TraceID
     traceID := errutil.TraceIDFromRequest(r)
     if traceID == "" {
         traceID = errutil.GenerateTraceID("wf")
     }
 
-    // Валидация запроса
+    logger.GetGlobal().WithField("query", query).
+        WithField("page", pageStr).
+        WithField("trace_id", traceID).
+        InfoCtx(r.Context(), "[web-frontend] search request")
+
     if err := search.ValidateQuery(query); err != nil {
+        logger.GetGlobal().WithField("error", err.Error()).
+            WithField("query", query).
+            WarnCtx(r.Context(), "[web-frontend] invalid query")
         renderError(w, err.Error(), traceID)
         return
     }
 
-    // Парсинг страницы
     page, _ := strconv.Atoi(pageStr)
     if page < 1 {
         page = 1
     }
 
-    // Вычисление offset для пагинации
     offset := (page - 1) * h.pageSize
 
-    // Выполнение поиска с offset
     result, err := h.searchSvc.Search(r.Context(), query, h.pageSize, offset, traceID)
     if err != nil {
+        logger.GetGlobal().WithField("query", query).
+            ErrorCtx(r.Context(), "[web-frontend] search error", err)
         renderError(w, "Ошибка поиска", traceID)
         return
     }
 
-    // Валидация страницы
     totalPages := (result.Total + h.pageSize - 1) / h.pageSize
     if totalPages == 0 {
         totalPages = 1
     }
     page = search.ValidatePage(page, totalPages)
 
+    logger.GetGlobal().WithField("total", result.Total).
+        WithField("returned", len(result.Books)).
+        WithField("page", page).
+        WithField("trace_id", traceID).
+        InfoCtx(r.Context(), "[web-frontend] search completed")
+
     renderResults(w, result, query, page, totalPages)
 }
 
-// handleDownload — скачивание файла (один HTTP-запрос к Downloader)
-// Согласно ТЗ v1.4: имя файла извлекается из Content-Disposition, формат {Filename}
-// Согласно ТЗ errutil: возвращает JSON-ошибки с TraceID
 func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
-    // Получаем или генерируем TraceID
     traceID := errutil.TraceIDFromRequest(r)
     if traceID == "" {
         traceID = errutil.GenerateTraceID("wf")
     }
 
-    // Извлечение SHA1 из URL: /download/{sha1}
     sha1 := strings.TrimPrefix(r.URL.Path, "/download/")
     sha1 = strings.TrimSpace(sha1)
 
     if sha1 == "" {
+        logger.GetGlobal().WithField("trace_id", traceID).
+            WarnCtx(r.Context(), "[web-frontend] download missing id")
         errutil.WriteJSONError(w, errutil.New(
             errutil.CodeInvalidArgument,
             "missing id",
@@ -93,8 +99,10 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Валидация SHA1
     if !search.ValidateSHA1(sha1) {
+        logger.GetGlobal().WithField("sha1", sha1).
+            WithField("trace_id", traceID).
+            WarnCtx(r.Context(), "[web-frontend] invalid sha1")
         errutil.WriteJSONError(w, errutil.New(
             errutil.CodeInvalidArgument,
             "invalid sha1 (expected 40 hex)",
@@ -102,10 +110,15 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Один запрос к Downloader
+    logger.GetGlobal().WithField("sha1", sha1).
+        WithField("trace_id", traceID).
+        InfoCtx(r.Context(), "[web-frontend] download request")
+
     downloadURL := fmt.Sprintf("http://%s/books/%s", h.downloaderAddr, sha1)
     dlResp, err := http.Get(downloadURL)
     if err != nil {
+        logger.GetGlobal().WithField("downloader", h.downloaderAddr).
+            ErrorCtx(r.Context(), "[web-frontend] downloader unavailable", err)
         errutil.WriteJSONError(w, errutil.New(
             errutil.CodeUnavailable,
             "сервис скачивания недоступен",
@@ -117,15 +130,15 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
     if dlResp.StatusCode != http.StatusOK {
         body, _ := io.ReadAll(dlResp.Body)
         appErr := errutil.FromHTTPResponse(dlResp, body, traceID)
+        logger.GetGlobal().WithField("status", dlResp.StatusCode).
+            WithField("trace_id", traceID).
+            WarnCtx(r.Context(), "[web-frontend] downloader error")
         errutil.WriteJSONError(w, appErr)
         return
     }
 
-    // Извлечение имени файла из Content-Disposition
-    // Формат: attachment; filename="king_arrow.fb2"
     filename := extractFilename(dlResp.Header.Get("Content-Disposition"))
 
-    // Установка заголовков ответа
     w.Header().Set("Content-Type", "application/octet-stream")
     w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
     w.Header().Set("X-Trace-Id", traceID)
@@ -133,19 +146,19 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
         w.Header().Set("Content-Length", contentLength)
     }
 
-    // Потоковая передача
     io.Copy(w, dlResp.Body)
+
+    logger.GetGlobal().WithField("sha1", sha1).
+        WithField("filename", filename).
+        WithField("trace_id", traceID).
+        InfoCtx(r.Context(), "[web-frontend] download completed")
 }
 
-// extractFilename извлекает имя файла из Content-Disposition заголовка
-// Ожидаемый формат: attachment; filename="king_arrow.fb2"
-// Возвращает только имя файла (без контейнера), например: "king_arrow.fb2"
 func extractFilename(contentDisposition string) string {
     if contentDisposition == "" {
         return "unknown.bin"
     }
 
-    // Используем mime.ParseMediaType для корректного парсинга
     _, params, err := mime.ParseMediaType(contentDisposition)
     if err != nil {
         return "unknown.bin"
@@ -159,7 +172,6 @@ func extractFilename(contentDisposition string) string {
     return filename
 }
 
-// handleHealth — health check endpoint для мониторинга
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(http.StatusOK)
