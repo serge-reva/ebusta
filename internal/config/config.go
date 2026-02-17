@@ -6,6 +6,7 @@ import (
         "os"
         "sync"
 
+        "ebusta/internal/logger"
         "gopkg.in/yaml.v3"
 )
 
@@ -33,31 +34,6 @@ type OpenSearchConfig struct {
 
 type MetricsConfig struct {
         Port int `yaml:"port"`
-}
-
-/* ---------- LOGGER ---------- */
-
-type LoggerConfig struct {
-        Level         string        `yaml:"level"`
-        Format        string        `yaml:"format"`
-        DisableColors bool          `yaml:"disable_colors"`
-        Outputs       OutputsConfig `yaml:"outputs"`
-}
-
-type OutputsConfig struct {
-        Console ConsoleConfig    `yaml:"console"`
-        File    FileOutputConfig `yaml:"file"`
-}
-
-type ConsoleConfig struct {
-        Enabled   bool `yaml:"enabled"`
-        UseStderr bool `yaml:"use_stderr"`
-}
-
-type FileOutputConfig struct {
-        Enabled bool   `yaml:"enabled"`
-        Path    string `yaml:"path"`
-        Append  bool   `yaml:"append"`
 }
 
 /* ---------- WEB FRONTEND ---------- */
@@ -212,7 +188,7 @@ type Config struct {
 
         Downloads DownloadsConfig `yaml:"downloads"`
 
-        Logger LoggerConfig `yaml:"logger"`
+        Logger logger.LoggerConfig `yaml:"logger"`
 }
 
 func Get() *Config {
@@ -231,6 +207,8 @@ func Get() *Config {
                 if err := yaml.Unmarshal(f, instance); err != nil {
                         log.Fatalf("[CONFIG ERROR] Failed to parse YAML: %v", err)
                 }
+
+                logger.InitFromConfig(instance.Logger, "config")
         })
         return instance
 }
