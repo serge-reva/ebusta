@@ -6,7 +6,6 @@ import (
     "errors"
     "fmt"
     "io"
-    "log"
     "net"
     "os"
     "path/filepath"
@@ -14,6 +13,7 @@ import (
 
     libraryv1 "ebusta/api/proto/v1"
     "ebusta/internal/errutil"
+    "ebusta/internal/logger"
     ds "ebusta/internal/downloads/sqlite"
 
     _ "modernc.org/sqlite"
@@ -44,7 +44,7 @@ type inflight struct {
 type Config struct {
     RootPath   string
     SqlitePath string
-    ParentAddr string // required for disk tiers
+    ParentAddr string
 }
 
 func New(cfg Config) (*Node, error) {
@@ -161,7 +161,7 @@ func (n *Node) Has(ctx context.Context, req *libraryv1.HasRequest) (*libraryv1.H
 
     sha1 := req.GetId().GetSha1()
     if !isValidSha1Hex40(sha1) {
-        log.Printf("[%s] Has: invalid sha1", traceID)
+        logger.GetGlobal().WithField("sha1", sha1).WarnCtx(ctx, "[tier] Has: invalid sha1")
         return nil, errutil.ToGRPCError(errutil.New(
             errutil.CodeInvalidArgument,
             "invalid sha1 (expected 40 hex)",
@@ -173,7 +173,7 @@ func (n *Node) Has(ctx context.Context, req *libraryv1.HasRequest) (*libraryv1.H
         return &libraryv1.HasResponse{Exists: false}, nil
     }
     if err != nil {
-        log.Printf("[%s] Has: db error: %v", traceID, err)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[tier] Has: db error", err)
         return nil, errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             err.Error(),
@@ -193,7 +193,7 @@ func (n *Node) GetMeta(ctx context.Context, req *libraryv1.GetMetaRequest) (*lib
 
     sha1 := req.GetId().GetSha1()
     if !isValidSha1Hex40(sha1) {
-        log.Printf("[%s] GetMeta: invalid sha1", traceID)
+        logger.GetGlobal().WithField("sha1", sha1).WarnCtx(ctx, "[tier] GetMeta: invalid sha1")
         return nil, errutil.ToGRPCError(errutil.New(
             errutil.CodeInvalidArgument,
             "invalid sha1 (expected 40 hex)",
@@ -201,7 +201,6 @@ func (n *Node) GetMeta(ctx context.Context, req *libraryv1.GetMetaRequest) (*lib
     }
 
     m, err := n.loadMeta(ctx, sha1)
-    // miss в sqlite или нет файла на диске -> пытаемся подтянуть у parent
     if err == sql.ErrNoRows || (err == nil && !n.hasLocalFile(m)) {
         if err2 := n.ensureLocal(ctx, sha1, traceID); err2 != nil {
             return nil, err2
@@ -209,14 +208,14 @@ func (n *Node) GetMeta(ctx context.Context, req *libraryv1.GetMetaRequest) (*lib
 
         m2, err2 := n.loadMeta(ctx, sha1)
         if err2 == sql.ErrNoRows {
-            log.Printf("[%s] GetMeta: not found after ensure sha1=%s", traceID, sha1)
+            logger.GetGlobal().WithField("sha1", sha1).InfoCtx(ctx, "[tier] GetMeta: not found after ensure")
             return nil, errutil.ToGRPCError(errutil.New(
                 errutil.CodeNotFound,
                 "NOT_FOUND",
             ).WithTrace(traceID))
         }
         if err2 != nil {
-            log.Printf("[%s] GetMeta: db error after ensure: %v", traceID, err2)
+            logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[tier] GetMeta: db error after ensure", err2)
             return nil, errutil.ToGRPCError(errutil.New(
                 errutil.CodeInternal,
                 err2.Error(),
@@ -232,7 +231,7 @@ func (n *Node) GetMeta(ctx context.Context, req *libraryv1.GetMetaRequest) (*lib
     }
 
     if err != nil {
-        log.Printf("[%s] GetMeta: db error: %v", traceID, err)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[tier] GetMeta: db error", err)
         return nil, errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             err.Error(),
@@ -251,7 +250,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
 
     sha1 := req.GetId().GetSha1()
     if !isValidSha1Hex40(sha1) {
-        log.Printf("[%s] GetStream: invalid sha1", traceID)
+        logger.GetGlobal().WithField("sha1", sha1).WarnCtx(ctx, "[tier] GetStream: invalid sha1")
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInvalidArgument,
             "invalid sha1 (expected 40 hex)",
@@ -267,14 +266,14 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
     }
 
     if err == sql.ErrNoRows {
-        log.Printf("[%s] GetStream: not found sha1=%s", traceID, sha1)
+        logger.GetGlobal().WithField("sha1", sha1).InfoCtx(ctx, "[tier] GetStream: not found")
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeNotFound,
             "NOT_FOUND",
         ).WithTrace(traceID))
     }
     if err != nil {
-        log.Printf("[%s] GetStream: db error: %v", traceID, err)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[tier] GetStream: db error", err)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             err.Error(),
@@ -282,7 +281,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
     }
 
     if !n.hasLocalFile(m) {
-        log.Printf("[%s] GetStream: file missing on disk sha1=%s", traceID, sha1)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[tier] GetStream: file missing on disk", nil)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeNotFound,
             "FILE_NOT_FOUND",
@@ -292,7 +291,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
     path := n.filePath(m.GetContainer(), m.GetFilename())
     f, err := os.Open(path)
     if err != nil {
-        log.Printf("[%s] GetStream: open error: %v", traceID, err)
+        logger.GetGlobal().WithField("path", path).ErrorCtx(ctx, "[tier] GetStream: open error", err)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             "cannot open file",
@@ -305,7 +304,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
         nread, rerr := f.Read(buf)
         if nread > 0 {
             if err := stream.Send(&libraryv1.Chunk{Data: buf[:nread]}); err != nil {
-                log.Printf("[%s] GetStream: send error: %v", traceID, err)
+                logger.GetGlobal().ErrorCtx(ctx, "[tier] GetStream: send error", err)
                 return errutil.ToGRPCError(errutil.New(
                     errutil.CodeInternal,
                     "stream send error",
@@ -316,7 +315,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
             break
         }
         if rerr != nil {
-            log.Printf("[%s] GetStream: read error: %v", traceID, rerr)
+            logger.GetGlobal().ErrorCtx(ctx, "[tier] GetStream: read error", rerr)
             return errutil.ToGRPCError(errutil.New(
                 errutil.CodeInternal,
                 "file read error",
@@ -324,7 +323,7 @@ func (n *Node) GetStream(req *libraryv1.GetStreamRequest, stream libraryv1.Stora
         }
     }
 
-    log.Printf("[%s] GetStream: sent sha1=%s size=%d", traceID, sha1, m.GetSize())
+    logger.GetGlobal().WithField("sha1", sha1).WithField("size", m.GetSize()).InfoCtx(ctx, "[tier] GetStream: sent")
     return nil
 }
 
@@ -362,16 +361,15 @@ func (n *Node) ensureLocal(ctx context.Context, sha1, traceID string) error {
 }
 
 func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error {
-    // IMPORTANT: parent возвращает gRPC status codes.
     metaResp, err := n.parent.GetMeta(ctx, &libraryv1.GetMetaRequest{Id: &libraryv1.BookId{Sha1: sha1}})
     if err != nil {
         appErr := errutil.FromGRPCError(err, traceID)
-        log.Printf("[%s] fetchFromParent: GetMeta error: %v", traceID, err)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[tier] fetchFromParent: GetMeta error", err)
         return errutil.ToGRPCError(appErr)
     }
     meta := metaResp.GetMeta()
     if meta == nil {
-        log.Printf("[%s] fetchFromParent: empty meta", traceID)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[tier] fetchFromParent: empty meta", nil)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             "UPSTREAM_ERROR: empty meta",
@@ -380,7 +378,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
 
     dir := filepath.Join(n.rootPath, meta.GetContainer())
     if err := os.MkdirAll(dir, 0o755); err != nil {
-        log.Printf("[%s] fetchFromParent: mkdir error: %v", traceID, err)
+        logger.GetGlobal().WithField("dir", dir).ErrorCtx(ctx, "[tier] fetchFromParent: mkdir error", err)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             "IO_ERROR: mkdir",
@@ -396,7 +394,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
 
     tf, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
     if err != nil {
-        log.Printf("[%s] fetchFromParent: create tmp error: %v", traceID, err)
+        logger.GetGlobal().WithField("tmp", tmpPath).ErrorCtx(ctx, "[tier] fetchFromParent: create tmp error", err)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             "IO_ERROR: create tmp",
@@ -408,7 +406,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
         _ = tf.Close()
         _ = os.Remove(tmpPath)
         appErr := errutil.FromGRPCError(err, traceID)
-        log.Printf("[%s] fetchFromParent: GetStream error: %v", traceID, err)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[tier] fetchFromParent: GetStream error", err)
         return errutil.ToGRPCError(appErr)
     }
 
@@ -422,7 +420,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
             _ = tf.Close()
             _ = os.Remove(tmpPath)
             appErr := errutil.FromGRPCError(rerr, traceID)
-            log.Printf("[%s] fetchFromParent: stream error: %v", traceID, rerr)
+            logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[tier] fetchFromParent: stream error", rerr)
             return errutil.ToGRPCError(appErr)
         }
         if len(ch.GetData()) == 0 {
@@ -433,7 +431,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
         if werr != nil {
             _ = tf.Close()
             _ = os.Remove(tmpPath)
-            log.Printf("[%s] fetchFromParent: write error: %v", traceID, werr)
+            logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[tier] fetchFromParent: write error", werr)
             return errutil.ToGRPCError(errutil.New(
                 errutil.CodeInternal,
                 "IO_ERROR: write",
@@ -443,7 +441,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
 
     if err := tf.Close(); err != nil {
         _ = os.Remove(tmpPath)
-        log.Printf("[%s] fetchFromParent: close tmp error: %v", traceID, err)
+        logger.GetGlobal().WithField("tmp", tmpPath).ErrorCtx(ctx, "[tier] fetchFromParent: close tmp error", err)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             "IO_ERROR: close tmp",
@@ -452,7 +450,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
 
     if meta.GetSize() > 0 && written != meta.GetSize() {
         _ = os.Remove(tmpPath)
-        log.Printf("[%s] fetchFromParent: size mismatch written=%d meta.size=%d", traceID, written, meta.GetSize())
+        logger.GetGlobal().WithField("written", written).WithField("expected", meta.GetSize()).ErrorCtx(ctx, "[tier] fetchFromParent: size mismatch", nil)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             "SIZE_MISMATCH",
@@ -462,7 +460,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
 
     if err := os.Rename(tmpPath, finalPath); err != nil {
         _ = os.Remove(tmpPath)
-        log.Printf("[%s] fetchFromParent: rename error: %v", traceID, err)
+        logger.GetGlobal().WithField("tmp", tmpPath).WithField("final", finalPath).ErrorCtx(ctx, "[tier] fetchFromParent: rename error", err)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             "IO_ERROR: rename",
@@ -470,14 +468,14 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
     }
 
     if err := n.saveMeta(ctx, meta); err != nil {
-        log.Printf("[%s] fetchFromParent: save meta error: %v", traceID, err)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[tier] fetchFromParent: save meta error", err)
         return errutil.ToGRPCError(errutil.New(
             errutil.CodeInternal,
             "INTERNAL: save meta",
         ).WithTrace(traceID).WithDetails(err.Error()))
     }
 
-    log.Printf("[%s] fetchFromParent: fetched sha1=%s size=%d", traceID, sha1, written)
+    logger.GetGlobal().WithField("sha1", sha1).WithField("size", written).InfoCtx(ctx, "[tier] fetchFromParent: fetched")
     return nil
 }
 
