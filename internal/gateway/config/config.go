@@ -7,7 +7,7 @@ import (
     "os"
     "time"
 
-    "ebusta/internal/config"
+    mainconfig "ebusta/internal/config"  // алиас для основного конфига
 )
 
 type GatewayConfig struct {
@@ -66,7 +66,7 @@ type ServicesConfig struct {
     Auth         string
 }
 
-func LoadFromMainConfig(cfg *config.Config) *GatewayConfig {
+func LoadFromMainConfig(cfg *mainconfig.Config) *GatewayConfig {
     g := cfg.Gateway
     
     return &GatewayConfig{

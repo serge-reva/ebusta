@@ -170,6 +170,63 @@ func (c PlasmaNodeConfig) ListenAddr() string {
         return fmt.Sprintf(":%d", c.ListenPort)
 }
 
+/* ---------- GATEWAY ---------- */
+
+type GatewayConfig struct {
+        Port       int                 `yaml:"port"`
+        TLSCert    string              `yaml:"tls_cert"`
+        TLSKey     string              `yaml:"tls_key"`
+        RateLimit  RateLimitConfig     `yaml:"rate_limit"`
+        Mapper     MapperConfig        `yaml:"mapper"`
+        MTLS       MTLSConfig          `yaml:"mtls"`
+        Validation ValidationConfig    `yaml:"validation"`
+        CORS       CORSConfig          `yaml:"cors"`
+        Services   GatewayServicesConfig `yaml:"services"`
+}
+
+type RateLimitConfig struct {
+        IP            int `yaml:"ip"`
+        Authenticated int `yaml:"authenticated"`
+        Download      int `yaml:"download"`
+        Resolve       int `yaml:"resolve"`
+}
+
+type MapperConfig struct {
+        TTL             int `yaml:"ttl"`
+        MaxTokens       int `yaml:"max_tokens"`
+        CleanupInterval int `yaml:"cleanup_interval"`
+}
+
+type MTLSConfig struct {
+        Enabled    bool   `yaml:"enabled"`
+        CAFile     string `yaml:"ca_file"`
+        CertFile   string `yaml:"cert_file"`
+        KeyFile    string `yaml:"key_file"`
+        ServerName string `yaml:"server_name"`
+}
+
+type ValidationConfig struct {
+        MaxBodyBytes   int64 `yaml:"max_body_bytes"`
+        MaxFileBytes   int64 `yaml:"max_file_bytes"`
+        MaxQueryLength int   `yaml:"max_query_length"`
+        MaxArrayItems  int   `yaml:"max_array_items"`
+        MaxJSONDepth   int   `yaml:"max_json_depth"`
+}
+
+type CORSConfig struct {
+        AllowedOrigins   []string `yaml:"allowed_origins"`
+        AllowedMethods   []string `yaml:"allowed_methods"`
+        AllowedHeaders   []string `yaml:"allowed_headers"`
+        AllowCredentials bool     `yaml:"allow_credentials"`
+        MaxAge           int      `yaml:"max_age"`
+}
+
+type GatewayServicesConfig struct {
+        Orchestrator string `yaml:"orchestrator"`
+        Downloader   string `yaml:"downloader"`
+        Auth         string `yaml:"auth"`
+}
+
 /* ---------- ROOT ---------- */
 
 type Config struct {
@@ -187,8 +244,8 @@ type Config struct {
         Metrics MetricsConfig `yaml:"metrics"`
 
         Downloads DownloadsConfig `yaml:"downloads"`
-
-	Gateway   GatewayConfig    `yaml:"gateway"`  // <-- добавляем эту строку	
+        
+        Gateway    GatewayConfig    `yaml:"gateway"`
 
         Logger logger.LoggerConfig `yaml:"logger"`
 }
@@ -221,122 +278,4 @@ func (c ComponentConfig) Address() string {
 
 func (c ComponentConfig) FullURL() string {
         return fmt.Sprintf("%s://%s:%d", c.Protocol, c.Host, c.Port)
-}
-
-/* ---------- GATEWAY ---------- */
-
-type GatewayConfig struct {
-    Port           int            `yaml:"port"`
-    TLSCert        string         `yaml:"tls_cert"`
-    TLSKey         string         `yaml:"tls_key"`
-    RateLimit      RateLimitConfig `yaml:"rate_limit"`
-    Mapper         MapperConfig    `yaml:"mapper"`
-    MTLS           MTLSConfig      `yaml:"mtls"`
-    Validation     ValidationConfig `yaml:"validation"`
-    CORS           CORSConfig      `yaml:"cors"`
-    Services       ServicesConfig  `yaml:"services"`
-}
-
-type RateLimitConfig struct {
-    IP            int `yaml:"ip"`              // requests per minute
-    Authenticated int `yaml:"authenticated"`   // requests per minute
-    Download      int `yaml:"download"`         // downloads per minute
-    Resolve       int `yaml:"resolve"`          // token resolves per minute
-}
-
-type MapperConfig struct {
-    TTL             int `yaml:"ttl"`              // token TTL in seconds
-    MaxTokens       int `yaml:"max_tokens"`       // maximum active tokens
-    CleanupInterval int `yaml:"cleanup_interval"` // cleanup interval in seconds
-}
-
-type MTLSConfig struct {
-    Enabled    bool   `yaml:"enabled"`
-    CAFile     string `yaml:"ca_file"`
-    CertFile   string `yaml:"cert_file"`
-    KeyFile    string `yaml:"key_file"`
-    ServerName string `yaml:"server_name"`
-}
-
-type ValidationConfig struct {
-    MaxBodyBytes    int64 `yaml:"max_body_bytes"`
-    MaxFileBytes    int64 `yaml:"max_file_bytes"`
-    MaxQueryLength  int   `yaml:"max_query_length"`
-    MaxArrayItems   int   `yaml:"max_array_items"`
-    MaxJSONDepth    int   `yaml:"max_json_depth"`
-}
-
-type CORSConfig struct {
-    AllowedOrigins   []string `yaml:"allowed_origins"`
-    AllowedMethods   []string `yaml:"allowed_methods"`
-    AllowedHeaders   []string `yaml:"allowed_headers"`
-    AllowCredentials bool     `yaml:"allow_credentials"`
-    MaxAge           int      `yaml:"max_age"`
-}
-
-type ServicesConfig struct {
-    Orchestrator string `yaml:"orchestrator"` // host:port
-    Downloader   string `yaml:"downloader"`   // host:port
-    Auth         string `yaml:"auth"`         // host:port
-}
-
-func (c *Config) GetGatewayConfig() GatewayConfig {
-    return c.Gateway
-}
-
-/* ---------- GATEWAY ---------- */
-
-type GatewayConfig struct {
-    Port           int                `yaml:"port"`
-    TLSCert        string             `yaml:"tls_cert"`
-    TLSKey         string             `yaml:"tls_key"`
-    RateLimit      RateLimitConfig    `yaml:"rate_limit"`
-    Mapper         MapperConfig       `yaml:"mapper"`
-    MTLS           MTLSConfig         `yaml:"mtls"`
-    Validation     ValidationConfig   `yaml:"validation"`
-    CORS           CORSConfig         `yaml:"cors"`
-    Services       GatewayServicesConfig `yaml:"services"`
-}
-
-type RateLimitConfig struct {
-    IP            int `yaml:"ip"`
-    Authenticated int `yaml:"authenticated"`
-    Download      int `yaml:"download"`
-    Resolve       int `yaml:"resolve"`
-}
-
-type MapperConfig struct {
-    TTL             int `yaml:"ttl"`
-    MaxTokens       int `yaml:"max_tokens"`
-    CleanupInterval int `yaml:"cleanup_interval"`
-}
-
-type MTLSConfig struct {
-    Enabled    bool   `yaml:"enabled"`
-    CAFile     string `yaml:"ca_file"`
-    CertFile   string `yaml:"cert_file"`
-    KeyFile    string `yaml:"key_file"`
-    ServerName string `yaml:"server_name"`
-}
-
-type ValidationConfig struct {
-    MaxBodyBytes   int64 `yaml:"max_body_bytes"`
-    MaxFileBytes   int64 `yaml:"max_file_bytes"`
-    MaxQueryLength int   `yaml:"max_query_length"`
-    MaxArrayItems  int   `yaml:"max_array_items"`
-    MaxJSONDepth   int   `yaml:"max_json_depth"`
-}
-
-type CORSConfig struct {
-    AllowedOrigins   []string `yaml:"allowed_origins"`
-    AllowedMethods   []string `yaml:"allowed_methods"`
-    AllowedHeaders   []string `yaml:"allowed_headers"`
-    AllowCredentials bool     `yaml:"allow_credentials"`
-    MaxAge           int      `yaml:"max_age"`
-}
-
-type GatewayServicesConfig struct {
-    Orchestrator string `yaml:"orchestrator"`
-    Downloader   string `yaml:"downloader"`
-    Auth         string `yaml:"auth"`
 }
