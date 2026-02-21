@@ -7,7 +7,6 @@ import (
     "net/http"
     "time"
 
-    "ebusta/internal/errutil"
     "ebusta/internal/gateway/clients"
     "ebusta/internal/gateway/config"
     "ebusta/internal/gateway/mapper"
@@ -106,9 +105,7 @@ func (s *Server) Run() error {
         IdleTimeout:  120 * time.Second,
     }
     
-    logger.InfoCtx(context.Background(), "gateway starting",
-        "port", s.config.Port,
-        "tls", s.config.TLSCert != "")
+    logger.GetGlobal().WithField("port", s.config.Port).WithField("tls", s.config.TLSCert != "").InfoCtx(context.Background(), "gateway starting")
     
     if s.config.TLSCert != "" && s.config.TLSKey != "" {
         return s.httpServer.ListenAndServeTLS(s.config.TLSCert, s.config.TLSKey)

@@ -9,8 +9,8 @@ import (
     "time"
 
     "ebusta/internal/config"
+    gatewaycfg "ebusta/internal/gateway/config"
     "ebusta/internal/gateway"
-    "ebusta/internal/gateway/config"
     "ebusta/internal/logger"
 )
 
@@ -24,7 +24,7 @@ func main() {
     
     logger.InitFromConfig(cfg.Logger, "gateway")
     
-    gatewayCfg := gateway_config.LoadFromMainConfig(cfg)
+    gatewayCfg := gatewaycfg.LoadFromMainConfig(cfg)
     
     server, err := gateway.NewServer(gatewayCfg)
     if err != nil {
@@ -40,18 +40,17 @@ func main() {
         }
     }()
     
-    logger.InfoCtx(context.Background(), "gateway started",
-        "port", gatewayCfg.Port)
+    logger.GetGlobal().WithField("port", gatewayCfg.Port).InfoCtx(context.Background(), "gateway started")
     
     sig := <-stop
-    logger.InfoCtx(context.Background(), "shutting down", "signal", sig)
+    logger.GetGlobal().WithField("signal", sig).InfoCtx(context.Background(), "shutting down")
     
     ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
     defer cancel()
     
     if err := server.Shutdown(ctx); err != nil {
-        logger.ErrorCtx(context.Background(), "shutdown error", err)
+        logger.GetGlobal().ErrorCtx(context.Background(), "shutdown error", err)
     }
     
-    logger.InfoCtx(context.Background(), "gateway stopped")
+    logger.GetGlobal().InfoCtx(context.Background(), "gateway stopped")
 }

@@ -23,8 +23,9 @@ TIER_PORT       := $(shell sed -n '/tier_node:/,/listen_port:/p'       $(CONFIG_
 PLASMA_PORT     := $(shell sed -n '/plasma_node:/,/listen_port:/p'     $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 DOWNLOADER_PORT := $(shell sed -n '/downloader:/,/listen_port:/p'      $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 WEB_FRONTEND_PORT := $(shell sed -n '/web_frontend:/,/listen_port:/p'  $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
+GATEWAY_PORT    := $(shell sed -n '/gateway:/,/port:/p'                $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
 
-.PHONY: all build proto build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go up down restart test clean
+.PHONY: all build proto build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway up down restart test clean
 
 all: build
 
@@ -77,7 +78,12 @@ build-downloads-go: proto
 	@go build -o $(BIN_DIR)/downloader       ./cmd/downloader
 	@go build -o $(BIN_DIR)/downloads-import ./cmd/downloads-import
 
-build-go: build-search-go build-cli build-web-frontend build-downloads-go
+build-gateway: proto
+	@echo "🛠 Building Gateway..."
+	@mkdir -p $(BIN_DIR)
+	@go build -o $(BIN_DIR)/gateway ./cmd/gateway
+
+build-go: build-search-go build-cli build-web-frontend build-downloads-go build-gateway
 	@echo "✅ Go build done."
 
 build: proto build-scala build-go
@@ -85,7 +91,7 @@ build: proto build-scala build-go
 
 down:
 	@echo "🛑 Stopping all services..."
-	@-pkill -9 -f "datamanager|orchestrator|web-adapter|web-frontend|dsl-server.jar|query-builder.jar|archive-node|tier-node|plasma-node|downloader" || true
+	@-pkill -9 -f "datamanager|orchestrator|web-adapter|web-frontend|gateway|dsl-server.jar|query-builder.jar|archive-node|tier-node|plasma-node|downloader" || true
 	@sleep 1
 
 up: down
@@ -128,13 +134,16 @@ up: down
 	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/downloader >> $(LOG_DIR)/downloader.log 2>&1 & sleep 0.5
 	@pgrep -f downloader > /dev/null && echo "✅ RUNNING on :$(DOWNLOADER_PORT)" || echo "❌ FAILED"
 
+	@echo -n "   - Web Frontend: "
+	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/web-frontend >> $(LOG_DIR)/web-frontend.log 2>&1 & sleep 0.5
+	@pgrep -f web-frontend > /dev/null && echo "✅ RUNNING on :$(WEB_FRONTEND_PORT)" || echo "❌ FAILED"
 
-        @echo -n "   - Web Frontend: "
-        @EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/web-frontend >> $(LOG_DIR)/web-frontend.log 2>&1 & sleep 0.5
-        @pgrep -f web-frontend > /dev/null && echo "✅ RUNNING on :$(WEB_FRONTEND_PORT)" || echo "❌ FAILED"
+	@echo -n "   - Gateway: "
+	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/gateway >> $(LOG_DIR)/gateway.log 2>&1 & sleep 0.5
+	@pgrep -f gateway > /dev/null && echo "✅ RUNNING on :$(GATEWAY_PORT)" || echo "❌ FAILED"
 
 	@echo "\n📊 Active processes:"
-	@ps aux | grep -v grep | grep -E "archive-node|tier-node|plasma-node|downloader|web-adapter|orchestrator|datamanager"
+	@ps aux | grep -v grep | grep -E "archive-node|tier-node|plasma-node|downloader|web-adapter|orchestrator|datamanager|gateway"
 
 restart: up
 

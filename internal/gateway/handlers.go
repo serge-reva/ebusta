@@ -5,9 +5,7 @@ import (
     "fmt"
     "io"
     "net/http"
-    "strconv"
     "strings"
-    "time"
 
     "ebusta/internal/errutil"
     "ebusta/internal/gateway/clients"
@@ -69,8 +67,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
     
     req.Query = s.sanitizer.Sanitize(req.Query)
     if !s.sanitizer.IsSQLSafe(req.Query) {
-        logger.WarnCtx(ctx, "possible SQL injection blocked",
-            "query", s.sanitizer.SanitizeForLog(req.Query))
+        logger.GetGlobal().WithField("query", s.sanitizer.SanitizeForLog(req.Query)).WarnCtx(ctx, "possible SQL injection blocked")
         errutil.WriteJSONError(w, errutil.New(
             errutil.CodeInvalidArgument,
             "invalid query",
@@ -85,8 +82,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
         TraceID: traceID,
     })
     if err != nil {
-        logger.ErrorCtx(ctx, "orchestrator search failed", err,
-            "query", s.sanitizer.SanitizeForLog(req.Query))
+        logger.GetGlobal().WithField("query", s.sanitizer.SanitizeForLog(req.Query)).ErrorCtx(ctx, "orchestrator search failed", err)
         errutil.WriteJSONError(w, errutil.New(
             errutil.CodeInternal,
             "search failed",
@@ -105,8 +101,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
     for _, book := range result.Books {
         token, err := s.mapper.GenerateToken(book.ID, "")
         if err != nil {
-            logger.ErrorCtx(ctx, "failed to generate token", err,
-                "book_id", book.ID)
+            logger.GetGlobal().WithField("book_id", book.ID).ErrorCtx(ctx, "failed to generate token", err)
             continue
         }
         
@@ -139,8 +134,7 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
     }
     
     if !s.validator.ValidateToken(token) {
-        logger.WarnCtx(ctx, "invalid token format",
-            "token", s.sanitizer.SanitizeForLog(token))
+        logger.GetGlobal().WithField("token", s.sanitizer.SanitizeForLog(token)).WarnCtx(ctx, "invalid token format")
         errutil.WriteJSONError(w, errutil.New(
             errutil.CodeInvalidArgument,
             "invalid token format",
@@ -150,9 +144,7 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
     
     sha1, _, err := s.mapper.Resolve(token)
     if err != nil {
-        logger.WarnCtx(ctx, "token resolve failed",
-            "error", err.Error(),
-            "token", s.sanitizer.SanitizeForLog(token))
+        logger.GetGlobal().WithField("token", s.sanitizer.SanitizeForLog(token)).WithField("error", err.Error()).WarnCtx(ctx, "token resolve failed")
         
         switch err {
         case mapper.ErrTokenExpired:
@@ -172,8 +164,7 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
     if r.Method == http.MethodHead {
         meta, err := s.downloader.GetMeta(sha1)
         if err != nil {
-            logger.ErrorCtx(ctx, "failed to get meta", err,
-                "sha1", sha1)
+            logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "failed to get meta", err)
             errutil.WriteJSONError(w, errutil.New(
                 errutil.CodeInternal,
                 "failed to get book metadata",
@@ -193,8 +184,7 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("X-Trace-Id", traceID)
     
     if err := s.downloader.StreamBook(sha1, w); err != nil {
-        logger.ErrorCtx(ctx, "failed to stream book", err,
-            "sha1", sha1)
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "failed to stream book", err)
         return
     }
     
@@ -204,7 +194,6 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDownloadToken(w http.ResponseWriter, r *http.Request) {
-    ctx := r.Context()
     traceID := logger.GenerateTraceID("gw-token")
     
     token := strings.TrimPrefix(r.URL.Path, "/download/token/")
@@ -220,6 +209,7 @@ func (s *Server) handleDownloadToken(w http.ResponseWriter, r *http.Request) {
     
     meta, err := s.downloader.GetMeta(sha1)
     if err != nil {
+        logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(r.Context(), "failed to get metadata", err)
         errutil.WriteJSONError(w, errutil.New(
             errutil.CodeInternal,
             "failed to get metadata",

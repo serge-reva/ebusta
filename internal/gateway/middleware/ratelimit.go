@@ -71,14 +71,14 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
         ip := realIP(r)
         
         if !rl.ipLimiter.GetLimiter(ip).Allow() {
-            logger.WarnCtx(r.Context(), "rate limit exceeded", "ip", ip)
+            logger.WarnCtx(r.Context(), "rate limit exceeded")
             http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
             return
         }
         
         if strings.Contains(r.URL.Path, "/download/") {
             if !rl.resolveLimiter.GetLimiter(ip).Allow() {
-                logger.WarnCtx(r.Context(), "resolve rate limit exceeded", "ip", ip)
+                logger.WarnCtx(r.Context(), "resolve rate limit exceeded")
                 http.Error(w, "too many download attempts", http.StatusTooManyRequests)
                 return
             }

@@ -70,9 +70,7 @@ func (m *Mapper) cleanup() {
     now := time.Now()
     for token, mapping := range m.tokens {
         if now.After(mapping.ExpiresAt) {
-            logger.Info("", "mapper: cleaning up expired token",
-                "sha1", mapping.RealSHA1,
-                "age", now.Sub(mapping.CreatedAt))
+            logger.Info("", "mapper: cleaning up expired token")
             delete(m.tokens, token)
         }
     }

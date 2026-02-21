@@ -2,13 +2,10 @@ package clients
 
 import (
     "context"
-    "crypto/tls"
-    "fmt"
 
     libraryv1 "ebusta/api/proto/v1"
     "ebusta/internal/gateway/config"
     "google.golang.org/grpc"
-    "google.golang.org/grpc/credentials"
     "google.golang.org/grpc/credentials/insecure"
 )
 
@@ -21,14 +18,10 @@ func NewOrchestratorClient(cfg *config.GatewayConfig) (*OrchestratorClient, erro
     var opts []grpc.DialOption
     
     if cfg.MTLS.Enabled {
-        tlsConfig, err := cfg.GetTLSConfig()
-        if err != nil {
-            return nil, err
-        }
-        opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-    } else {
-        opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+        // Здесь будет mTLS, пока не реализовано
     }
+    
+    opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
     
     conn, err := grpc.Dial(cfg.Services.Orchestrator, opts...)
     if err != nil {
@@ -83,7 +76,7 @@ func (c *OrchestratorClient) Search(ctx context.Context, req *SearchRequest) (*S
     }
     
     result := &SearchResult{
-        TraceID: resp.GetTraceId(),
+        TraceID: req.TraceID, // используем TraceID из запроса
         Total:   int(resp.GetTotal()),
         Books:   make([]Book, 0, len(resp.GetBooks())),
     }

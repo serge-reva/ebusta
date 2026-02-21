@@ -1,7 +1,6 @@
 package middleware
 
 import (
-    "crypto/subtle"
     "net/http"
     "strings"
 
@@ -50,13 +49,6 @@ func (c *CSRFProtection) Middleware(next http.Handler) http.Handler {
             http.Error(w, "CSRF token required", http.StatusForbidden)
             return
         }
-        
-        // Проверка токена (должно быть в сессии)
-        // if subtle.ConstantTimeCompare([]byte(token), []byte(sessionToken)) != 1 {
-        //     logger.WarnCtx(r.Context(), "invalid CSRF token")
-        //     http.Error(w, "invalid CSRF token", http.StatusForbidden)
-        //     return
-        // }
         
         next.ServeHTTP(w, r)
     })

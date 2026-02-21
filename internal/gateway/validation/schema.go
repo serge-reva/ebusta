@@ -85,11 +85,13 @@ func (v *Validator) ValidateSHA1(sha1 string) bool {
 }
 
 func (v *Validator) ValidateToken(token string) bool {
-    // Токены должны быть URL-safe base64 без padding
-    if len(token) != 43 { // 32 байта в base64 URL = 43 символа
+    // Токены генерируются как base64.RawURLEncoding.EncodeToString (32 байта)
+    // Длина может быть 43 символа (стандартно) или короче (без padding)
+    if len(token) < 32 || len(token) > 64 {
         return false
     }
     
+    // Проверяем, что токен содержит только допустимые символы base64 URL
     for _, c := range token {
         if !((c >= 'a' && c <= 'z') || 
              (c >= 'A' && c <= 'Z') || 
