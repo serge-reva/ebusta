@@ -7,6 +7,7 @@ import (
     libraryv1 "ebusta/api/proto/v1"
     "ebusta/internal/config"
     "ebusta/internal/errutil"
+    "ebusta/internal/presenter"
 
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials/insecure"
@@ -34,8 +35,7 @@ func New() (*Service, error) {
     }, nil
 }
 
-// NewService — удобный конструктор для адаптеров (CLI/web-adapter):
-// возвращает nil при ошибке подключения.
+// NewService — удобный конструктор для адаптеров (CLI/web-adapter)
 func NewService() *Service {
     s, err := New()
     if err != nil {
@@ -52,8 +52,7 @@ func (s *Service) Close() error {
     return nil
 }
 
-// Search выполняет запрос к оркестратору и мапит результат в DTO.
-// traceID генерируется на edge и здесь НЕ создаётся.
+// Search выполняет запрос к оркестратору и мапит результат в DTO
 func (s *Service) Search(ctx context.Context, query string, limit int, offset int, traceID string) (*SearchResult, error) {
     if s == nil {
         return nil, errutil.New(errutil.CodeInternal, "search service is nil").WithTrace(traceID)
@@ -78,7 +77,7 @@ func (s *Service) Search(ctx context.Context, query string, limit int, offset in
     }
 
     res := &SearchResult{
-        TraceId: traceID, // возвращаем тот же TraceID, который отправили
+        TraceId: traceID,
         Total:   int(resp.GetTotal()),
         Books:   make([]BookDTO, 0, len(resp.GetBooks())),
     }
@@ -101,4 +100,36 @@ func (s *Service) Search(ctx context.Context, query string, limit int, offset in
     }
 
     return res, nil
+}
+
+// convertToPresenter преобразует search.SearchResult в presenter.SearchResult
+func convertToPresenter(sr *SearchResult) *presenter.SearchResult {
+    books := make([]presenter.BookDTO, len(sr.Books))
+    for i, b := range sr.Books {
+        books[i] = presenter.BookDTO{
+            ID:          b.ID,
+            Title:       b.Title,
+            Authors:     b.Authors,
+            Container:   b.Container,
+            Filename:    b.Filename,
+            FullAuthors: b.FullAuthors,
+        }
+    }
+    
+    return &presenter.SearchResult{
+        TraceId: sr.TraceId,
+        Total:   sr.Total,
+        Books:   books,
+    }
+}
+
+// SearchWithPagination выполняет поиск и возвращает результат с пагинацией
+func (s *Service) SearchWithPagination(ctx context.Context, query string, pageSize, offset, page int, traceID string) (*presenter.PresenterResult, error) {
+    result, err := s.Search(ctx, query, pageSize, offset, traceID)
+    if err != nil {
+        return nil, err
+    }
+    
+    presenterResult := convertToPresenter(result)
+    return presenter.NewPresenterResult(presenterResult, page, pageSize), nil
 }

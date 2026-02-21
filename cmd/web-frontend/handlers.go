@@ -34,7 +34,7 @@ func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
 
     traceID := errutil.TraceIDFromRequest(r)
     if traceID == "" {
-        traceID = errutil.GenerateTraceID("wf")
+        traceID = logger.GenerateTraceID("wf")
     }
 
     logger.GetGlobal().WithField("query", query).
@@ -57,7 +57,7 @@ func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
 
     offset := (page - 1) * h.pageSize
 
-    result, err := h.searchSvc.Search(r.Context(), query, h.pageSize, offset, traceID)
+    result, err := h.searchSvc.SearchWithPagination(r.Context(), query, h.pageSize, offset, page, traceID)
     if err != nil {
         logger.GetGlobal().WithField("query", query).
             ErrorCtx(r.Context(), "[web-frontend] search error", err)
@@ -65,25 +65,20 @@ func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    totalPages := (result.Total + h.pageSize - 1) / h.pageSize
-    if totalPages == 0 {
-        totalPages = 1
-    }
-    page = search.ValidatePage(page, totalPages)
-
     logger.GetGlobal().WithField("total", result.Total).
         WithField("returned", len(result.Books)).
         WithField("page", page).
+        WithField("total_pages", result.Pagination.TotalPages).
         WithField("trace_id", traceID).
         InfoCtx(r.Context(), "[web-frontend] search completed")
 
-    renderResults(w, result, query, page, totalPages)
+    renderResults(w, result, query)
 }
 
 func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
     traceID := errutil.TraceIDFromRequest(r)
     if traceID == "" {
-        traceID = errutil.GenerateTraceID("wf")
+        traceID = logger.GenerateTraceID("wf")
     }
 
     sha1 := strings.TrimPrefix(r.URL.Path, "/download/")

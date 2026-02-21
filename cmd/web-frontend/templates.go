@@ -4,7 +4,7 @@ import (
     "html/template"
     "net/http"
 
-    "ebusta/internal/search"
+    "ebusta/internal/presenter"
 )
 
 // cssStyles — стили для визуальных компонентов
@@ -40,8 +40,8 @@ const cssStyles = `
 // templateFuncs — функции для использования в шаблонах
 var templateFuncs = template.FuncMap{
     "urlEscape": urlEscape,
-    "sub":       func(a, b int) int { return a - b },
     "add":       func(a, b int) int { return a + b },
+    "sub":       func(a, b int) int { return a - b },
 }
 
 // tmpl — базовый шаблонизатор
@@ -68,7 +68,7 @@ var indexTmpl = template.Must(template.Must(tmpl.Clone()).Parse(`
 {{end}}
 `))
 
-// resultsTmpl — страница с результатами поиска
+// resultsTmpl — страница с результатами поиска (использует presenter.PresenterResult)
 var resultsTmpl = template.Must(template.Must(tmpl.Clone()).Parse(`
 {{define "content"}}
 <form id="search-form" action="/search" method="get">
@@ -98,31 +98,36 @@ var resultsTmpl = template.Must(template.Must(tmpl.Clone()).Parse(`
     </tbody>
 </table>
 
+{{with .Result.Pagination}}
 <div id="pagination">
-    {{if gt .CurrentPage 1}}
-        <a class="page-link page-nav" href="/search?q={{.Query | urlEscape}}&page=1">&laquo; Первая</a>
-        <a class="page-link page-nav" href="/search?q={{.Query | urlEscape}}&page={{sub .CurrentPage 1}}">&lt;</a>
+    {{if .HasPrev}}
+        <a class="page-link page-nav" href="/search?q={{$.Query | urlEscape}}&page=1">&laquo; Первая</a>
+        <a class="page-link page-nav" href="/search?q={{$.Query | urlEscape}}&page={{sub .CurrentPage 1}}">&lt;</a>
     {{else}}
         <span class="page-link page-disabled">&laquo; Первая</span>
         <span class="page-link page-disabled">&lt;</span>
     {{end}}
 
-    {{range .PageNumbers}}
-        {{if eq . $.CurrentPage}}
+    {{range .Pages}}
+        {{if eq . 0}}
+            <span class="page-link page-disabled">...</span>
+        {{else if eq . $.Result.Pagination.CurrentPage}}
             <span class="page-link page-current">{{.}}</span>
         {{else}}
             <a class="page-link" href="/search?q={{$.Query | urlEscape}}&page={{.}}">{{.}}</a>
         {{end}}
     {{end}}
 
-    {{if lt .CurrentPage .TotalPages}}
-        <a class="page-link page-nav" href="/search?q={{.Query | urlEscape}}&page={{add .CurrentPage 1}}">&gt;</a>
-        <a class="page-link page-nav" href="/search?q={{.Query | urlEscape}}&page={{.TotalPages}}">Последняя &raquo;</a>
+    {{if .HasNext}}
+        <a class="page-link page-nav" href="/search?q={{$.Query | urlEscape}}&page={{add .CurrentPage 1}}">&gt;</a>
+        <a class="page-link page-nav" href="/search?q={{$.Query | urlEscape}}&page={{.TotalPages}}">Последняя &raquo;</a>
     {{else}}
         <span class="page-link page-disabled">&gt;</span>
         <span class="page-link page-disabled">Последняя &raquo;</span>
     {{end}}
 </div>
+{{end}}
+
 {{else}}
 <p>Ничего не найдено.</p>
 {{end}}
@@ -150,21 +155,13 @@ func renderIndex(w http.ResponseWriter) {
 }
 
 // renderResults — рендеринг результатов поиска
-func renderResults(w http.ResponseWriter, result *search.SearchResult, query string, currentPage, totalPages int) {
-    pageNumbers := generatePageNumbers(currentPage, totalPages)
-
+func renderResults(w http.ResponseWriter, result *presenter.PresenterResult, query string) {
     data := struct {
-        Result      *search.SearchResult
-        Query       string
-        CurrentPage int
-        TotalPages  int
-        PageNumbers []int
+        Result *presenter.PresenterResult
+        Query  string
     }{
-        Result:      result,
-        Query:       query,
-        CurrentPage: currentPage,
-        TotalPages:  totalPages,
-        PageNumbers: pageNumbers,
+        Result: result,
+        Query:  query,
     }
 
     if err := resultsTmpl.ExecuteTemplate(w, "base", data); err != nil {
@@ -184,38 +181,4 @@ func renderError(w http.ResponseWriter, message, traceID string) {
     if err := errorTmpl.ExecuteTemplate(w, "base", data); err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
     }
-}
-
-// generatePageNumbers — генерирует список номеров страниц для пагинации
-func generatePageNumbers(current, total int) []int {
-    if total <= 7 {
-        pages := make([]int, total)
-        for i := 0; i < total; i++ {
-            pages[i] = i + 1
-        }
-        return pages
-    }
-
-    var pages []int
-    pages = append(pages, 1)
-
-    if current > 3 {
-        pages = append(pages, 0)
-    }
-
-    for i := current - 1; i <= current+1; i++ {
-        if i > 1 && i < total {
-            pages = append(pages, i)
-        }
-    }
-
-    if current < total-2 {
-        pages = append(pages, 0)
-    }
-
-    if total > 1 {
-        pages = append(pages, total)
-    }
-
-    return pages
 }
