@@ -3,18 +3,27 @@ package mapper
 import (
     "testing"
     "time"
-
-    "ebusta/internal/gateway"
 )
 
+// Определяем тестовую конфигурацию прямо в тесте
+type testMapperConfig struct {
+    TTL             time.Duration
+    MaxTokens       int
+    CleanupInterval time.Duration
+}
+
 func TestMapperGenerateAndResolve(t *testing.T) {
-    cfg := &gateway.MapperConfig{
+    cfg := &testMapperConfig{
         TTL:             time.Second,
         MaxTokens:       100,
         CleanupInterval: time.Second,
     }
     
-    m := NewMapper(cfg)
+    m := NewMapper(&MapperConfig{
+        TTL:             cfg.TTL,
+        MaxTokens:       cfg.MaxTokens,
+        CleanupInterval: cfg.CleanupInterval,
+    })
     defer m.Stop()
     
     sha1 := "2fb481cc13771f6485091893858808e51a7718ff"
@@ -44,42 +53,46 @@ func TestMapperGenerateAndResolve(t *testing.T) {
 }
 
 func TestMapperExpiration(t *testing.T) {
-    cfg := &gateway.MapperConfig{
+    cfg := &testMapperConfig{
         TTL:             100 * time.Millisecond,
         MaxTokens:       100,
         CleanupInterval: 50 * time.Millisecond,
     }
     
-    m := NewMapper(cfg)
+    m := NewMapper(&MapperConfig{
+        TTL:             cfg.TTL,
+        MaxTokens:       cfg.MaxTokens,
+        CleanupInterval: cfg.CleanupInterval,
+    })
     defer m.Stop()
     
     token, _ := m.GenerateToken("sha1", "path")
     
-    // Сразу должно работать
     if _, _, err := m.Resolve(token); err != nil {
         t.Errorf("expected token to be valid immediately: %v", err)
     }
     
-    // Ждём истечения
     time.Sleep(200 * time.Millisecond)
     
-    // Должно быть невалидно
     if _, _, err := m.Resolve(token); err != ErrTokenExpired {
         t.Errorf("expected ErrTokenExpired, got %v", err)
     }
 }
 
 func TestMapperMaxTokens(t *testing.T) {
-    cfg := &gateway.MapperConfig{
+    cfg := &testMapperConfig{
         TTL:             time.Hour,
         MaxTokens:       2,
         CleanupInterval: time.Hour,
     }
     
-    m := NewMapper(cfg)
+    m := NewMapper(&MapperConfig{
+        TTL:             cfg.TTL,
+        MaxTokens:       cfg.MaxTokens,
+        CleanupInterval: cfg.CleanupInterval,
+    })
     defer m.Stop()
     
-    // Должно работать
     if _, err := m.GenerateToken("sha1", "path1"); err != nil {
         t.Fatalf("first token failed: %v", err)
     }
@@ -88,46 +101,50 @@ func TestMapperMaxTokens(t *testing.T) {
         t.Fatalf("second token failed: %v", err)
     }
     
-    // Третий должен упасть
     if _, err := m.GenerateToken("sha3", "path3"); err != ErrMapperFull {
         t.Errorf("expected ErrMapperFull, got %v", err)
     }
 }
 
 func TestMapperRevoke(t *testing.T) {
-    cfg := &gateway.MapperConfig{
+    cfg := &testMapperConfig{
         TTL:             time.Hour,
         MaxTokens:       100,
         CleanupInterval: time.Hour,
     }
     
-    m := NewMapper(cfg)
+    m := NewMapper(&MapperConfig{
+        TTL:             cfg.TTL,
+        MaxTokens:       cfg.MaxTokens,
+        CleanupInterval: cfg.CleanupInterval,
+    })
     defer m.Stop()
     
     token, _ := m.GenerateToken("sha1", "path")
     
-    // Проверяем
     if _, _, err := m.Resolve(token); err != nil {
         t.Fatalf("token should be valid: %v", err)
     }
     
-    // Отзываем
     m.Revoke(token)
     
-    // Должно быть невалидно
     if _, _, err := m.Resolve(token); err != ErrTokenInvalid {
         t.Errorf("expected ErrTokenInvalid after revoke, got %v", err)
     }
 }
 
 func TestMapperStats(t *testing.T) {
-    cfg := &gateway.MapperConfig{
+    cfg := &testMapperConfig{
         TTL:             time.Hour,
         MaxTokens:       100,
         CleanupInterval: time.Hour,
     }
     
-    m := NewMapper(cfg)
+    m := NewMapper(&MapperConfig{
+        TTL:             cfg.TTL,
+        MaxTokens:       cfg.MaxTokens,
+        CleanupInterval: cfg.CleanupInterval,
+    })
     defer m.Stop()
     
     m.GenerateToken("sha1", "path1")
