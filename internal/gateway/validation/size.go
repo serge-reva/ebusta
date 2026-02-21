@@ -3,42 +3,43 @@ package validation
 import (
     "encoding/json"
     "fmt"
-    "io"
     "net/http"
 
-    "ebusta/internal/gateway"
+    "ebusta/internal/gateway/config"
 )
 
 type SizeLimiter struct {
-    config *gateway.ValidationConfig
+    maxBodyBytes int64
+    maxJSONDepth int
 }
 
-func NewSizeLimiter(cfg *gateway.ValidationConfig) *SizeLimiter {
-    return &SizeLimiter{config: cfg}
+func NewSizeLimiter(cfg *config.ValidationConfig) *SizeLimiter {
+    return &SizeLimiter{
+        maxBodyBytes: cfg.MaxBodyBytes,
+        maxJSONDepth: cfg.MaxJSONDepth,
+    }
 }
 
 func (l *SizeLimiter) LimitBody(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // Ограничение размера тела
-        r.Body = http.MaxBytesReader(w, r.Body, l.config.MaxBodyBytes)
+        r.Body = http.MaxBytesReader(w, r.Body, l.maxBodyBytes)
         next.ServeHTTP(w, r)
     })
 }
 
 func (l *SizeLimiter) ValidateJSON(body []byte) error {
-    if int64(len(body)) > l.config.MaxBodyBytes {
-        return fmt.Errorf("body too large: %d > %d", len(body), l.config.MaxBodyBytes)
+    if int64(len(body)) > l.maxBodyBytes {
+        return fmt.Errorf("body too large: %d > %d", len(body), l.maxBodyBytes)
     }
     
-    // Проверка глубины JSON
     var v interface{}
     if err := json.Unmarshal(body, &v); err != nil {
         return fmt.Errorf("invalid JSON: %w", err)
     }
     
     depth := jsonDepth(v)
-    if depth > l.config.MaxJSONDepth {
-        return fmt.Errorf("JSON too deep: %d > %d", depth, l.config.MaxJSONDepth)
+    if depth > l.maxJSONDepth {
+        return fmt.Errorf("JSON too deep: %d > %d", depth, l.maxJSONDepth)
     }
     
     return nil
@@ -63,11 +64,4 @@ func jsonDepth(v interface{}) int {
     }
     
     return maxDepth
-}
-
-func (l *SizeLimiter) ValidateQuery(query string) error {
-    if len(query) > l.config.MaxQueryLength {
-        return fmt.Errorf("query too long: %d > %d", len(query), l.config.MaxQueryLength)
-    }
-    return nil
 }

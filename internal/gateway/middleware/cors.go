@@ -5,14 +5,14 @@ import (
     "strconv"
     "strings"
 
-    "ebusta/internal/gateway"
+    "ebusta/internal/gateway/config"
 )
 
 type CORS struct {
-    config *gateway.CORSConfig
+    config *config.CORSConfig
 }
 
-func NewCORS(cfg *gateway.CORSConfig) *CORS {
+func NewCORS(cfg *config.CORSConfig) *CORS {
     return &CORS{config: cfg}
 }
 
@@ -20,7 +20,6 @@ func (c *CORS) Middleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         origin := r.Header.Get("Origin")
         
-        // Проверяем разрешён ли origin
         allowed := false
         for _, o := range c.config.AllowedOrigins {
             if o == "*" && !c.config.AllowCredentials {
@@ -42,7 +41,6 @@ func (c *CORS) Middleware(next http.Handler) http.Handler {
             }
         }
         
-        // Preflight запрос
         if r.Method == http.MethodOptions {
             w.Header().Set("Access-Control-Allow-Methods", 
                 strings.Join(c.config.AllowedMethods, ", "))

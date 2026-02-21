@@ -3,10 +3,10 @@ package clients
 import (
     "context"
     "crypto/tls"
+    "fmt"
 
     libraryv1 "ebusta/api/proto/v1"
-    "ebusta/internal/gateway"
-    "ebusta/internal/logger"
+    "ebusta/internal/gateway/config"
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials"
     "google.golang.org/grpc/credentials/insecure"
@@ -17,7 +17,7 @@ type OrchestratorClient struct {
     client libraryv1.OrchestratorServiceClient
 }
 
-func NewOrchestratorClient(cfg *gateway.Config) (*OrchestratorClient, error) {
+func NewOrchestratorClient(cfg *config.GatewayConfig) (*OrchestratorClient, error) {
     var opts []grpc.DialOption
     
     if cfg.MTLS.Enabled {
@@ -52,17 +52,16 @@ type SearchRequest struct {
     TraceID string
 }
 
+type Book struct {
+    ID      string
+    Title   string
+    Authors []string
+}
+
 type SearchResult struct {
     TraceID string
     Total   int
     Books   []Book
-}
-
-type Book struct {
-    ID          string
-    Title       string
-    Authors     []string
-    FullAuthors string
 }
 
 func (c *OrchestratorClient) Search(ctx context.Context, req *SearchRequest) (*SearchResult, error) {

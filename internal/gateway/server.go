@@ -9,6 +9,7 @@ import (
 
     "ebusta/internal/errutil"
     "ebusta/internal/gateway/clients"
+    "ebusta/internal/gateway/config"
     "ebusta/internal/gateway/mapper"
     "ebusta/internal/gateway/middleware"
     "ebusta/internal/gateway/validation"
@@ -16,63 +17,38 @@ import (
 )
 
 type Server struct {
-    config          *Config
-    mapper          *mapper.Mapper
-    validator       *validation.Validator
-    sizeLimiter     *validation.SizeLimiter
-    sanitizer       *validation.Sanitizer
+    config       *config.GatewayConfig
+    mapper       *mapper.Mapper
+    validator    *validation.Validator
+    sizeLimiter  *validation.SizeLimiter
+    sanitizer    *validation.Sanitizer
     
-    orchestrator    *clients.OrchestratorClient
-    downloader      *clients.DownloaderClient
+    orchestrator *clients.OrchestratorClient
+    downloader   *clients.DownloaderClient
     
-    rateLimiter     *middleware.RateLimiter
-    cors            *middleware.CORS
-    security        *middleware.SecurityHeaders
-    csrf            *middleware.CSRFProtection
-    contentType     *middleware.ContentTypeValidation
-    recover         *middleware.Recover
+    rateLimiter  *middleware.RateLimiter
+    cors         *middleware.CORS
+    security     *middleware.SecurityHeaders
+    csrf         *middleware.CSRFProtection
+    contentType  *middleware.ContentTypeValidation
+    recover      *middleware.Recover
     
-    httpServer      *http.Server
+    httpServer   *http.Server
 }
 
-type SearchResponse struct {
-    TraceID string         `json:"trace_id"`
-    Total   int            `json:"total"`
-    Books   []BookResponse `json:"books"`
-    Page    int            `json:"page"`
-    Pages   int            `json:"pages"`
-}
-
-type BookResponse struct {
-    Title       string   `json:"title"`
-    Authors     []string `json:"authors"`
-    FullAuthors string   `json:"full_authors"`
-    DownloadURL string   `json:"download_url"` // /download/{token}
-}
-
-type DownloadResponse struct {
-    Token     string `json:"token"`
-    ExpiresIn int64  `json:"expires_in"` // seconds
-    Size      int64  `json:"size"`
-    Filename  string `json:"filename"`
-}
-
-func NewServer(cfg *Config) (*Server, error) {
-    // Инициализация компонентов
+func NewServer(cfg *config.GatewayConfig) (*Server, error) {
     mapper := mapper.NewMapper(&cfg.Mapper)
     validator := validation.NewValidator()
     sizeLimiter := validation.NewSizeLimiter(&cfg.Validation)
     sanitizer := validation.NewSanitizer()
     
-    // Клиенты
     orchestrator, err := clients.NewOrchestratorClient(cfg)
     if err != nil {
         return nil, fmt.Errorf("failed to create orchestrator client: %w", err)
     }
     
-    downloader := clients.NewDownloaderClient(cfg)
+    downloader := clients.NewDownloaderClient(cfg.Services.Downloader)
     
-    // Middleware
     rateLimiter := middleware.NewRateLimiter(&cfg.RateLimit)
     cors := middleware.NewCORS(&cfg.CORS)
     security := &middleware.SecurityHeaders{}
@@ -102,17 +78,18 @@ func NewServer(cfg *Config) (*Server, error) {
 func (s *Server) setupRoutes() http.Handler {
     mux := http.NewServeMux()
     
-    // Публичные endpoints
     mux.HandleFunc("/health", s.handleHealth)
     mux.HandleFunc("/search", s.handleSearch)
     mux.HandleFunc("/download/", s.handleDownload)
+    mux.HandleFunc("/download/token/", s.handleDownloadToken)
+    mux.HandleFunc("/debug/mapper", s.handleDebug)
     
-    // Цепочка middleware
     handler := s.recover.Middleware(mux)
     handler = s.security.Middleware(handler)
     handler = s.cors.Middleware(handler)
     handler = s.rateLimiter.Middleware(handler)
     handler = s.contentType.Middleware(handler)
+    handler = s.sizeLimiter.LimitBody(handler)
     
     return handler
 }

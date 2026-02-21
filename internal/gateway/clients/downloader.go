@@ -1,13 +1,11 @@
 package clients
 
 import (
+    "encoding/json"
     "fmt"
     "io"
     "net/http"
     "time"
-
-    "ebusta/internal/gateway"
-    "ebusta/internal/logger"
 )
 
 type DownloaderClient struct {
@@ -15,13 +13,21 @@ type DownloaderClient struct {
     httpClient *http.Client
 }
 
-func NewDownloaderClient(cfg *gateway.Config) *DownloaderClient {
+func NewDownloaderClient(baseURL string) *DownloaderClient {
     return &DownloaderClient{
-        baseURL: fmt.Sprintf("http://%s", cfg.Services.Downloader),
+        baseURL: fmt.Sprintf("http://%s", baseURL),
         httpClient: &http.Client{
             Timeout: 30 * time.Second,
         },
     }
+}
+
+type BookMeta struct {
+    Sha1      string `json:"sha1"`
+    Container string `json:"container"`
+    Filename  string `json:"filename"`
+    Size      int64  `json:"size"`
+    Title     string `json:"title"`
 }
 
 func (c *DownloaderClient) GetMeta(sha1 string) (*BookMeta, error) {
@@ -60,12 +66,4 @@ func (c *DownloaderClient) StreamBook(sha1 string, w io.Writer) error {
     
     _, err = io.Copy(w, resp.Body)
     return err
-}
-
-type BookMeta struct {
-    Sha1      string `json:"sha1"`
-    Container string `json:"container"`
-    Filename  string `json:"filename"`
-    Size      int64  `json:"size"`
-    Title     string `json:"title"`
 }

@@ -11,14 +11,36 @@ import (
 
     "ebusta/internal/errutil"
     "ebusta/internal/gateway/clients"
+    "ebusta/internal/gateway/mapper"
     "ebusta/internal/logger"
 )
+
+type SearchResponse struct {
+    TraceID string         `json:"trace_id"`
+    Total   int            `json:"total"`
+    Books   []BookResponse `json:"books"`
+    Page    int            `json:"page"`
+    Pages   int            `json:"pages"`
+}
+
+type BookResponse struct {
+    Title       string   `json:"title"`
+    Authors     []string `json:"authors"`
+    FullAuthors string   `json:"full_authors"`
+    DownloadURL string   `json:"download_url"`
+}
+
+type DownloadResponse struct {
+    Token     string `json:"token"`
+    ExpiresIn int64  `json:"expires_in"`
+    Size      int64  `json:"size"`
+    Filename  string `json:"filename"`
+}
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
     ctx := r.Context()
     traceID := logger.GenerateTraceID("gw")
     
-    // Чтение тела с ограничением
     body, err := io.ReadAll(r.Body)
     if err != nil {
         errutil.WriteJSONError(w, errutil.New(
@@ -28,7 +50,6 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    // Валидация размера
     if err := s.sizeLimiter.ValidateJSON(body); err != nil {
         errutil.WriteJSONError(w, errutil.New(
             errutil.CodeInvalidArgument,
@@ -37,7 +58,6 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    // Валидация по схеме
     req, err := s.validator.ValidateSearch(body)
     if err != nil {
         errutil.WriteJSONError(w, errutil.New(
@@ -47,7 +67,6 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    // Санитизация запроса
     req.Query = s.sanitizer.Sanitize(req.Query)
     if !s.sanitizer.IsSQLSafe(req.Query) {
         logger.WarnCtx(ctx, "possible SQL injection blocked",
@@ -59,7 +78,6 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    // Вызов Orchestrator
     result, err := s.orchestrator.Search(ctx, &clients.SearchRequest{
         Query:   req.Query,
         Page:    req.Page,
@@ -76,7 +94,6 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    // Генерация токенов для каждой книги
     response := SearchResponse{
         TraceID: traceID,
         Total:   result.Total,
@@ -86,7 +103,6 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
     }
     
     for _, book := range result.Books {
-        // Генерируем токен для скачивания
         token, err := s.mapper.GenerateToken(book.ID, "")
         if err != nil {
             logger.ErrorCtx(ctx, "failed to generate token", err,
@@ -111,7 +127,6 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
     ctx := r.Context()
     traceID := logger.GenerateTraceID("gw-dl")
     
-    // Извлекаем токен из URL
     token := strings.TrimPrefix(r.URL.Path, "/download/")
     token = strings.TrimSpace(token)
     
@@ -123,7 +138,6 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    // Валидация формата токена
     if !s.validator.ValidateToken(token) {
         logger.WarnCtx(ctx, "invalid token format",
             "token", s.sanitizer.SanitizeForLog(token))
@@ -134,7 +148,6 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    // Резолвим реальный SHA1
     sha1, _, err := s.mapper.Resolve(token)
     if err != nil {
         logger.WarnCtx(ctx, "token resolve failed",
@@ -156,7 +169,6 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    // Для HEAD запроса возвращаем только метаданные
     if r.Method == http.MethodHead {
         meta, err := s.downloader.GetMeta(sha1)
         if err != nil {
@@ -177,24 +189,20 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    // Для GET - стримим файл
     w.Header().Set("Content-Type", "application/octet-stream")
     w.Header().Set("X-Trace-Id", traceID)
     
     if err := s.downloader.StreamBook(sha1, w); err != nil {
         logger.ErrorCtx(ctx, "failed to stream book", err,
             "sha1", sha1)
-        // Не можем отправить ошибку, так как заголовки уже отправлены
         return
     }
     
-    // Опционально: удаляем токен после успешного скачивания
     if r.URL.Query().Get("single_use") == "1" {
         s.mapper.Revoke(token)
     }
 }
 
-// handleDownloadToken возвращает информацию о токене без скачивания
 func (s *Server) handleDownloadToken(w http.ResponseWriter, r *http.Request) {
     ctx := r.Context()
     traceID := logger.GenerateTraceID("gw-token")
@@ -219,7 +227,6 @@ func (s *Server) handleDownloadToken(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    // Получаем информацию о токене
     expiresIn := int64(s.config.Mapper.TTL.Seconds())
     
     response := DownloadResponse{
