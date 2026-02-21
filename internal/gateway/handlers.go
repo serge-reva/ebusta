@@ -1,0 +1,247 @@
+package gateway
+
+import (
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+    "strconv"
+    "strings"
+    "time"
+
+    "ebusta/internal/errutil"
+    "ebusta/internal/gateway/clients"
+    "ebusta/internal/logger"
+)
+
+func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
+    ctx := r.Context()
+    traceID := logger.GenerateTraceID("gw")
+    
+    // Чтение тела с ограничением
+    body, err := io.ReadAll(r.Body)
+    if err != nil {
+        errutil.WriteJSONError(w, errutil.New(
+            errutil.CodeInvalidArgument,
+            "failed to read request body",
+        ).WithTrace(traceID))
+        return
+    }
+    
+    // Валидация размера
+    if err := s.sizeLimiter.ValidateJSON(body); err != nil {
+        errutil.WriteJSONError(w, errutil.New(
+            errutil.CodeInvalidArgument,
+            err.Error(),
+        ).WithTrace(traceID))
+        return
+    }
+    
+    // Валидация по схеме
+    req, err := s.validator.ValidateSearch(body)
+    if err != nil {
+        errutil.WriteJSONError(w, errutil.New(
+            errutil.CodeInvalidArgument,
+            err.Error(),
+        ).WithTrace(traceID))
+        return
+    }
+    
+    // Санитизация запроса
+    req.Query = s.sanitizer.Sanitize(req.Query)
+    if !s.sanitizer.IsSQLSafe(req.Query) {
+        logger.WarnCtx(ctx, "possible SQL injection blocked",
+            "query", s.sanitizer.SanitizeForLog(req.Query))
+        errutil.WriteJSONError(w, errutil.New(
+            errutil.CodeInvalidArgument,
+            "invalid query",
+        ).WithTrace(traceID))
+        return
+    }
+    
+    // Вызов Orchestrator
+    result, err := s.orchestrator.Search(ctx, &clients.SearchRequest{
+        Query:   req.Query,
+        Page:    req.Page,
+        Limit:   req.Limit,
+        TraceID: traceID,
+    })
+    if err != nil {
+        logger.ErrorCtx(ctx, "orchestrator search failed", err,
+            "query", s.sanitizer.SanitizeForLog(req.Query))
+        errutil.WriteJSONError(w, errutil.New(
+            errutil.CodeInternal,
+            "search failed",
+        ).WithTrace(traceID))
+        return
+    }
+    
+    // Генерация токенов для каждой книги
+    response := SearchResponse{
+        TraceID: traceID,
+        Total:   result.Total,
+        Books:   make([]BookResponse, 0, len(result.Books)),
+        Page:    req.Page,
+        Pages:   (result.Total + req.Limit - 1) / req.Limit,
+    }
+    
+    for _, book := range result.Books {
+        // Генерируем токен для скачивания
+        token, err := s.mapper.GenerateToken(book.ID, "")
+        if err != nil {
+            logger.ErrorCtx(ctx, "failed to generate token", err,
+                "book_id", book.ID)
+            continue
+        }
+        
+        response.Books = append(response.Books, BookResponse{
+            Title:       book.Title,
+            Authors:     book.Authors,
+            FullAuthors: strings.Join(book.Authors, ", "),
+            DownloadURL: fmt.Sprintf("/download/%s", token),
+        })
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    w.Header().Set("X-Trace-Id", traceID)
+    json.NewEncoder(w).Encode(response)
+}
+
+func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
+    ctx := r.Context()
+    traceID := logger.GenerateTraceID("gw-dl")
+    
+    // Извлекаем токен из URL
+    token := strings.TrimPrefix(r.URL.Path, "/download/")
+    token = strings.TrimSpace(token)
+    
+    if token == "" {
+        errutil.WriteJSONError(w, errutil.New(
+            errutil.CodeInvalidArgument,
+            "missing download token",
+        ).WithTrace(traceID))
+        return
+    }
+    
+    // Валидация формата токена
+    if !s.validator.ValidateToken(token) {
+        logger.WarnCtx(ctx, "invalid token format",
+            "token", s.sanitizer.SanitizeForLog(token))
+        errutil.WriteJSONError(w, errutil.New(
+            errutil.CodeInvalidArgument,
+            "invalid token format",
+        ).WithTrace(traceID))
+        return
+    }
+    
+    // Резолвим реальный SHA1
+    sha1, _, err := s.mapper.Resolve(token)
+    if err != nil {
+        logger.WarnCtx(ctx, "token resolve failed",
+            "error", err.Error(),
+            "token", s.sanitizer.SanitizeForLog(token))
+        
+        switch err {
+        case mapper.ErrTokenExpired:
+            errutil.WriteJSONError(w, errutil.New(
+                errutil.CodeNotFound,
+                "download token expired",
+            ).WithTrace(traceID))
+        default:
+            errutil.WriteJSONError(w, errutil.New(
+                errutil.CodeNotFound,
+                "invalid download token",
+            ).WithTrace(traceID))
+        }
+        return
+    }
+    
+    // Для HEAD запроса возвращаем только метаданные
+    if r.Method == http.MethodHead {
+        meta, err := s.downloader.GetMeta(sha1)
+        if err != nil {
+            logger.ErrorCtx(ctx, "failed to get meta", err,
+                "sha1", sha1)
+            errutil.WriteJSONError(w, errutil.New(
+                errutil.CodeInternal,
+                "failed to get book metadata",
+            ).WithTrace(traceID))
+            return
+        }
+        
+        w.Header().Set("Content-Type", "application/octet-stream")
+        w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", meta.Filename))
+        w.Header().Set("Content-Length", fmt.Sprintf("%d", meta.Size))
+        w.Header().Set("X-Trace-Id", traceID)
+        w.WriteHeader(http.StatusOK)
+        return
+    }
+    
+    // Для GET - стримим файл
+    w.Header().Set("Content-Type", "application/octet-stream")
+    w.Header().Set("X-Trace-Id", traceID)
+    
+    if err := s.downloader.StreamBook(sha1, w); err != nil {
+        logger.ErrorCtx(ctx, "failed to stream book", err,
+            "sha1", sha1)
+        // Не можем отправить ошибку, так как заголовки уже отправлены
+        return
+    }
+    
+    // Опционально: удаляем токен после успешного скачивания
+    if r.URL.Query().Get("single_use") == "1" {
+        s.mapper.Revoke(token)
+    }
+}
+
+// handleDownloadToken возвращает информацию о токене без скачивания
+func (s *Server) handleDownloadToken(w http.ResponseWriter, r *http.Request) {
+    ctx := r.Context()
+    traceID := logger.GenerateTraceID("gw-token")
+    
+    token := strings.TrimPrefix(r.URL.Path, "/download/token/")
+    
+    sha1, _, err := s.mapper.Resolve(token)
+    if err != nil {
+        errutil.WriteJSONError(w, errutil.New(
+            errutil.CodeNotFound,
+            "invalid token",
+        ).WithTrace(traceID))
+        return
+    }
+    
+    meta, err := s.downloader.GetMeta(sha1)
+    if err != nil {
+        errutil.WriteJSONError(w, errutil.New(
+            errutil.CodeInternal,
+            "failed to get metadata",
+        ).WithTrace(traceID))
+        return
+    }
+    
+    // Получаем информацию о токене
+    expiresIn := int64(s.config.Mapper.TTL.Seconds())
+    
+    response := DownloadResponse{
+        Token:     token,
+        ExpiresIn: expiresIn,
+        Size:      meta.Size,
+        Filename:  meta.Filename,
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    w.Header().Set("X-Trace-Id", traceID)
+    json.NewEncoder(w).Encode(response)
+}
+
+func (s *Server) handleDebug(w http.ResponseWriter, r *http.Request) {
+    if r.URL.Path != "/debug/mapper" {
+        http.NotFound(w, r)
+        return
+    }
+    
+    stats := s.mapper.Stats()
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(stats)
+}

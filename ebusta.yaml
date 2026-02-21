@@ -83,3 +83,55 @@ logger:
       enabled: true
       path: /var/log/ebusta/app.log
       append: true  
+
+gateway:
+  port: 8443
+  tls_cert: ""  # "/etc/ssl/certs/gateway.crt"
+  tls_key: ""   # "/etc/ssl/private/gateway.key"
+  
+  rate_limit:
+    ip: 60           # requests per minute
+    authenticated: 100
+    download: 10
+    resolve: 30      # token resolves per minute
+  
+  mapper:
+    ttl: 3600        # 1 hour
+    max_tokens: 10000
+    cleanup_interval: 300  # 5 minutes
+  
+  mtls:
+    enabled: false
+    ca_file: "/etc/ssl/ca.pem"
+    cert_file: "/etc/ssl/gateway.pem"
+    key_file: "/etc/ssl/gateway-key.pem"
+    server_name: "ebusta.local"
+  
+  validation:
+    max_body_bytes: 1048576     # 1MB
+    max_file_bytes: 104857600   # 100MB
+    max_query_length: 500
+    max_array_items: 1000
+    max_json_depth: 10
+  
+  cors:
+    allowed_origins:
+      - "https://ebusta.com"
+      - "https://app.ebusta.com"
+    allowed_methods:
+      - "GET"
+      - "POST"
+      - "HEAD"
+      - "OPTIONS"
+    allowed_headers:
+      - "Origin"
+      - "Content-Type"
+      - "X-API-Token"
+      - "X-CSRF-Token"
+    allow_credentials: true
+    max_age: 300
+  
+  services:
+    orchestrator: "localhost:50054"
+    downloader: "localhost:50081"
+    auth: "localhost:50055"
