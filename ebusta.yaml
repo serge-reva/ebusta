@@ -135,3 +135,13 @@ gateway:
     orchestrator: "localhost:50054"
     downloader: "localhost:50081"
     auth: "localhost:50055"
+
+irc_adapter:
+  server_host: "0.0.0.0"
+  server_port: 6667
+  nick: "ebusta-bot"
+  user: "ebusta"
+  real_name: "Ebusta Book Search Bot"
+  gateway_url: "http://localhost:8443"
+  page_size: 5
+  debug: false

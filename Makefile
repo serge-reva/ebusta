@@ -3,6 +3,7 @@ BIN_DIR       := ./bin
 LOG_DIR       := ./logs
 API_PROTO_DIR := api/proto/v1
 CONFIG_FILE   := ebusta.yaml
+IRC_ADAPTER_PORT := 6667
 
 # Пути к Scala компонентам (в корне проекта)
 DSL_DIR := dsl-scala
@@ -40,6 +41,12 @@ proto:
 
 build-scala: $(DSL_JAR) $(QB_JAR)
 	@echo "✅ Scala build up-to-date."
+
+
+build-irc: proto
+	@echo "🛠 Building IRC adapter..."
+	@mkdir -p $(BIN_DIR)
+	@go build -o $(BIN_DIR)/irc-adapter ./cmd/irc-adapter
 
 $(DSL_JAR): $(DSL_SCALA_SRC) $(PROTO_SRC)
 	@echo "🛠 Building DSL Scala..."
@@ -83,7 +90,7 @@ build-gateway: proto
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/gateway ./cmd/gateway
 
-build-go: build-search-go build-cli build-web-frontend build-downloads-go build-gateway
+build-go: build-search-go build-cli build-web-frontend build-downloads-go build-gateway build-irc
 	@echo "✅ Go build done."
 
 build: proto build-scala build-go
@@ -91,7 +98,7 @@ build: proto build-scala build-go
 
 down:
 	@echo "🛑 Stopping all services..."
-	@-pkill -9 -f "datamanager|orchestrator|web-adapter|web-frontend|gateway|dsl-server.jar|query-builder.jar|archive-node|tier-node|plasma-node|downloader" || true
+	@-pkill -9 -f "datamanager|orchestrator|web-adapter|web-frontend|gateway|dsl-server.jar|query-builder.jar|archive-node|tier-node|plasma-node|downloader|irc-adapter" || true
 	@sleep 1
 
 up: down
@@ -141,6 +148,11 @@ up: down
 	@echo -n "   - Gateway: "
 	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/gateway >> $(LOG_DIR)/gateway.log 2>&1 & sleep 0.5
 	@pgrep -f gateway > /dev/null && echo "✅ RUNNING on :$(GATEWAY_PORT)" || echo "❌ FAILED"
+
+	@echo -n "   - IRC Adapter: "
+	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/irc-adapter >> $(LOG_DIR)/irc.log 2>&1 & sleep 0.5
+	@pgrep -f irc-adapter > /dev/null && echo "✅ RUNNING on port $(IRC_ADAPTER_PORT)" || echo "❌ FAILED"
+
 
 	@echo "\n📊 Active processes:"
 	@ps aux | grep -v grep | grep -E "archive-node|tier-node|plasma-node|downloader|web-adapter|orchestrator|datamanager|gateway"

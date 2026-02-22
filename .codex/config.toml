@@ -1,0 +1,9 @@
+# Project-scoped Codex settings for ebusta.
+# Loaded only when the project is trusted in Codex.
+
+# Safer default for day-to-day: allow edits inside repo, but not outside.
+sandbox = "workspace-write"
+
+# Keep Codex f:contentReference[oaicite:15]{index=15}u noticing in risky spots.
+# (Exact behavior depends on your chosen approval flow; you can override per run.)
+approval_policy = "untrusted"
