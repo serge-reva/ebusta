@@ -69,14 +69,22 @@ func NewIRCHandlerWithPolicy(gatewayURL string, pageSize int, verbose bool, poli
 }
 
 func (h *IRCHandler) HandleChannelMessage(client *IRCClient, channel, message string) {
-	h.handleMessage(client, channel, message)
+	h.handleMessage(client, channel, client.nick, message)
+}
+
+func (h *IRCHandler) HandleChannelMessageFrom(client *IRCClient, channel, sender, message string) {
+	h.handleMessage(client, channel, sender, message)
 }
 
 func (h *IRCHandler) HandlePrivateMessage(client *IRCClient, message string) {
-	h.handleMessage(client, client.nick, message)
+	h.handleMessage(client, client.nick, client.nick, message)
 }
 
-func (h *IRCHandler) handleMessage(client *IRCClient, target, message string) {
+func (h *IRCHandler) HandlePrivateMessageFrom(client *IRCClient, sender, message string) {
+	h.handleMessage(client, sender, sender, message)
+}
+
+func (h *IRCHandler) handleMessage(client *IRCClient, target, sender, message string) {
 	message = strings.TrimSpace(message)
 	if err := h.engine.ValidateLine(nil, "command", message); err != nil {
 		client.SendMessage(target, "❌ Command too long")
@@ -98,9 +106,9 @@ func (h *IRCHandler) handleMessage(client *IRCClient, target, message string) {
 	case "!help", "/help":
 		h.cmdHelp(client, target)
 	case "!search", "/search":
-		h.cmdSearch(client, target, parts)
+		h.cmdSearch(client, target, sender, parts)
 	case "!get", "/get", "!info", "/info":
-		h.cmdGet(client, target, parts)
+		h.cmdGet(client, target, sender, parts)
 	case "!stats", "/stats":
 		h.cmdStats(client, target)
 	default:
@@ -130,14 +138,14 @@ func (h *IRCHandler) cmdHelp(client *IRCClient, target string) {
 	}
 }
 
-func (h *IRCHandler) cmdSearch(client *IRCClient, target string, parts []string) {
+func (h *IRCHandler) cmdSearch(client *IRCClient, target, sender string, parts []string) {
 	query, page, err := parseSearchCommand(parts)
 	if err != nil {
 		client.SendMessage(target, "Usage: !search <query> [page <n>]")
 		return
 	}
 
-	if !h.checkRateLimit(client.nick) {
+	if !h.checkRateLimit(sender) {
 		client.SendMessage(target, "❌ Too many requests. Try again later.")
 		return
 	}
@@ -213,7 +221,7 @@ func (h *IRCHandler) cmdSearch(client *IRCClient, target string, parts []string)
 	}
 
 	h.mu.Lock()
-	h.sessions[client.nick] = &SearchSession{
+	h.sessions[sender] = &SearchSession{
 		Query:     query,
 		Results:   presResult,
 		Timestamp: time.Now(),
@@ -227,7 +235,7 @@ func (h *IRCHandler) cmdSearch(client *IRCClient, target string, parts []string)
 	}
 }
 
-func (h *IRCHandler) cmdGet(client *IRCClient, target string, parts []string) {
+func (h *IRCHandler) cmdGet(client *IRCClient, target, sender string, parts []string) {
 	if len(parts) < 2 {
 		client.SendMessage(target, "Usage: !info <number>")
 		return
@@ -240,7 +248,7 @@ func (h *IRCHandler) cmdGet(client *IRCClient, target string, parts []string) {
 	}
 
 	h.mu.RLock()
-	session, exists := h.sessions[client.nick]
+	session, exists := h.sessions[sender]
 	h.mu.RUnlock()
 
 	if !exists {

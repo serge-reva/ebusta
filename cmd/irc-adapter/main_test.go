@@ -9,14 +9,24 @@ import (
 func TestLoadIRCConfigDefaultsAndVerboseOverride(t *testing.T) {
 	cfg := &config.Config{
 		IRCAdapter: config.IRCAdapterConfig{
-			ServerHost: "127.0.0.1",
-			ServerPort: 7000,
-			Nick:       "n1",
-			User:       "u1",
-			RealName:   "r1",
-			GatewayURL: "http://gw:8443",
-			PageSize:   9,
-			Debug:      false,
+			ServerHost:          "127.0.0.1",
+			ServerPort:          7000,
+			Mode:                "bot",
+			Nick:                "n1",
+			User:                "u1",
+			RealName:            "r1",
+			GatewayURL:          "http://gw:8443",
+			PageSize:            9,
+			Debug:               false,
+			BotServerHost:       "irc.example.org",
+			BotServerPort:       6697,
+			BotUseTLS:           true,
+			BotPassword:         "secret",
+			BotNick:             "bot1",
+			BotUser:             "botuser",
+			BotRealName:         "Bot Real",
+			BotChannels:         []string{"#books"},
+			BotReconnectSeconds: 17,
 		},
 	}
 
@@ -30,6 +40,18 @@ func TestLoadIRCConfigDefaultsAndVerboseOverride(t *testing.T) {
 	if irc.PageSize != 9 {
 		t.Fatalf("expected page_size from config, got %d", irc.PageSize)
 	}
+	if irc.Mode != "bot" {
+		t.Fatalf("expected mode=bot, got %q", irc.Mode)
+	}
+	if irc.BotAddress() != "irc.example.org:6697" {
+		t.Fatalf("expected bot address override, got %s", irc.BotAddress())
+	}
+	if !irc.BotUseTLS || irc.BotPassword != "secret" {
+		t.Fatalf("expected explicit bot tls/password to stay set")
+	}
+	if irc.BotReconnectSeconds != 17 {
+		t.Fatalf("expected reconnect override, got %d", irc.BotReconnectSeconds)
+	}
 }
 
 func TestLoadIRCConfigFallbacks(t *testing.T) {
@@ -40,6 +62,9 @@ func TestLoadIRCConfigFallbacks(t *testing.T) {
 	irc := loadIRCConfig(cfg, false)
 	if irc.ServerHost != "0.0.0.0" {
 		t.Fatalf("default host mismatch: %s", irc.ServerHost)
+	}
+	if irc.Mode != "server" {
+		t.Fatalf("default mode mismatch: %s", irc.Mode)
 	}
 	if irc.ServerPort != 6667 {
 		t.Fatalf("default port mismatch: %d", irc.ServerPort)
@@ -58,5 +83,14 @@ func TestLoadIRCConfigFallbacks(t *testing.T) {
 	}
 	if irc.Debug {
 		t.Fatalf("expected debug=false by default")
+	}
+	if irc.BotAddress() != "127.0.0.1:6667" {
+		t.Fatalf("default bot address mismatch: %s", irc.BotAddress())
+	}
+	if irc.BotNick != irc.Nick || irc.BotUser != irc.User || irc.BotRealName != irc.RealName {
+		t.Fatalf("expected bot identity fallback from legacy nick/user/real_name")
+	}
+	if irc.BotReconnectSeconds != 5 {
+		t.Fatalf("default bot reconnect mismatch: %d", irc.BotReconnectSeconds)
 	}
 }

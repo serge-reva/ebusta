@@ -57,6 +57,7 @@ type EdgeConfig struct {
 type IRCAdapterConfig struct {
 	ServerHost string   `yaml:"server_host"`
 	ServerPort int      `yaml:"server_port"`
+	Mode       string   `yaml:"mode"`
 	Nick       string   `yaml:"nick"`
 	User       string   `yaml:"user"`
 	RealName   string   `yaml:"real_name"`
@@ -64,10 +65,28 @@ type IRCAdapterConfig struct {
 	GatewayURL string   `yaml:"gateway_url"`
 	PageSize   int      `yaml:"page_size"`
 	Debug      bool     `yaml:"debug"`
+
+	BotServerHost       string   `yaml:"bot_server_host"`
+	BotServerPort       int      `yaml:"bot_server_port"`
+	BotUseTLS           bool     `yaml:"bot_use_tls"`
+	BotPassword         string   `yaml:"bot_password"`
+	BotNick             string   `yaml:"bot_nick"`
+	BotUser             string   `yaml:"bot_user"`
+	BotRealName         string   `yaml:"bot_real_name"`
+	BotChannels         []string `yaml:"bot_channels"`
+	BotReconnectSeconds int      `yaml:"bot_reconnect_seconds"`
 }
 
 func (c IRCAdapterConfig) Address() string {
 	return fmt.Sprintf("%s:%d", c.ServerHost, c.ServerPort)
+}
+
+func (c IRCAdapterConfig) ServerAddress() string {
+	return fmt.Sprintf("%s:%d", c.ServerHost, c.ServerPort)
+}
+
+func (c IRCAdapterConfig) BotAddress() string {
+	return fmt.Sprintf("%s:%d", c.BotServerHost, c.BotServerPort)
 }
 
 type TelegramAdapterConfig struct {

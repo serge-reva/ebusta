@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -19,8 +20,10 @@ type IRCClient struct {
 	nick     string
 	user     string
 	realName string
+	password string
 	channels map[string]bool
 	verbose  bool
+	asServer bool
 
 	mu      sync.RWMutex
 	done    chan struct{}
@@ -44,6 +47,24 @@ func NewIRCClient(conn net.Conn, nick, user, realName string, handler *IRCHandle
 		done:     make(chan struct{}),
 		handler:  handler,
 		verbose:  verbose,
+		asServer: true,
+	}
+}
+
+func NewIRCBotClient(conn net.Conn, nick, user, realName, password string, handler *IRCHandler, verbose bool) *IRCClient {
+	return &IRCClient{
+		conn:     conn,
+		writer:   bufio.NewWriter(conn),
+		reader:   bufio.NewReader(conn),
+		nick:     nick,
+		user:     user,
+		realName: realName,
+		password: password,
+		channels: make(map[string]bool),
+		done:     make(chan struct{}),
+		handler:  handler,
+		verbose:  verbose,
+		asServer: false,
 	}
 }
 
@@ -54,10 +75,7 @@ func (c *IRCClient) Start() {
 		fmt.Fprintf(os.Stderr, "  ▶️  Client started: %s\n", c.conn.RemoteAddr())
 	}
 
-	// Отправляем приветствие
 	c.SendNotice("Ebusta Book Search Bot ready")
-
-	// Устанавливаем таймаут
 	c.conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
 
 	for {
@@ -82,13 +100,8 @@ func (c *IRCClient) Start() {
 				fmt.Fprintf(os.Stderr, "  📨 [%s] Received: %q\n", c.conn.RemoteAddr(), line)
 			}
 
-			// УПРОЩАЕМ: любые сообщения, начинающиеся с ! или /, отправляем в handler
 			if strings.HasPrefix(line, "!") || strings.HasPrefix(line, "/") {
-				fmt.Fprintf(os.Stderr, "  🔧 [%s] Command detected, sending to handler\n", c.conn.RemoteAddr())
-				// Для личных сообщений отправляем как private message
 				c.handler.HandlePrivateMessage(c, line)
-			} else {
-				fmt.Fprintf(os.Stderr, "  🔧 [%s] Not a command, ignoring\n", c.conn.RemoteAddr())
 			}
 
 			c.conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
@@ -96,31 +109,161 @@ func (c *IRCClient) Start() {
 	}
 }
 
+func (c *IRCClient) StartBot(ctx context.Context, channels []string) error {
+	defer c.Close()
+
+	if c.password != "" {
+		c.Send("PASS", c.password)
+	}
+	c.Send("NICK", c.nick)
+	c.Send("USER", c.user, "0", "*", c.realName)
+
+	joinSent := false
+	closeOnDone := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			c.Close()
+		case <-closeOnDone:
+		}
+	}()
+	defer close(closeOnDone)
+
+	for {
+		line, err := c.reader.ReadString('\n')
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return err
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		if c.verbose {
+			fmt.Fprintf(os.Stderr, "  📨 [bot] %q\n", line)
+		}
+
+		prefix, command, params := parseIRCLine(line)
+		switch command {
+		case "PING":
+			if len(params) > 0 {
+				c.Send("PONG", params[len(params)-1])
+			}
+		case "001":
+			if !joinSent {
+				for _, ch := range channels {
+					ch = strings.TrimSpace(ch)
+					if ch == "" {
+						continue
+					}
+					c.Send("JOIN", ch)
+				}
+				joinSent = true
+			}
+		case "PRIVMSG":
+			if len(params) < 2 {
+				continue
+			}
+			target := params[0]
+			message := params[1]
+			sender := ircNickFromPrefix(prefix)
+			if sender == "" {
+				sender = target
+			}
+			if strings.HasPrefix(target, "#") {
+				c.handler.HandleChannelMessageFrom(c, target, sender, message)
+			} else {
+				c.handler.HandlePrivateMessageFrom(c, sender, message)
+			}
+		}
+	}
+}
+
+func parseIRCLine(line string) (prefix, command string, params []string) {
+	rest := strings.TrimSpace(line)
+	if rest == "" {
+		return "", "", nil
+	}
+	if strings.HasPrefix(rest, ":") {
+		idx := strings.IndexByte(rest, ' ')
+		if idx < 0 {
+			return strings.TrimPrefix(rest, ":"), "", nil
+		}
+		prefix = strings.TrimPrefix(rest[:idx], ":")
+		rest = strings.TrimSpace(rest[idx+1:])
+	}
+
+	if rest == "" {
+		return prefix, "", nil
+	}
+
+	trailing := ""
+	if idx := strings.Index(rest, " :"); idx >= 0 {
+		trailing = rest[idx+2:]
+		rest = rest[:idx]
+	} else if strings.HasPrefix(rest, ":") {
+		trailing = strings.TrimPrefix(rest, ":")
+		rest = ""
+	}
+
+	fields := strings.Fields(rest)
+	if len(fields) > 0 {
+		command = strings.ToUpper(fields[0])
+		if len(fields) > 1 {
+			params = append(params, fields[1:]...)
+		}
+	}
+	if trailing != "" {
+		params = append(params, trailing)
+	}
+	return prefix, command, params
+}
+
+func ircNickFromPrefix(prefix string) string {
+	if prefix == "" {
+		return ""
+	}
+	if i := strings.Index(prefix, "!"); i >= 0 {
+		return prefix[:i]
+	}
+	return prefix
+}
+
 func (c *IRCClient) Send(command string, args ...string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	var msg strings.Builder
-	msg.WriteString(":")
-	msg.WriteString(c.nick)
-	msg.WriteString(" ")
+	if c.asServer {
+		msg.WriteString(":")
+		msg.WriteString(c.nick)
+		msg.WriteString(" ")
+	}
 	msg.WriteString(command)
 
 	for i, arg := range args {
 		msg.WriteString(" ")
-		if i == len(args)-1 && (strings.Contains(arg, " ") || strings.HasPrefix(arg, ":")) {
-			msg.WriteString(":")
-			msg.WriteString(arg)
-		} else {
-			msg.WriteString(arg)
+		if i == len(args)-1 {
+			if strings.HasPrefix(arg, ":") {
+				msg.WriteString(arg)
+			} else if strings.Contains(arg, " ") {
+				msg.WriteString(":")
+				msg.WriteString(arg)
+			} else {
+				msg.WriteString(arg)
+			}
+			continue
 		}
+		msg.WriteString(arg)
 	}
 	msg.WriteString("\r\n")
 
 	fullMsg := msg.String()
 	if c.verbose {
-		fmt.Fprintf(os.Stderr, "  📤 [%s] Sending (%d bytes): %q",
-			c.conn.RemoteAddr(), len(fullMsg), fullMsg)
+		fmt.Fprintf(os.Stderr, "  📤 [%s] Sending (%d bytes): %q", c.conn.RemoteAddr(), len(fullMsg), fullMsg)
 	}
 
 	n, err := c.writer.WriteString(fullMsg)
@@ -142,8 +285,7 @@ func (c *IRCClient) Send(command string, args ...string) {
 
 func (c *IRCClient) SendMessage(target, text string) {
 	if c.verbose {
-		fmt.Fprintf(os.Stderr, "  📤 [%s] SendMessage to %s: %q\n",
-			c.conn.RemoteAddr(), target, text)
+		fmt.Fprintf(os.Stderr, "  📤 [%s] SendMessage to %s: %q\n", c.conn.RemoteAddr(), target, text)
 	}
 	c.Send("PRIVMSG", target, text)
 }
@@ -175,6 +317,6 @@ func (c *IRCClient) Close() {
 			fmt.Fprintf(os.Stderr, "  🔚 [%s] Closing connection\n", c.conn.RemoteAddr())
 		}
 		close(c.done)
-		c.conn.Close()
+		_ = c.conn.Close()
 	}
 }
