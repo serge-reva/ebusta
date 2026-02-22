@@ -130,7 +130,7 @@ func TestCmdSearchSuccessStoresSessionAndReplies(t *testing.T) {
 	h := NewIRCHandler("http://gw.local", 5, false)
 	h.httpClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-			body := `{"trace_id":"gw-1","total":1,"books":[{"id":"id1","title":"Book One","authors":["A"],"full_authors":"A"}],"page":1,"pages":1}`
+			body := `{"trace_id":"gw-1","total":1,"books":[{"id":"id1","title":"Book One","authors":["A"],"full_authors":"A"}],"page":1,"pages":1,"exec_mode":"TEMPLATE","match_mode":"broad"}`
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -148,6 +148,9 @@ func TestCmdSearchSuccessStoresSessionAndReplies(t *testing.T) {
 	}
 	if !hasLineContaining(lines, "Found 1 books") {
 		t.Fatalf("missing result line, got: %v", lines)
+	}
+	if !hasLineContaining(lines, "Mode: TEMPLATE") || !hasLineContaining(lines, "Match: broad") {
+		t.Fatalf("missing diagnostics line, got: %v", lines)
 	}
 
 	h.mu.RLock()

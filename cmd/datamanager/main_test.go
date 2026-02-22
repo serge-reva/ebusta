@@ -48,3 +48,45 @@ func TestApplyPaginationTemplate(t *testing.T) {
 		t.Fatalf("from mismatch: %v", params["from"])
 	}
 }
+
+func TestBuildSearchStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		query    string
+		execType string
+		want     string
+	}{
+		{
+			name:     "template broad",
+			query:    "author:булгаков",
+			execType: "TEMPLATE",
+			want:     "ok;exec=TEMPLATE;match=broad",
+		},
+		{
+			name:     "template exact quoted",
+			query:    `author:"михаил булгаков"`,
+			execType: "TEMPLATE",
+			want:     "ok;exec=TEMPLATE;match=exact",
+		},
+		{
+			name:     "id exact",
+			query:    "id:2fb481cc13771f6485091893858808e51a7718ff",
+			execType: "TEMPLATE",
+			want:     "ok;exec=TEMPLATE;match=exact",
+		},
+		{
+			name:     "dsl broad",
+			query:    "author:king AND title:it",
+			execType: "DSL",
+			want:     "ok;exec=DSL;match=broad",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildSearchStatus(tt.query, tt.execType)
+			if got != tt.want {
+				t.Fatalf("buildSearchStatus() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

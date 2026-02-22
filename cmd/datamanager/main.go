@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 
 	libraryv1 "ebusta/api/proto/v1"
 	"ebusta/internal/config"
@@ -42,6 +43,28 @@ type osResponse struct {
 		} `json:"total"`
 		Hits []osHit `json:"hits"`
 	} `json:"hits"`
+}
+
+func detectMatchMode(query, execType string) string {
+	q := strings.TrimSpace(strings.ToLower(query))
+	if strings.Contains(q, "\"") {
+		return "exact"
+	}
+	if strings.HasPrefix(q, "id:") {
+		return "exact"
+	}
+	if strings.EqualFold(strings.TrimSpace(execType), "TEMPLATE") {
+		return "broad"
+	}
+	return "broad"
+}
+
+func buildSearchStatus(query, execType string) string {
+	mode := strings.ToUpper(strings.TrimSpace(execType))
+	if mode == "" {
+		mode = "UNKNOWN"
+	}
+	return fmt.Sprintf("ok;exec=%s;match=%s", mode, detectMatchMode(query, mode))
 }
 
 func applyPagination(searchJSON string, limit, offset int32) (string, error) {
@@ -136,7 +159,7 @@ func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRe
 	l.WithField("total", osResp.Hits.Total.Value).WithField("returned", len(pbBooks)).InfoCtx(ctx, "[datamanager] search completed")
 
 	return &libraryv1.SearchResponse{
-		Status: "ok",
+		Status: buildSearchStatus(req.GetQuery(), req.GetExecutionType()),
 		Total:  int32(osResp.Hits.Total.Value),
 		Books:  pbBooks,
 	}, nil

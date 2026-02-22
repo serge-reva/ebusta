@@ -16,11 +16,13 @@ import (
 )
 
 type SearchResponse struct {
-	TraceID string         `json:"trace_id"`
-	Total   int            `json:"total"`
-	Books   []BookResponse `json:"books"`
-	Page    int            `json:"page"`
-	Pages   int            `json:"pages"`
+	TraceID   string         `json:"trace_id"`
+	Total     int            `json:"total"`
+	Books     []BookResponse `json:"books"`
+	Page      int            `json:"page"`
+	Pages     int            `json:"pages"`
+	ExecMode  string         `json:"exec_mode,omitempty"`
+	MatchMode string         `json:"match_mode,omitempty"`
 }
 
 type BookResponse struct {
@@ -96,6 +98,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		Page:    req.Page,
 		Pages:   1,
 	}
+	response.ExecMode, response.MatchMode = parseSearchDiagnostics(result.Status)
 	pg := presenter.NewPagination(result.Total, req.Page, req.Limit)
 	response.Page = pg.CurrentPage
 	response.Pages = pg.TotalPages
@@ -118,6 +121,21 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Trace-Id", traceID)
 	json.NewEncoder(w).Encode(response)
+}
+
+func parseSearchDiagnostics(status string) (string, string) {
+	parts := strings.Split(status, ";")
+	var execMode, matchMode string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if strings.HasPrefix(p, "exec=") {
+			execMode = strings.TrimPrefix(p, "exec=")
+		}
+		if strings.HasPrefix(p, "match=") {
+			matchMode = strings.TrimPrefix(p, "match=")
+		}
+	}
+	return execMode, matchMode
 }
 
 func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {

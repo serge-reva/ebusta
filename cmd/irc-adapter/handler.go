@@ -43,11 +43,13 @@ type SearchRequest struct {
 }
 
 type SearchResponse struct {
-	TraceID string              `json:"trace_id"`
-	Total   int                 `json:"total"`
-	Books   []presenter.BookDTO `json:"books"`
-	Page    int                 `json:"page"`
-	Pages   int                 `json:"pages"`
+	TraceID   string              `json:"trace_id"`
+	Total     int                 `json:"total"`
+	Books     []presenter.BookDTO `json:"books"`
+	Page      int                 `json:"page"`
+	Pages     int                 `json:"pages"`
+	ExecMode  string              `json:"exec_mode"`
+	MatchMode string              `json:"match_mode"`
 }
 
 func NewIRCHandler(gatewayURL string, pageSize int, verbose bool) *IRCHandler {
@@ -312,6 +314,17 @@ func (h *IRCHandler) performSearch(client *IRCClient, target, sender, query stri
 	h.mu.Unlock()
 
 	lines, _ := h.formatter.FormatSearchResult(presResult, searchResp.Page)
+	if searchResp.ExecMode != "" || searchResp.MatchMode != "" {
+		mode := searchResp.ExecMode
+		if mode == "" {
+			mode = "UNKNOWN"
+		}
+		match := searchResp.MatchMode
+		if match == "" {
+			match = "unknown"
+		}
+		client.SendMessage(target, fmt.Sprintf("🧭 Mode: %s • Match: %s", mode, match))
+	}
 	for _, line := range lines {
 		client.SendMessage(target, line)
 	}
