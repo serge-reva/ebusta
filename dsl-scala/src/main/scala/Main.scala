@@ -47,17 +47,19 @@ class BookQueryParser extends JavaTokenParsers {
   
   def termExpr: Parser[Query] = "NOT" ~> termExpr ^^ { Not(_) } | "(" ~> or <~ ")" | fieldTerm | implicitId | plainTerm
   
-  def fieldTerm: Parser[Term] = (ident <~ ":") ~ (quotedString | unquotedString) >> {
+  def fieldTerm: Parser[Term] = (ident <~ ":") ~ (quotedString | plainWord) >> {
     case f ~ v if fields.contains(f) => success(Term(f, v))
     case f ~ _ => failure(s"Unknown field: $f")
   }
   
   def implicitId: Parser[Term] = """[a-fA-F0-9]{40}""".r ^^ { id => Term("id", id) }
 
-  def plainTerm: Parser[Term] = (quotedString | unquotedString) ^^ { v => Term("_all", v) }
+  def plainTerm: Parser[Term] = quotedString ^^ { v => Term("_all", v) } | plainPhrase
 
   def quotedString: Parser[String] = "\"" ~> """[^"]*""".r <~ "\""
-  def unquotedString: Parser[String] = """[^ "()]+""".r
+  def plainPhrase: Parser[Term] = rep1(plainWord) ^^ { words => Term("_all", words.mkString(" ")) }
+  def reserved: Parser[String] = "AND" | "OR" | "NOT"
+  def plainWord: Parser[String] = not(reserved) ~> """[^"():\s]+""".r
 }
 
 class DslImpl(logger: SimpleLogger) extends DslTransformerFs2Grpc[IO, Metadata] {
