@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"ebusta/internal/edge"
 	"ebusta/internal/errutil"
 	"ebusta/internal/logger"
 	"ebusta/internal/presenter"
@@ -23,19 +24,14 @@ type SearchSession struct {
 }
 
 type IRCHandler struct {
-	gatewayURL  string
-	httpClient  *http.Client
-	sessions    map[string]*SearchSession // nick -> session
-	rateLimiter map[string]*rateLimit
-	formatter   *presenter.IRCFormatter
-	pageSize    int
-	verbose     bool
-	mu          sync.RWMutex
-}
-
-type rateLimit struct {
-	count     int
-	resetTime time.Time
+	gatewayURL string
+	httpClient *http.Client
+	sessions   map[string]*SearchSession // nick -> session
+	throttler  *edge.Throttler
+	formatter  *presenter.IRCFormatter
+	pageSize   int
+	verbose    bool
+	mu         sync.RWMutex
 }
 
 type SearchRequest struct {
@@ -53,17 +49,22 @@ type SearchResponse struct {
 }
 
 func NewIRCHandler(gatewayURL string, pageSize int, verbose bool) *IRCHandler {
-	return &IRCHandler{
+	h := &IRCHandler{
 		gatewayURL: gatewayURL,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
-		sessions:    make(map[string]*SearchSession),
-		rateLimiter: make(map[string]*rateLimit),
-		formatter:   presenter.NewIRCFormatter(pageSize),
-		pageSize:    pageSize,
-		verbose:     verbose,
+		sessions:  make(map[string]*SearchSession),
+		throttler: edge.NewThrottler(),
+		formatter: presenter.NewIRCFormatter(pageSize),
+		pageSize:  pageSize,
+		verbose:   verbose,
 	}
+	h.throttler.Register("command", edge.ThrottleRule{
+		PerMinute: 30,
+		Burst:     30,
+	})
+	return h
 }
 
 func (h *IRCHandler) HandleChannelMessage(client *IRCClient, channel, message string) {
@@ -76,6 +77,10 @@ func (h *IRCHandler) HandlePrivateMessage(client *IRCClient, message string) {
 
 func (h *IRCHandler) handleMessage(client *IRCClient, target, message string) {
 	message = strings.TrimSpace(message)
+	if err := edge.ValidateLineLength(message, 512); err != nil {
+		client.SendMessage(target, "❌ Command too long")
+		return
+	}
 
 	if !strings.HasPrefix(message, "!") && !strings.HasPrefix(message, "/") {
 		return
@@ -264,26 +269,7 @@ func (h *IRCHandler) cmdStats(client *IRCClient, target string) {
 }
 
 func (h *IRCHandler) checkRateLimit(key string) bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	now := time.Now()
-	limit, exists := h.rateLimiter[key]
-
-	if !exists || now.After(limit.resetTime) {
-		h.rateLimiter[key] = &rateLimit{
-			count:     1,
-			resetTime: now.Add(time.Minute),
-		}
-		return true
-	}
-
-	if limit.count >= 30 {
-		return false
-	}
-
-	limit.count++
-	return true
+	return h.throttler.Allow("command", key)
 }
 
 func parseSearchCommand(parts []string) (query string, page int, err error) {

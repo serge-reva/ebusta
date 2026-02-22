@@ -200,3 +200,28 @@ func TestCmdGetUsesSession(t *testing.T) {
 		t.Fatalf("expected book info lines, got: %v", lines)
 	}
 }
+
+func TestCheckRateLimitDeniesAfterBurst(t *testing.T) {
+	h := NewIRCHandler("http://unused", 5, false)
+	for i := 0; i < 30; i++ {
+		if !h.checkRateLimit("nick-burst") {
+			t.Fatalf("request %d should pass", i+1)
+		}
+	}
+	if h.checkRateLimit("nick-burst") {
+		t.Fatalf("31st request should be denied")
+	}
+}
+
+func TestHandleMessageRejectsTooLongCommand(t *testing.T) {
+	h := NewIRCHandler("http://unused", 5, false)
+	client, peer := newTestIRCClient(t, "nick-long")
+
+	long := "!" + strings.Repeat("a", 600)
+	h.handleMessage(client, "nick-long", long)
+
+	lines := readIRCOutboundLines(t, peer)
+	if !hasLineContaining(lines, "Command too long") {
+		t.Fatalf("expected command too long response, got: %v", lines)
+	}
+}
