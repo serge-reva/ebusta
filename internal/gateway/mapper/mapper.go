@@ -7,7 +7,7 @@ import (
     "sync"
     "time"
 
-    "ebusta/internal/gateway/config"
+    "ebusta/internal/config"
     "ebusta/internal/logger"
 )
 
@@ -27,13 +27,13 @@ type Mapping struct {
 }
 
 type Mapper struct {
-    config  *config.MapperConfig
+    config  *config.GatewayMapperConfig
     mu      sync.RWMutex
     tokens  map[string]*Mapping
     stopCh  chan struct{}
 }
 
-func NewMapper(cfg *config.MapperConfig) *Mapper {
+func NewMapper(cfg *config.GatewayMapperConfig) *Mapper {
     m := &Mapper{
         config: cfg,
         tokens: make(map[string]*Mapping),

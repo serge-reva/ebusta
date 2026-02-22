@@ -9,7 +9,6 @@ import (
     "time"
 
     "ebusta/internal/config"
-    gatewaycfg "ebusta/internal/gateway/config"
     "ebusta/internal/gateway"
     "ebusta/internal/logger"
 )
@@ -24,7 +23,7 @@ func main() {
     
     logger.InitFromConfig(cfg.Logger, "gateway")
     
-    gatewayCfg := gatewaycfg.LoadFromMainConfig(cfg)
+    gatewayCfg := config.LoadGatewayRuntimeConfig(cfg)
     
     server, err := gateway.NewServer(gatewayCfg)
     if err != nil {

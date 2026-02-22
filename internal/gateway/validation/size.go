@@ -5,7 +5,7 @@ import (
     "fmt"
     "net/http"
 
-    "ebusta/internal/gateway/config"
+    "ebusta/internal/config"
 )
 
 type SizeLimiter struct {
@@ -13,7 +13,7 @@ type SizeLimiter struct {
     maxJSONDepth int
 }
 
-func NewSizeLimiter(cfg *config.ValidationConfig) *SizeLimiter {
+func NewSizeLimiter(cfg *config.GatewayValidationConfig) *SizeLimiter {
     return &SizeLimiter{
         maxBodyBytes: cfg.MaxBodyBytes,
         maxJSONDepth: cfg.MaxJSONDepth,

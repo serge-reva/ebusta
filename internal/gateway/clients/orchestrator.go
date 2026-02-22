@@ -4,7 +4,7 @@ import (
     "context"
 
     libraryv1 "ebusta/api/proto/v1"
-    "ebusta/internal/gateway/config"
+    "ebusta/internal/config"
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials/insecure"
 )
@@ -14,7 +14,7 @@ type OrchestratorClient struct {
     client libraryv1.OrchestratorServiceClient
 }
 
-func NewOrchestratorClient(cfg *config.GatewayConfig) (*OrchestratorClient, error) {
+func NewOrchestratorClient(cfg *config.GatewayRuntimeConfig) (*OrchestratorClient, error) {
     var opts []grpc.DialOption
     
     if cfg.MTLS.Enabled {

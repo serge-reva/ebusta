@@ -46,6 +46,7 @@ f2bulker/data/warn/*
 *.orig
 *.rej
 *.fb2
+*.sqlite
 tmp/
 .DS_Store
 

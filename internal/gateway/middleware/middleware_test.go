@@ -5,11 +5,11 @@ import (
     "net/http/httptest"
     "testing"
     
-    "ebusta/internal/gateway/config"
+    "ebusta/internal/config"
 )
 
 func TestRateLimiter(t *testing.T) {
-    cfg := &config.RateLimitConfig{
+    cfg := &config.GatewayRateLimitConfig{
         IP:      60,
         Resolve: 30,
     }
@@ -34,7 +34,7 @@ func TestRateLimiter(t *testing.T) {
 }
 
 func TestCORS(t *testing.T) {
-    cfg := &config.CORSConfig{
+    cfg := &config.GatewayCORSConfig{
         AllowedOrigins: []string{"https://example.com"},
         AllowedMethods: []string{"GET", "POST"},
         AllowedHeaders: []string{"Content-Type"},

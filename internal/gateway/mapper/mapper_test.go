@@ -4,11 +4,11 @@ import (
     "testing"
     "time"
 
-    "ebusta/internal/gateway/config"
+    "ebusta/internal/config"
 )
 
 func TestMapperGenerateAndResolve(t *testing.T) {
-    cfg := &config.MapperConfig{
+    cfg := &config.GatewayMapperConfig{
         TTL:             time.Second,
         MaxTokens:       100,
         CleanupInterval: time.Hour, // большой интервал, чтобы не мешал
@@ -44,7 +44,7 @@ func TestMapperGenerateAndResolve(t *testing.T) {
 }
 
 func TestMapperExpiration(t *testing.T) {
-    cfg := &config.MapperConfig{
+    cfg := &config.GatewayMapperConfig{
         TTL:             100 * time.Millisecond,
         MaxTokens:       100,
         CleanupInterval: time.Hour, // большой интервал, чтобы не очищал до вызова Resolve
@@ -71,7 +71,7 @@ func TestMapperExpiration(t *testing.T) {
 }
 
 func TestMapperMaxTokens(t *testing.T) {
-    cfg := &config.MapperConfig{
+    cfg := &config.GatewayMapperConfig{
         TTL:             time.Hour,
         MaxTokens:       2,
         CleanupInterval: time.Hour,
@@ -94,7 +94,7 @@ func TestMapperMaxTokens(t *testing.T) {
 }
 
 func TestMapperRevoke(t *testing.T) {
-    cfg := &config.MapperConfig{
+    cfg := &config.GatewayMapperConfig{
         TTL:             time.Hour,
         MaxTokens:       100,
         CleanupInterval: time.Hour,
@@ -117,7 +117,7 @@ func TestMapperRevoke(t *testing.T) {
 }
 
 func TestMapperStats(t *testing.T) {
-    cfg := &config.MapperConfig{
+    cfg := &config.GatewayMapperConfig{
         TTL:             time.Hour,
         MaxTokens:       100,
         CleanupInterval: time.Hour,

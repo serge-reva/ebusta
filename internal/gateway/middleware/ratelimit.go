@@ -7,13 +7,13 @@ import (
     "sync"
     "time"
 
-    "ebusta/internal/gateway/config"
+    "ebusta/internal/config"
     "ebusta/internal/logger"
     "golang.org/x/time/rate"
 )
 
 type RateLimiter struct {
-    config         *config.RateLimitConfig
+    config         *config.GatewayRateLimitConfig
     ipLimiter      *IPRateLimiter
     resolveLimiter *IPRateLimiter
 }
@@ -52,7 +52,7 @@ func (i *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
     return limiter
 }
 
-func NewRateLimiter(cfg *config.RateLimitConfig) *RateLimiter {
+func NewRateLimiter(cfg *config.GatewayRateLimitConfig) *RateLimiter {
     return &RateLimiter{
         config: cfg,
         ipLimiter: NewIPRateLimiter(

@@ -7,8 +7,8 @@ import (
     "net/http"
     "time"
 
+    "ebusta/internal/config"
     "ebusta/internal/gateway/clients"
-    "ebusta/internal/gateway/config"
     "ebusta/internal/gateway/mapper"
     "ebusta/internal/gateway/middleware"
     "ebusta/internal/gateway/validation"
@@ -16,7 +16,7 @@ import (
 )
 
 type Server struct {
-    config       *config.GatewayConfig
+    config       *config.GatewayRuntimeConfig
     mapper       *mapper.Mapper
     validator    *validation.Validator
     sizeLimiter  *validation.SizeLimiter
@@ -35,7 +35,7 @@ type Server struct {
     httpServer   *http.Server
 }
 
-func NewServer(cfg *config.GatewayConfig) (*Server, error) {
+func NewServer(cfg *config.GatewayRuntimeConfig) (*Server, error) {
     mapper := mapper.NewMapper(&cfg.Mapper)
     validator := validation.NewValidator()
     sizeLimiter := validation.NewSizeLimiter(&cfg.Validation)

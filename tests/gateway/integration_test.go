@@ -8,20 +8,20 @@ import (
     "testing"
     "time"
 
-    "ebusta/internal/gateway"
+    "ebusta/internal/config"
     "ebusta/internal/gateway/mapper"
     "ebusta/internal/gateway/validation"
 )
 
 func TestSearchEndpoint(t *testing.T) {
     // Создаём тестовый сервер
-    cfg := &gateway.Config{
+    cfg := &config.GatewayRuntimeConfig{
         Port: 8080,
-        Validation: gateway.ValidationConfig{
+        Validation: config.GatewayValidationConfig{
             MaxBodyBytes:   1024 * 1024,
             MaxQueryLength: 500,
         },
-        Mapper: gateway.MapperConfig{
+        Mapper: config.GatewayMapperConfig{
             TTL:             time.Hour,
             MaxTokens:       100,
             CleanupInterval: time.Minute,
@@ -87,7 +87,7 @@ func TestSearchEndpoint(t *testing.T) {
 }
 
 func TestMapperIntegration(t *testing.T) {
-    cfg := &gateway.MapperConfig{
+    cfg := &config.GatewayMapperConfig{
         TTL:             time.Second,
         MaxTokens:       10,
         CleanupInterval: 100 * time.Millisecond,

@@ -5,14 +5,14 @@ import (
     "strconv"
     "strings"
 
-    "ebusta/internal/gateway/config"
+    "ebusta/internal/config"
 )
 
 type CORS struct {
-    config *config.CORSConfig
+    config *config.GatewayCORSConfig
 }
 
-func NewCORS(cfg *config.CORSConfig) *CORS {
+func NewCORS(cfg *config.GatewayCORSConfig) *CORS {
     return &CORS{config: cfg}
 }
 
