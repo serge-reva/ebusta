@@ -41,8 +41,8 @@ func (f *IRCFormatter) FormatSearchResult(result *PresenterResult, page int) ([]
 		if title == "" {
 			title = "Unknown Title"
 		}
-		// Numbering inside current page.
-		output = append(output, fmt.Sprintf("%d. \"%s\" by %s", i+1, title, authors))
+		globalIndex := (pg.CurrentPage-1)*pg.PageSize + i + 1
+		output = append(output, fmt.Sprintf("%d. \"%s\" by %s", globalIndex, title, authors))
 	}
 
 	nav := []string{}
@@ -59,7 +59,7 @@ func (f *IRCFormatter) FormatSearchResult(result *PresenterResult, page int) ([]
 		output = append(output, "🔍 Navigation: "+strings.Join(nav, " | "))
 	}
 	if len(result.Books) > 0 {
-		output = append(output, "📥 Use !get <number> to show book information")
+		output = append(output, "📥 Use !info <number> to show book information")
 	}
 
 	return output, &Page{
@@ -114,14 +114,14 @@ func (f *IRCFormatter) FormatHelp() []string {
 		"!page <n>                - Go to page N of last search",
 		"!next / !prev            - Navigate search pages",
 		"!lines <n>               - Set books per page and reset to page 1",
-		"!get <number>            - Show book information",
+		"!info <number>           - Show book information",
 		"",
 		"📝 Examples:",
 		"  !search author:king",
 		"  !page 2",
 		"  !next",
 		"  !lines 10",
-		"  !get 1",
+		"  !info 1",
 	}
 }
 

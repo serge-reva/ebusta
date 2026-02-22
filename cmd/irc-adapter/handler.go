@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -117,7 +118,7 @@ func (h *IRCHandler) handleMessage(client *IRCClient, target, sender, message st
 	case "!lines", "/lines", "!pagesize", "/pagesize":
 		h.cmdLines(client, target, sender, parts)
 	case "!get", "/get", "!info", "/info":
-		h.cmdGet(client, target, sender, parts)
+		h.cmdInfo(client, target, sender, parts)
 	case "!stats", "/stats":
 		h.cmdStats(client, target)
 	default:
@@ -269,37 +270,12 @@ func (h *IRCHandler) performSearch(client *IRCClient, target, sender, query stri
 	traceID := errutil.GenerateTraceID("irc")
 	client.SendMessage(target, fmt.Sprintf("🔍 Searching for: %s (page %d)", query, page))
 
-	req := SearchRequest{
-		Query: query,
-		Page:  page,
-		Limit: limit,
-	}
-
-	jsonData, jerr := json.Marshal(req)
-	if jerr != nil {
-		logger.GetGlobal().WithField("trace_id", traceID).Error(traceID, "failed to marshal search request", jerr)
-		client.SendMessage(target, fmt.Sprintf("❌ Internal error (trace: %s)", traceID))
-		return
-	}
-
-	httpReq, reqErr := http.NewRequest(http.MethodPost, h.gatewayURL+"/search", bytes.NewBuffer(jsonData))
-	if reqErr != nil {
-		logger.GetGlobal().WithField("trace_id", traceID).Error(traceID, "failed to create http request", reqErr)
-		client.SendMessage(target, fmt.Sprintf("❌ Internal error (trace: %s)", traceID))
-		return
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("X-Trace-Id", traceID)
-
-	resp, err := h.httpClient.Do(httpReq)
+	searchResp, appErr, err := h.requestSearch(query, page, limit, traceID)
 	if err != nil {
 		logger.GetGlobal().WithField("trace_id", traceID).Error(traceID, "search gateway unavailable", err)
 		client.SendMessage(target, fmt.Sprintf("❌ Search service unavailable (trace: %s)", traceID))
 		return
 	}
-	defer resp.Body.Close()
-
-	body, appErr := errutil.ReadBodyAndError(resp, traceID)
 	if appErr != nil {
 		logger.GetGlobal().
 			WithField("trace_id", appErr.TraceID).
@@ -307,13 +283,6 @@ func (h *IRCHandler) performSearch(client *IRCClient, target, sender, query stri
 			WithField("http", appErr.HTTPCode).
 			Warn(appErr.TraceID, "gateway search rejected")
 		client.SendMessage(target, fmt.Sprintf("❌ %s (trace: %s)", appErr.Message, appErr.TraceID))
-		return
-	}
-
-	var searchResp SearchResponse
-	if err := json.Unmarshal(body, &searchResp); err != nil {
-		logger.GetGlobal().WithField("trace_id", traceID).WithField("body", string(body)).Error(traceID, "invalid gateway response", err)
-		client.SendMessage(target, fmt.Sprintf("❌ Invalid response (trace: %s)", traceID))
 		return
 	}
 
@@ -328,7 +297,7 @@ func (h *IRCHandler) performSearch(client *IRCClient, target, sender, query stri
 			Total:   searchResp.Total,
 			Books:   searchResp.Books,
 		},
-		Pagination: presenter.NewPagination(searchResp.Total, searchResp.Page, req.Limit),
+		Pagination: presenter.NewPagination(searchResp.Total, searchResp.Page, limit),
 	}
 	presResult.Pagination.TotalPages = searchResp.Pages
 
@@ -336,7 +305,7 @@ func (h *IRCHandler) performSearch(client *IRCClient, target, sender, query stri
 	h.sessions[sender] = &SearchSession{
 		Query:     query,
 		Results:   presResult,
-		PageSize:  req.Limit,
+		PageSize:  limit,
 		Timestamp: time.Now(),
 		Channel:   target,
 	}
@@ -348,14 +317,14 @@ func (h *IRCHandler) performSearch(client *IRCClient, target, sender, query stri
 	}
 }
 
-func (h *IRCHandler) cmdGet(client *IRCClient, target, sender string, parts []string) {
+func (h *IRCHandler) cmdInfo(client *IRCClient, target, sender string, parts []string) {
 	if len(parts) < 2 {
 		client.SendMessage(target, "Usage: !info <number>")
 		return
 	}
 
 	num, err := strconv.Atoi(parts[1])
-	if err != nil {
+	if err != nil || num <= 0 {
 		client.SendMessage(target, "❌ Invalid number")
 		return
 	}
@@ -369,15 +338,104 @@ func (h *IRCHandler) cmdGet(client *IRCClient, target, sender string, parts []st
 		return
 	}
 
-	if num < 1 || num > len(session.Results.Books) {
-		client.SendMessage(target, fmt.Sprintf("❌ Invalid number. Available: 1-%d", len(session.Results.Books)))
+	total := session.Results.Total
+	if num < 1 || num > total {
+		client.SendMessage(target, fmt.Sprintf("❌ Invalid number. Available: 1-%d", total))
 		return
 	}
 
-	book := session.Results.Books[num-1]
+	pageSize := session.PageSize
+	if pageSize <= 0 {
+		pageSize = h.pageSize
+	}
+	targetPage := ((num - 1) / pageSize) + 1
+	targetOffset := (num - 1) % pageSize
 
+	var book presenter.BookDTO
+	currentPage := 0
+	totalPages := 0
+
+	if session.Results.Pagination != nil {
+		currentPage = session.Results.Pagination.CurrentPage
+		totalPages = session.Results.Pagination.TotalPages
+	}
+	if targetPage == currentPage && targetOffset < len(session.Results.Books) {
+		book = session.Results.Books[targetOffset]
+	} else {
+		traceID := errutil.GenerateTraceID("irc")
+		searchResp, appErr, reqErr := h.requestSearch(session.Query, targetPage, pageSize, traceID)
+		if reqErr != nil {
+			client.SendMessage(target, fmt.Sprintf("❌ Search service unavailable (trace: %s)", traceID))
+			return
+		}
+		if appErr != nil {
+			client.SendMessage(target, fmt.Sprintf("❌ %s (trace: %s)", appErr.Message, appErr.TraceID))
+			return
+		}
+		if targetOffset >= len(searchResp.Books) {
+			client.SendMessage(target, "❌ Book index out of range for selected page")
+			return
+		}
+		book = searchResp.Books[targetOffset]
+		totalPages = searchResp.Pages
+	}
+
+	client.SendMessage(target, fmt.Sprintf("ℹ️ Book #%d • page %d/%d", num, targetPage, totalPages))
 	client.SendMessage(target, fmt.Sprintf("📖 %s", book.Title))
 	client.SendMessage(target, fmt.Sprintf("👤 %s", book.FullAuthors))
+	downloadURL := h.toAbsoluteDownloadURL(book.DownloadURL)
+	if downloadURL != "" {
+		client.SendMessage(target, fmt.Sprintf("📥 Download: %s", downloadURL))
+	}
+}
+
+func (h *IRCHandler) requestSearch(query string, page, limit int, traceID string) (*SearchResponse, *errutil.AppError, error) {
+	req := SearchRequest{Query: query, Page: page, Limit: limit}
+	jsonData, jerr := json.Marshal(req)
+	if jerr != nil {
+		return nil, nil, jerr
+	}
+	httpReq, reqErr := http.NewRequest(http.MethodPost, h.gatewayURL+"/search", bytes.NewBuffer(jsonData))
+	if reqErr != nil {
+		return nil, nil, reqErr
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-Trace-Id", traceID)
+
+	resp, err := h.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer resp.Body.Close()
+
+	body, appErr := errutil.ReadBodyAndError(resp, traceID)
+	if appErr != nil {
+		return nil, appErr, nil
+	}
+	var searchResp SearchResponse
+	if err := json.Unmarshal(body, &searchResp); err != nil {
+		return nil, nil, fmt.Errorf("invalid gateway response: %w", err)
+	}
+	return &searchResp, nil, nil
+}
+
+func (h *IRCHandler) toAbsoluteDownloadURL(downloadURL string) string {
+	d := strings.TrimSpace(downloadURL)
+	if d == "" {
+		return ""
+	}
+	if strings.HasPrefix(d, "http://") || strings.HasPrefix(d, "https://") {
+		return d
+	}
+	base, err := url.Parse(strings.TrimRight(h.gatewayURL, "/"))
+	if err != nil {
+		return d
+	}
+	ref, err := url.Parse(d)
+	if err != nil {
+		return d
+	}
+	return base.ResolveReference(ref).String()
 }
 
 func (h *IRCHandler) cmdStats(client *IRCClient, target string) {

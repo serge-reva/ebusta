@@ -33,8 +33,14 @@ func TestIRCFormatterFormatSearchResultWithPagination(t *testing.T) {
 	if !strings.Contains(joined, "page 2/3") || !strings.Contains(joined, "limit 5") {
 		t.Fatalf("expected page/limit in output, got: %v", lines)
 	}
+	if !strings.Contains(joined, "6. \"Book 1\"") {
+		t.Fatalf("expected global item numbering, got: %v", lines)
+	}
 	if !strings.Contains(joined, "!prev") || !strings.Contains(joined, "!next") || !strings.Contains(joined, "!page <n>") {
 		t.Fatalf("expected navigation hints, got: %v", lines)
+	}
+	if !strings.Contains(joined, "Use !info <number>") {
+		t.Fatalf("expected !info hint, got: %v", lines)
 	}
 	if page == nil || page.CurrentPage != 2 || page.TotalPages != 3 {
 		t.Fatalf("unexpected page metadata: %+v", page)

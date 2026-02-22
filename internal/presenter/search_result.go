@@ -8,6 +8,7 @@ type BookDTO struct {
 	Container   string   `json:"container"`
 	Filename    string   `json:"filename"`
 	FullAuthors string   `json:"full_authors"`
+	DownloadURL string   `json:"download_url,omitempty"`
 }
 
 // SearchResult содержит агрегированный результат поиска (БЕЗ пагинации)

@@ -179,8 +179,8 @@ func TestCmdSearchGatewayErrorReturnsTraceMessage(t *testing.T) {
 	}
 }
 
-func TestCmdGetUsesSession(t *testing.T) {
-	h := NewIRCHandler("http://unused", 5, false)
+func TestCmdInfoUsesGlobalIndexFromCurrentPage(t *testing.T) {
+	h := NewIRCHandler("http://gw.local", 5, false)
 	client, peer := newTestIRCClient(t, "nick3")
 
 	h.mu.Lock()
@@ -188,18 +188,34 @@ func TestCmdGetUsesSession(t *testing.T) {
 		Query: "q",
 		Results: &presenter.PresenterResult{
 			SearchResult: &presenter.SearchResult{
+				Total: 12,
 				Books: []presenter.BookDTO{
-					{Title: "T1", FullAuthors: "A1"},
+					{Title: "T6", FullAuthors: "A6", DownloadURL: "/download/t6"},
 				},
 			},
+			Pagination: &presenter.Pagination{
+				CurrentPage: 2,
+				TotalPages:  3,
+				PageSize:    5,
+				TotalItems:  12,
+				HasPrev:     true,
+				HasNext:     true,
+			},
 		},
+		PageSize: 5,
 	}
 	h.mu.Unlock()
 
-	h.cmdGet(client, "nick3", "nick3", []string{"!info", "1"})
+	h.cmdInfo(client, "nick3", "nick3", []string{"!info", "6"})
 	lines := readIRCOutboundLines(t, peer)
-	if !hasLineContaining(lines, "📖 T1") || !hasLineContaining(lines, "👤 A1") {
+	if !hasLineContaining(lines, "Book #6") || !hasLineContaining(lines, "page 2/3") {
+		t.Fatalf("expected global index context, got: %v", lines)
+	}
+	if !hasLineContaining(lines, "📖 T6") || !hasLineContaining(lines, "👤 A6") {
 		t.Fatalf("expected book info lines, got: %v", lines)
+	}
+	if !hasLineContaining(lines, "http://gw.local/download/t6") {
+		t.Fatalf("expected absolute download url, got: %v", lines)
 	}
 }
 
@@ -312,6 +328,9 @@ func TestPaginationCommandsAndLines(t *testing.T) {
 	if !hasLineContaining(lines, "page 1/6") {
 		t.Fatalf("expected updated pagination output, got: %v", lines)
 	}
+	if !hasLineContaining(lines, "1. \"Book 1\"") {
+		t.Fatalf("expected global numbering from first page, got: %v", lines)
+	}
 }
 
 func TestCmdLinesAndPageWithoutSession(t *testing.T) {
@@ -360,5 +379,62 @@ func TestCmdNextOnLastPageAndPrevOnFirstPage(t *testing.T) {
 	}
 	if !hasLineContaining(lines, "Already on last page") {
 		t.Fatalf("expected last-page warning, got: %v", lines)
+	}
+}
+
+func TestCmdInfoFetchesTargetPageForGlobalIndex(t *testing.T) {
+	h := NewIRCHandler("http://gw.local", 5, false)
+	var mu sync.Mutex
+	var requests []SearchRequest
+	h.httpClient = &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			var req SearchRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, err
+			}
+			mu.Lock()
+			requests = append(requests, req)
+			mu.Unlock()
+			body := `{"trace_id":"gw-1","total":12,"books":[{"id":"id1","title":"T6","authors":["A6"],"full_authors":"A6","download_url":"/download/t6"},{"id":"id2","title":"T7","authors":["A7"],"full_authors":"A7","download_url":"/download/t7"}],"page":2,"pages":3}`
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(body)),
+			}, nil
+		}),
+	}
+	client, peer := newTestIRCClient(t, "nick4")
+
+	h.mu.Lock()
+	h.sessions["nick4"] = &SearchSession{
+		Query: "author:king",
+		Results: &presenter.PresenterResult{
+			SearchResult: &presenter.SearchResult{Total: 12, Books: []presenter.BookDTO{{Title: "T1", FullAuthors: "A1"}}},
+			Pagination: &presenter.Pagination{
+				CurrentPage: 1,
+				TotalPages:  3,
+				PageSize:    5,
+				TotalItems:  12,
+			},
+		},
+		PageSize: 5,
+	}
+	h.mu.Unlock()
+
+	h.cmdInfo(client, "#test", "nick4", []string{"!info", "7"})
+
+	mu.Lock()
+	got := append([]SearchRequest(nil), requests...)
+	mu.Unlock()
+	if len(got) != 1 {
+		t.Fatalf("expected one request, got %d", len(got))
+	}
+	if got[0].Page != 2 || got[0].Limit != 5 || got[0].Query != "author:king" {
+		t.Fatalf("unexpected request: %+v", got[0])
+	}
+
+	lines := readIRCOutboundLines(t, peer)
+	if !hasLineContaining(lines, "📖 T7") || !hasLineContaining(lines, "Book #7") {
+		t.Fatalf("expected fetched book output, got: %v", lines)
 	}
 }
