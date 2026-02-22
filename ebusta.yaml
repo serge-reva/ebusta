@@ -136,26 +136,53 @@ gateway:
     downloader: "localhost:50081"
     auth: "localhost:50055"
 
+##irc_adapter:
+##  mode: "server"            # server | bot
+## server_host: "0.0.0.0"
+##  server_port: 6667
+##  nick: "ebusta-bot"
+##  user: "ebusta"
+#3  real_name: "Ebusta Book Search Bot"
+##  channels: []
+##3  gateway_url: "http://localhost:8443"
+##  page_size: 5
+#3  debug: false
+##  bot_server_host: "127.0.0.1"
+##  bot_server_port: 6667
+##  bot_use_tls: false
+##  bot_password: ""
+##  bot_nick: "ebusta-bot"
+##  bot_user: "ebusta"
+##  bot_real_name: "Ebusta Book Search Bot"
+#3  bot_channels: []
+##  bot_reconnect_seconds: 5
+
+
 irc_adapter:
-  mode: "server"            # server | bot
-  server_host: "0.0.0.0"
-  server_port: 6667
-  nick: "ebusta-bot"
-  user: "ebusta"
-  real_name: "Ebusta Book Search Bot"
-  channels: []
-  gateway_url: "http://localhost:8443"
-  page_size: 5
-  debug: false
-  bot_server_host: "127.0.0.1"
-  bot_server_port: 6667
-  bot_use_tls: false
-  bot_password: ""
-  bot_nick: "ebusta-bot"
-  bot_user: "ebusta"
-  bot_real_name: "Ebusta Book Search Bot"
-  bot_channels: []
-  bot_reconnect_seconds: 5
+    mode: "bot"
+    # старые поля можно оставить как есть
+    server_host: "0.0.0.0"
+    server_port: 6667
+    nick: "ebusta-bot"
+    user: "ebusta"
+    real_name: "Ebusta Book Search Bot"
+    gateway_url: "http://localhost:8443"
+    page_size: 5
+    debug: true
+
+    # bot mode
+    bot_server_host: "yuro"          # или FQDN/IP
+    bot_server_port: 6667            # 6697 если TLS
+    bot_use_tls: false               # true для 6697
+    bot_password: ""                 # если на сервере нужен PASS
+    bot_nick: "ebusta-bot"
+    bot_user: "ebusta"
+    bot_real_name: "Ebusta Book Search Bot"
+    bot_channels:
+      - "#books"
+      - "#test"
+    bot_reconnect_seconds: 5
+  
 
 telegram_adapter:
   host: "0.0.0.0"
