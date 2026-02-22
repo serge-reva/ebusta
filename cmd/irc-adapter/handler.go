@@ -19,6 +19,7 @@ import (
 type SearchSession struct {
 	Query     string
 	Results   *presenter.PresenterResult
+	PageSize  int
 	Timestamp time.Time
 	Channel   string
 }
@@ -107,6 +108,14 @@ func (h *IRCHandler) handleMessage(client *IRCClient, target, sender, message st
 		h.cmdHelp(client, target)
 	case "!search", "/search":
 		h.cmdSearch(client, target, sender, parts)
+	case "!page", "/page":
+		h.cmdPage(client, target, sender, parts)
+	case "!next", "/next":
+		h.cmdNext(client, target, sender)
+	case "!prev", "/prev":
+		h.cmdPrev(client, target, sender)
+	case "!lines", "/lines", "!pagesize", "/pagesize":
+		h.cmdLines(client, target, sender, parts)
 	case "!get", "/get", "!info", "/info":
 		h.cmdGet(client, target, sender, parts)
 	case "!stats", "/stats":
@@ -121,15 +130,18 @@ func (h *IRCHandler) cmdHelp(client *IRCClient, target string) {
 		"🤖 Ebusta Book Search Bot - Commands:",
 		"!help                    - Show this help",
 		"!search <query>          - Search books (e.g., !search author:king)",
-		"!search page <n>         - Go to page N of last search",
+		"!page <n>                - Go to page N of last search",
+		"!next / !prev            - Navigate pages",
+		"!lines <n>               - Set books per page and reset to page 1",
 		"!info <number>           - Show book information",
 		"!stats                   - Show bot statistics",
 		"",
 		"📝 Examples:",
 		"  !search author:king",
-		"  !search title:hobbit",
+		"  !page 2",
+		"  !next",
+		"  !lines 10",
 		"  !search id:bd6525...",
-		"  !search author:king page 2",
 		"  !info 1",
 	}
 
@@ -139,12 +151,116 @@ func (h *IRCHandler) cmdHelp(client *IRCClient, target string) {
 }
 
 func (h *IRCHandler) cmdSearch(client *IRCClient, target, sender string, parts []string) {
+	if len(parts) >= 3 && strings.EqualFold(parts[1], "page") {
+		page, err := strconv.Atoi(parts[2])
+		if err != nil || page <= 0 {
+			client.SendMessage(target, "Usage: !page <n>")
+			return
+		}
+		h.goToPage(client, target, sender, page)
+		return
+	}
+
 	query, page, err := parseSearchCommand(parts)
 	if err != nil {
 		client.SendMessage(target, "Usage: !search <query> [page <n>]")
 		return
 	}
+	limit := h.getUserPageSize(sender)
+	h.performSearch(client, target, sender, query, page, limit)
+}
 
+func (h *IRCHandler) cmdPage(client *IRCClient, target, sender string, parts []string) {
+	if len(parts) < 2 {
+		client.SendMessage(target, "Usage: !page <n>")
+		return
+	}
+	page, err := strconv.Atoi(parts[1])
+	if err != nil || page <= 0 {
+		client.SendMessage(target, "Usage: !page <n>")
+		return
+	}
+	h.goToPage(client, target, sender, page)
+}
+
+func (h *IRCHandler) cmdNext(client *IRCClient, target, sender string) {
+	h.mu.RLock()
+	session, exists := h.sessions[sender]
+	h.mu.RUnlock()
+	if !exists || session.Results == nil || session.Results.Pagination == nil {
+		client.SendMessage(target, "❌ No recent search. Use !search first")
+		return
+	}
+	if !session.Results.Pagination.HasNext {
+		client.SendMessage(target, "ℹ️ Already on last page")
+		return
+	}
+	h.goToPage(client, target, sender, session.Results.Pagination.CurrentPage+1)
+}
+
+func (h *IRCHandler) cmdPrev(client *IRCClient, target, sender string) {
+	h.mu.RLock()
+	session, exists := h.sessions[sender]
+	h.mu.RUnlock()
+	if !exists || session.Results == nil || session.Results.Pagination == nil {
+		client.SendMessage(target, "❌ No recent search. Use !search first")
+		return
+	}
+	if !session.Results.Pagination.HasPrev {
+		client.SendMessage(target, "ℹ️ Already on first page")
+		return
+	}
+	h.goToPage(client, target, sender, session.Results.Pagination.CurrentPage-1)
+}
+
+func (h *IRCHandler) cmdLines(client *IRCClient, target, sender string, parts []string) {
+	if len(parts) < 2 {
+		client.SendMessage(target, "Usage: !lines <n>")
+		return
+	}
+	n, err := strconv.Atoi(parts[1])
+	if err != nil || n <= 0 || n > 50 {
+		client.SendMessage(target, "❌ Invalid lines value. Allowed range: 1-50")
+		return
+	}
+
+	h.mu.RLock()
+	session, exists := h.sessions[sender]
+	h.mu.RUnlock()
+	if !exists || strings.TrimSpace(session.Query) == "" {
+		client.SendMessage(target, "❌ No recent search. Use !search first")
+		return
+	}
+
+	client.SendMessage(target, fmt.Sprintf("ℹ️ Page size set to %d, resetting to page 1", n))
+	h.performSearch(client, target, sender, session.Query, 1, n)
+}
+
+func (h *IRCHandler) goToPage(client *IRCClient, target, sender string, page int) {
+	h.mu.RLock()
+	session, exists := h.sessions[sender]
+	h.mu.RUnlock()
+	if !exists || strings.TrimSpace(session.Query) == "" {
+		client.SendMessage(target, "❌ No recent search. Use !search first")
+		return
+	}
+	limit := session.PageSize
+	if limit <= 0 {
+		limit = h.pageSize
+	}
+	h.performSearch(client, target, sender, session.Query, page, limit)
+}
+
+func (h *IRCHandler) getUserPageSize(sender string) int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if session, ok := h.sessions[sender]; ok && session.PageSize > 0 {
+		return session.PageSize
+	}
+	return h.pageSize
+}
+
+func (h *IRCHandler) performSearch(client *IRCClient, target, sender, query string, page, limit int) {
 	if !h.checkRateLimit(sender) {
 		client.SendMessage(target, "❌ Too many requests. Try again later.")
 		return
@@ -156,7 +272,7 @@ func (h *IRCHandler) cmdSearch(client *IRCClient, target, sender string, parts [
 	req := SearchRequest{
 		Query: query,
 		Page:  page,
-		Limit: h.pageSize,
+		Limit: limit,
 	}
 
 	jsonData, jerr := json.Marshal(req)
@@ -212,24 +328,21 @@ func (h *IRCHandler) cmdSearch(client *IRCClient, target, sender string, parts [
 			Total:   searchResp.Total,
 			Books:   searchResp.Books,
 		},
-		Pagination: &presenter.Pagination{
-			CurrentPage: searchResp.Page,
-			TotalPages:  searchResp.Pages,
-			PageSize:    req.Limit,
-			TotalItems:  searchResp.Total,
-		},
+		Pagination: presenter.NewPagination(searchResp.Total, searchResp.Page, req.Limit),
 	}
+	presResult.Pagination.TotalPages = searchResp.Pages
 
 	h.mu.Lock()
 	h.sessions[sender] = &SearchSession{
 		Query:     query,
 		Results:   presResult,
+		PageSize:  req.Limit,
 		Timestamp: time.Now(),
 		Channel:   target,
 	}
 	h.mu.Unlock()
 
-	lines, _ := h.formatter.FormatSearchResult(presResult, page)
+	lines, _ := h.formatter.FormatSearchResult(presResult, searchResp.Page)
 	for _, line := range lines {
 		client.SendMessage(target, line)
 	}
