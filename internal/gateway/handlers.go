@@ -67,9 +67,9 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.Query = s.sanitizer.Sanitize(req.Query)
-	if !s.sanitizer.IsSQLSafe(req.Query) {
-		logger.GetGlobal().WithField("query", s.sanitizer.SanitizeForLog(req.Query)).WarnCtx(ctx, "possible SQL injection blocked")
+	query := strings.TrimSpace(req.Query)
+	if !s.sanitizer.IsSQLSafe(query) {
+		logger.GetGlobal().WithField("query", s.sanitizer.SanitizeForLog(query)).WarnCtx(ctx, "possible SQL injection blocked")
 		errutil.WriteJSONError(w, errutil.New(
 			errutil.CodeInvalidArgument,
 			"invalid query",
@@ -78,13 +78,13 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := s.orchestrator.Search(ctx, &clients.SearchRequest{
-		Query:   req.Query,
+		Query:   query,
 		Page:    req.Page,
 		Limit:   req.Limit,
 		TraceID: traceID,
 	})
 	if err != nil {
-		logger.GetGlobal().WithField("query", s.sanitizer.SanitizeForLog(req.Query)).ErrorCtx(ctx, "orchestrator search failed", err)
+		logger.GetGlobal().WithField("query", s.sanitizer.SanitizeForLog(query)).ErrorCtx(ctx, "orchestrator search failed", err)
 		errutil.WriteJSONError(w, errutil.FromGRPCError(err, traceID))
 		return
 	}
