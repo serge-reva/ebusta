@@ -145,3 +145,56 @@ irc_adapter:
   gateway_url: "http://localhost:8443"
   page_size: 5
   debug: false
+
+telegram_adapter:
+  host: "0.0.0.0"
+  port: 8087
+  gateway_url: "http://localhost:8443"
+  page_size: 5
+  debug: false
+
+edge:
+  reload_mode: "restart"
+  default:
+    max_line_length: 512
+    max_body_bytes: 1048576
+    max_json_depth: 10
+    actions:
+      ip:
+        per_minute: 60
+        burst: 60
+      resolve:
+        per_minute: 30
+        burst: 30
+      command:
+        per_minute: 30
+        burst: 30
+      update:
+        per_minute: 30
+        burst: 30
+  sources:
+    gateway:
+      actions:
+        ip:
+          per_minute: 60
+          burst: 60
+        resolve:
+          per_minute: 30
+          burst: 30
+    irc:
+      max_line_length: 512
+      actions:
+        command:
+          per_minute: 30
+          burst: 30
+    telegram:
+      max_line_length: 512
+      max_body_bytes: 524288
+      max_json_depth: 10
+      actions:
+        command:
+          per_minute: 20
+          burst: 20
+        update:
+          per_minute: 60
+          burst: 60

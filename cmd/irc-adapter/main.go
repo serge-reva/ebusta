@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ebusta/internal/config"
+	"ebusta/internal/edge"
 	"ebusta/internal/logger"
 )
 
@@ -35,7 +36,8 @@ func main() {
 	fmt.Fprintf(os.Stderr, "🚀 IRC adapter starting on %s (verbose: %v)\n",
 		ircCfg.Address(), ircCfg.Debug)
 
-	handler := NewIRCHandler(ircCfg.GatewayURL, ircCfg.PageSize, ircCfg.Debug)
+	policy := edge.PolicyFromConfig(cfg, "irc")
+	handler := NewIRCHandlerWithPolicy(ircCfg.GatewayURL, ircCfg.PageSize, ircCfg.Debug, policy, edge.NewLabelCounterHook())
 
 	listener, err := net.Listen("tcp", ircCfg.Address())
 	if err != nil {
@@ -48,7 +50,7 @@ func main() {
 	logger.InfoCtx(context.Background(), "IRC adapter started")
 
 	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	go func() {
 		for {
@@ -73,7 +75,15 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "📡 Waiting for connections...\n")
 
-	<-stop
+	sig := <-stop
+	if sig == syscall.SIGHUP {
+		if cfg.Edge.ReloadMode == "sighup" {
+			logger.InfoCtx(context.Background(), "SIGHUP received: safe restart is required for reload")
+		} else {
+			logger.InfoCtx(context.Background(), "SIGHUP received: reload_mode is restart-based")
+		}
+		return
+	}
 	fmt.Fprintf(os.Stderr, "\n🛑 Shutting down...\n")
 	logger.InfoCtx(context.Background(), "shutting down")
 

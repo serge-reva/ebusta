@@ -11,21 +11,43 @@ import (
 )
 
 type RateLimiter struct {
-	throttler *edge.Throttler
+	engine  *edge.Engine
+	metrics *edge.LabelCounterHook
 }
 
-func NewRateLimiter(cfg *config.GatewayRateLimitConfig) *RateLimiter {
-	t := edge.NewThrottler()
-	t.Register("ip", edge.ThrottleRule{
-		PerMinute: cfg.IP,
-		Burst:     cfg.IP,
-	})
-	t.Register("resolve", edge.ThrottleRule{
-		PerMinute: cfg.Resolve,
-		Burst:     cfg.Resolve,
-	})
+func NewRateLimiter(cfg *config.GatewayRuntimeConfig) *RateLimiter {
+	p := edge.DefaultPolicy("gateway")
+	if cfg.EdgePolicy.MaxLineLength > 0 {
+		p.MaxLineLength = cfg.EdgePolicy.MaxLineLength
+	}
+	if cfg.EdgePolicy.MaxBodyBytes > 0 {
+		p.MaxBodyBytes = cfg.EdgePolicy.MaxBodyBytes
+	}
+	if cfg.EdgePolicy.MaxJSONDepth > 0 {
+		p.MaxJSONDepth = cfg.EdgePolicy.MaxJSONDepth
+	}
+	p.Actions = map[string]edge.ActionPolicy{
+		"ip": {
+			PerMinute: cfg.RateLimit.IP,
+			Burst:     cfg.RateLimit.IP,
+		},
+		"resolve": {
+			PerMinute: cfg.RateLimit.Resolve,
+			Burst:     cfg.RateLimit.Resolve,
+		},
+	}
+	if ac, ok := cfg.EdgePolicy.Actions["ip"]; ok {
+		p.Actions["ip"] = edge.ActionPolicy{PerMinute: ac.PerMinute, Burst: ac.Burst}
+	}
+	if ac, ok := cfg.EdgePolicy.Actions["resolve"]; ok {
+		p.Actions["resolve"] = edge.ActionPolicy{PerMinute: ac.PerMinute, Burst: ac.Burst}
+	}
+
+	labelHook := edge.NewLabelCounterHook()
+	engine := edge.NewEngine(p, edge.NewMultiHook(labelHook, &edge.OTelHook{}))
 	return &RateLimiter{
-		throttler: t,
+		engine:  engine,
+		metrics: labelHook,
 	}
 }
 
@@ -33,14 +55,14 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := realIP(r)
 
-		if !rl.throttler.Allow("ip", ip) {
+		if !rl.engine.Allow(r.Context(), "ip", ip) {
 			logger.WarnCtx(r.Context(), "rate limit exceeded")
 			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}
 
 		if strings.Contains(r.URL.Path, "/download/") {
-			if !rl.throttler.Allow("resolve", ip) {
+			if !rl.engine.Allow(r.Context(), "resolve", ip) {
 				logger.WarnCtx(r.Context(), "resolve rate limit exceeded")
 				http.Error(w, "too many download attempts", http.StatusTooManyRequests)
 				return
@@ -49,6 +71,13 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (rl *RateLimiter) MetricsSnapshot() map[string]uint64 {
+	if rl.metrics == nil {
+		return map[string]uint64{}
+	}
+	return rl.metrics.Snapshot()
 }
 
 func realIP(r *http.Request) string {

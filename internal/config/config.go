@@ -36,6 +36,24 @@ type MetricsConfig struct {
 	Port int `yaml:"port"`
 }
 
+type EdgeActionConfig struct {
+	PerMinute int `yaml:"per_minute"`
+	Burst     int `yaml:"burst"`
+}
+
+type EdgePolicyConfig struct {
+	MaxLineLength int                         `yaml:"max_line_length"`
+	MaxBodyBytes  int64                       `yaml:"max_body_bytes"`
+	MaxJSONDepth  int                         `yaml:"max_json_depth"`
+	Actions       map[string]EdgeActionConfig `yaml:"actions"`
+}
+
+type EdgeConfig struct {
+	ReloadMode string                      `yaml:"reload_mode"`
+	Default    EdgePolicyConfig            `yaml:"default"`
+	Sources    map[string]EdgePolicyConfig `yaml:"sources"`
+}
+
 type IRCAdapterConfig struct {
 	ServerHost string   `yaml:"server_host"`
 	ServerPort int      `yaml:"server_port"`
@@ -50,6 +68,18 @@ type IRCAdapterConfig struct {
 
 func (c IRCAdapterConfig) Address() string {
 	return fmt.Sprintf("%s:%d", c.ServerHost, c.ServerPort)
+}
+
+type TelegramAdapterConfig struct {
+	Host       string `yaml:"host"`
+	Port       int    `yaml:"port"`
+	GatewayURL string `yaml:"gateway_url"`
+	PageSize   int    `yaml:"page_size"`
+	Debug      bool   `yaml:"debug"`
+}
+
+func (c TelegramAdapterConfig) Address() string {
+	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }
 
 /* ---------- WEB FRONTEND ---------- */
@@ -246,12 +276,13 @@ type GatewayServicesConfig struct {
 /* ---------- ROOT ---------- */
 
 type Config struct {
-	OpenSearch   OpenSearchConfig `yaml:"opensearch"`
-	Datamanager  ComponentConfig  `yaml:"datamanager"`
-	Orchestrator ComponentConfig  `yaml:"orchestrator"`
-	WebAdapter   ComponentConfig  `yaml:"web_adapter"`
-	IRCAdapter   IRCAdapterConfig `yaml:"irc_adapter"`
-	CLI          CLIConfig        `yaml:"cli"`
+	OpenSearch      OpenSearchConfig      `yaml:"opensearch"`
+	Datamanager     ComponentConfig       `yaml:"datamanager"`
+	Orchestrator    ComponentConfig       `yaml:"orchestrator"`
+	WebAdapter      ComponentConfig       `yaml:"web_adapter"`
+	IRCAdapter      IRCAdapterConfig      `yaml:"irc_adapter"`
+	TelegramAdapter TelegramAdapterConfig `yaml:"telegram_adapter"`
+	CLI             CLIConfig             `yaml:"cli"`
 
 	DslScala     ComponentConfig `yaml:"dsl_scala"`
 	QueryBuilder ComponentConfig `yaml:"query_builder"`
@@ -263,6 +294,7 @@ type Config struct {
 	Downloads DownloadsConfig `yaml:"downloads"`
 
 	Gateway GatewayConfig `yaml:"gateway"`
+	Edge    EdgeConfig    `yaml:"edge"`
 
 	Logger logger.LoggerConfig `yaml:"logger"`
 }
@@ -295,4 +327,33 @@ func (c ComponentConfig) Address() string {
 
 func (c ComponentConfig) FullURL() string {
 	return fmt.Sprintf("%s://%s:%d", c.Protocol, c.Host, c.Port)
+}
+
+func (c *Config) EdgePolicyForSource(source string) EdgePolicyConfig {
+	p := c.Edge.Default
+	actions := make(map[string]EdgeActionConfig, len(p.Actions))
+	for k, v := range p.Actions {
+		actions[k] = v
+	}
+	p.Actions = actions
+	if c.Edge.Sources == nil {
+		return p
+	}
+	if src, ok := c.Edge.Sources[source]; ok {
+		if src.MaxLineLength > 0 {
+			p.MaxLineLength = src.MaxLineLength
+		}
+		if src.MaxBodyBytes > 0 {
+			p.MaxBodyBytes = src.MaxBodyBytes
+		}
+		if src.MaxJSONDepth > 0 {
+			p.MaxJSONDepth = src.MaxJSONDepth
+		}
+		if src.Actions != nil {
+			for k, v := range src.Actions {
+				p.Actions[k] = v
+			}
+		}
+	}
+	return p
 }

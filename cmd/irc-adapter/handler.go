@@ -27,7 +27,7 @@ type IRCHandler struct {
 	gatewayURL string
 	httpClient *http.Client
 	sessions   map[string]*SearchSession // nick -> session
-	throttler  *edge.Throttler
+	engine     *edge.Engine
 	formatter  *presenter.IRCFormatter
 	pageSize   int
 	verbose    bool
@@ -49,22 +49,23 @@ type SearchResponse struct {
 }
 
 func NewIRCHandler(gatewayURL string, pageSize int, verbose bool) *IRCHandler {
-	h := &IRCHandler{
+	p := edge.DefaultPolicy("irc")
+	p.Actions["command"] = edge.ActionPolicy{PerMinute: 30, Burst: 30}
+	return NewIRCHandlerWithPolicy(gatewayURL, pageSize, verbose, p, edge.NewLabelCounterHook())
+}
+
+func NewIRCHandlerWithPolicy(gatewayURL string, pageSize int, verbose bool, policy edge.Policy, hook edge.Hook) *IRCHandler {
+	return &IRCHandler{
 		gatewayURL: gatewayURL,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
 		sessions:  make(map[string]*SearchSession),
-		throttler: edge.NewThrottler(),
+		engine:    edge.NewEngine(policy, edge.NewMultiHook(hook, &edge.OTelHook{})),
 		formatter: presenter.NewIRCFormatter(pageSize),
 		pageSize:  pageSize,
 		verbose:   verbose,
 	}
-	h.throttler.Register("command", edge.ThrottleRule{
-		PerMinute: 30,
-		Burst:     30,
-	})
-	return h
 }
 
 func (h *IRCHandler) HandleChannelMessage(client *IRCClient, channel, message string) {
@@ -77,7 +78,7 @@ func (h *IRCHandler) HandlePrivateMessage(client *IRCClient, message string) {
 
 func (h *IRCHandler) handleMessage(client *IRCClient, target, message string) {
 	message = strings.TrimSpace(message)
-	if err := edge.ValidateLineLength(message, 512); err != nil {
+	if err := h.engine.ValidateLine(nil, "command", message); err != nil {
 		client.SendMessage(target, "❌ Command too long")
 		return
 	}
@@ -269,7 +270,7 @@ func (h *IRCHandler) cmdStats(client *IRCClient, target string) {
 }
 
 func (h *IRCHandler) checkRateLimit(key string) bool {
-	return h.throttler.Allow("command", key)
+	return h.engine.Allow(nil, "command", key)
 }
 
 func parseSearchCommand(parts []string) (query string, page int, err error) {
