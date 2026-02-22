@@ -20,6 +20,7 @@ type GatewayRuntimeConfig struct {
 	Validation GatewayValidationConfig
 	CORS       GatewayCORSConfig
 	Services   GatewayServicesRuntimeConfig
+	EdgePolicy EdgePolicyConfig
 }
 
 type GatewayRateLimitConfig struct {
@@ -115,6 +116,7 @@ func LoadGatewayRuntimeConfig(cfg *Config) *GatewayRuntimeConfig {
 			Downloader:   g.Services.Downloader,
 			Auth:         g.Services.Auth,
 		},
+		EdgePolicy: cfg.EdgePolicyForSource("gateway"),
 	}
 }
 

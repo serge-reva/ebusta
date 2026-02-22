@@ -3,15 +3,18 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"ebusta/internal/config"
 )
 
 func TestRateLimiter(t *testing.T) {
-	cfg := &config.GatewayRateLimitConfig{
-		IP:      60,
-		Resolve: 30,
+	cfg := &config.GatewayRuntimeConfig{
+		RateLimit: config.GatewayRateLimitConfig{
+			IP:      60,
+			Resolve: 30,
+		},
 	}
 
 	limiter := NewRateLimiter(cfg)
@@ -34,9 +37,11 @@ func TestRateLimiter(t *testing.T) {
 }
 
 func TestRateLimiterExceeds(t *testing.T) {
-	cfg := &config.GatewayRateLimitConfig{
-		IP:      1,
-		Resolve: 1,
+	cfg := &config.GatewayRuntimeConfig{
+		RateLimit: config.GatewayRateLimitConfig{
+			IP:      1,
+			Resolve: 1,
+		},
 	}
 
 	limiter := NewRateLimiter(cfg)
@@ -61,6 +66,16 @@ func TestRateLimiterExceeds(t *testing.T) {
 	wrapped.ServeHTTP(w2, req2)
 	if w2.Code != http.StatusTooManyRequests {
 		t.Fatalf("second request should be throttled, got %d", w2.Code)
+	}
+
+	snapshot := limiter.MetricsSnapshot()
+	if len(snapshot) == 0 {
+		t.Fatalf("expected edge telemetry metrics to be recorded")
+	}
+	for k := range snapshot {
+		if !strings.Contains(k, "edge_decisions_total|") && !strings.Contains(k, "edge_throttle_dropped_total|") {
+			t.Fatalf("unexpected metric key %q", k)
+		}
 	}
 }
 
