@@ -1,10 +1,8 @@
 package gateway_test
 
 import (
-    "bytes"
     "encoding/json"
     "net/http"
-    "net/http/httptest"
     "testing"
     "time"
 
@@ -14,8 +12,7 @@ import (
 )
 
 func TestSearchEndpoint(t *testing.T) {
-    // Создаём тестовый сервер
-    cfg := &config.GatewayRuntimeConfig{
+    _ = &config.GatewayRuntimeConfig{
         Port: 8080,
         Validation: config.GatewayValidationConfig{
             MaxBodyBytes:   1024 * 1024,
@@ -71,12 +68,7 @@ func TestSearchEndpoint(t *testing.T) {
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
             body, _ := json.Marshal(tt.body)
-            
-            req := httptest.NewRequest("POST", "/search", bytes.NewReader(body))
-            req.Header.Set("Content-Type", "application/json")
-            
-            w := httptest.NewRecorder()
-            
+
             // Валидация
             _, err := validator.ValidateSearch(body)
             if (err != nil) != (tt.wantStatus != http.StatusOK) {

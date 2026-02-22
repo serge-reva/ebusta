@@ -57,34 +57,47 @@ func NewPresenterResult(sr *SearchResult, page, pageSize int) *PresenterResult {
 
 // generatePageNumbers генерирует номера страниц для пагинации
 func generatePageNumbers(current, total int) []int {
-    if total <= 7 {
-        pages := make([]int, total)
-        for i := 0; i < total; i++ {
-            pages[i] = i + 1
-        }
-        return pages
-    }
+	if total <= 7 {
+		pages := make([]int, total)
+		for i := 0; i < total; i++ {
+			pages[i] = i + 1
+		}
+		return pages
+	}
 
-    var pages []int
-    pages = append(pages, 1)
+	var pages []int
+	pages = append(pages, 1)
 
-    if current > 3 {
-        pages = append(pages, 0) // 0 означает "..."
-    }
+	start := current - 1
+	end := current + 1
 
-    for i := current - 1; i <= current+1; i++ {
-        if i > 1 && i < total {
-            pages = append(pages, i)
-        }
-    }
+	// At boundaries show a wider set near the edge instead of empty gaps.
+	if current <= 1 {
+		start, end = 2, 3
+	} else if current >= total {
+		start, end = total-2, total-1
+	}
 
-    if current < total-2 {
-        pages = append(pages, 0) // 0 означает "..."
-    }
+	if start < 2 {
+		start = 2
+	}
+	if end > total-1 {
+		end = total - 1
+	}
 
-    if total > 1 {
-        pages = append(pages, total)
-    }
+	if start > 2 {
+		pages = append(pages, 0) // 0 означает "..."
+	}
+	for i := start; i <= end; i++ {
+		pages = append(pages, i)
+	}
+	if end < total-1 {
+		pages = append(pages, 0) // 0 означает "..."
+	}
+
+	if total > 1 {
+		pages = append(pages, total)
+	}
 
     return pages
 }
