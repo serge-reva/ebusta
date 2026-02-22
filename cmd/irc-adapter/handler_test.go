@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -223,5 +225,140 @@ func TestHandleMessageRejectsTooLongCommand(t *testing.T) {
 	lines := readIRCOutboundLines(t, peer)
 	if !hasLineContaining(lines, "Command too long") {
 		t.Fatalf("expected command too long response, got: %v", lines)
+	}
+}
+
+func TestPaginationCommandsAndLines(t *testing.T) {
+	h := NewIRCHandler("http://gw.local", 5, false)
+	var mu sync.Mutex
+	var requests []SearchRequest
+
+	h.httpClient = &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			var req SearchRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, err
+			}
+			total := 12
+			pages := (total + req.Limit - 1) / req.Limit
+			if pages == 0 {
+				pages = 1
+			}
+			if req.Page < 1 {
+				req.Page = 1
+			}
+			if req.Page > pages {
+				req.Page = pages
+			}
+
+			mu.Lock()
+			requests = append(requests, req)
+			mu.Unlock()
+
+			body := fmt.Sprintf(`{"trace_id":"gw-1","total":%d,"books":[{"id":"id1","title":"Book %d","authors":["A"],"full_authors":"A"}],"page":%d,"pages":%d}`,
+				total, req.Page, req.Page, pages)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(body)),
+			}, nil
+		}),
+	}
+	client, peer := newTestIRCClient(t, "nick-pager")
+
+	h.cmdSearch(client, "#test", "nick-pager", []string{"!search", "author:king"})
+	h.cmdNext(client, "#test", "nick-pager")
+	h.cmdPrev(client, "#test", "nick-pager")
+	h.cmdPage(client, "#test", "nick-pager", []string{"!page", "3"})
+	h.cmdLines(client, "#test", "nick-pager", []string{"!lines", "2"})
+
+	mu.Lock()
+	got := append([]SearchRequest(nil), requests...)
+	mu.Unlock()
+	if len(got) != 5 {
+		t.Fatalf("expected 5 gateway requests, got %d", len(got))
+	}
+
+	want := []SearchRequest{
+		{Query: "author:king", Page: 1, Limit: 5},
+		{Query: "author:king", Page: 2, Limit: 5},
+		{Query: "author:king", Page: 1, Limit: 5},
+		{Query: "author:king", Page: 3, Limit: 5},
+		{Query: "author:king", Page: 1, Limit: 2},
+	}
+	for i := range want {
+		if got[i].Query != want[i].Query || got[i].Page != want[i].Page || got[i].Limit != want[i].Limit {
+			t.Fatalf("request[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+
+	h.mu.RLock()
+	session := h.sessions["nick-pager"]
+	h.mu.RUnlock()
+	if session == nil {
+		t.Fatalf("expected session to exist")
+	}
+	if session.PageSize != 2 {
+		t.Fatalf("expected session page size 2, got %d", session.PageSize)
+	}
+	if session.Results == nil || session.Results.Pagination == nil || session.Results.Pagination.CurrentPage != 1 {
+		t.Fatalf("expected current page to reset to 1, got %+v", session.Results)
+	}
+
+	lines := readIRCOutboundLines(t, peer)
+	if !hasLineContaining(lines, "Page size set to 2, resetting to page 1") {
+		t.Fatalf("expected lines-change confirmation, got: %v", lines)
+	}
+	if !hasLineContaining(lines, "page 1/6") {
+		t.Fatalf("expected updated pagination output, got: %v", lines)
+	}
+}
+
+func TestCmdLinesAndPageWithoutSession(t *testing.T) {
+	h := NewIRCHandler("http://unused", 5, false)
+	client, peer := newTestIRCClient(t, "nick-empty")
+
+	h.cmdPage(client, "#test", "nick-empty", []string{"!page", "2"})
+	h.cmdLines(client, "#test", "nick-empty", []string{"!lines", "10"})
+
+	lines := readIRCOutboundLines(t, peer)
+	if !hasLineContaining(lines, "No recent search") {
+		t.Fatalf("expected no-session warning, got: %v", lines)
+	}
+}
+
+func TestCmdNextOnLastPageAndPrevOnFirstPage(t *testing.T) {
+	h := NewIRCHandler("http://unused", 5, false)
+	client, peer := newTestIRCClient(t, "nick-edge")
+
+	h.mu.Lock()
+	h.sessions["nick-edge"] = &SearchSession{
+		Query: "author:king",
+		Results: &presenter.PresenterResult{
+			SearchResult: &presenter.SearchResult{Total: 3},
+			Pagination: &presenter.Pagination{
+				CurrentPage: 1,
+				TotalPages:  1,
+				PageSize:    5,
+				TotalItems:  3,
+				HasPrev:     false,
+				HasNext:     false,
+			},
+		},
+		PageSize:  5,
+		Timestamp: time.Now(),
+		Channel:   "#test",
+	}
+	h.mu.Unlock()
+
+	h.cmdPrev(client, "#test", "nick-edge")
+	h.cmdNext(client, "#test", "nick-edge")
+
+	lines := readIRCOutboundLines(t, peer)
+	if !hasLineContaining(lines, "Already on first page") {
+		t.Fatalf("expected first-page warning, got: %v", lines)
+	}
+	if !hasLineContaining(lines, "Already on last page") {
+		t.Fatalf("expected last-page warning, got: %v", lines)
 	}
 }

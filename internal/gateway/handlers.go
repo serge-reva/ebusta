@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"ebusta/internal/gateway/clients"
 	"ebusta/internal/gateway/mapper"
 	"ebusta/internal/logger"
+	"ebusta/internal/presenter"
 )
 
 type SearchResponse struct {
@@ -92,8 +94,11 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		Total:   result.Total,
 		Books:   make([]BookResponse, 0, len(result.Books)),
 		Page:    req.Page,
-		Pages:   (result.Total + req.Limit - 1) / req.Limit,
+		Pages:   1,
 	}
+	pg := presenter.NewPagination(result.Total, req.Page, req.Limit)
+	response.Page = pg.CurrentPage
+	response.Pages = pg.TotalPages
 
 	for _, book := range result.Books {
 		token, err := s.mapper.GenerateToken(book.ID, "")
@@ -159,13 +164,18 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodHead {
-		meta, err := s.downloader.GetMeta(sha1)
+		meta, err := s.downloader.GetMetaWithTrace(sha1, traceID)
 		if err != nil {
 			logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "failed to get meta", err)
+			var appErr *errutil.AppError
+			if errors.As(err, &appErr) {
+				errutil.WriteJSONError(w, appErr)
+				return
+			}
 			errutil.WriteJSONError(w, errutil.New(
 				errutil.CodeInternal,
 				"failed to get book metadata",
-			).WithTrace(traceID))
+			).WithTrace(traceID).WithDetails(err.Error()))
 			return
 		}
 
@@ -180,8 +190,17 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("X-Trace-Id", traceID)
 
-	if err := s.downloader.StreamBook(sha1, w); err != nil {
+	if err := s.downloader.StreamBookWithTrace(sha1, w, traceID); err != nil {
 		logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "failed to stream book", err)
+		var appErr *errutil.AppError
+		if errors.As(err, &appErr) {
+			errutil.WriteJSONError(w, appErr)
+			return
+		}
+		errutil.WriteJSONError(w, errutil.New(
+			errutil.CodeInternal,
+			"failed to stream book",
+		).WithTrace(traceID).WithDetails(err.Error()))
 		return
 	}
 
@@ -204,13 +223,18 @@ func (s *Server) handleDownloadToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	meta, err := s.downloader.GetMeta(sha1)
+	meta, err := s.downloader.GetMetaWithTrace(sha1, traceID)
 	if err != nil {
 		logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(r.Context(), "failed to get metadata", err)
+		var appErr *errutil.AppError
+		if errors.As(err, &appErr) {
+			errutil.WriteJSONError(w, appErr)
+			return
+		}
 		errutil.WriteJSONError(w, errutil.New(
 			errutil.CodeInternal,
 			"failed to get metadata",
-		).WithTrace(traceID))
+		).WithTrace(traceID).WithDetails(err.Error()))
 		return
 	}
 
