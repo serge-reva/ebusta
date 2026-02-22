@@ -5,6 +5,7 @@ import (
     "encoding/json"
     "fmt"
     "net/http"
+    "os"
     "strconv"
     "strings"
     "sync"
@@ -89,15 +90,33 @@ func (h *IRCHandler) handleMessage(client *IRCClient, target, message string) {
         h.cmdHelp(client, target)
     case "!search", "/search":
         h.cmdSearch(client, target, parts)
-    case "!get", "/get":
+    case "!get", "/get", "!info", "/info":
         h.cmdGet(client, target, parts)
     case "!stats", "/stats":
         h.cmdStats(client, target)
+    default:
+        client.SendMessage(target, fmt.Sprintf("Unknown command: %s. Try !help", cmd))
     }
 }
 
 func (h *IRCHandler) cmdHelp(client *IRCClient, target string) {
-    for _, line := range h.formatter.FormatHelp() {
+    help := []string{
+        "🤖 Ebusta Book Search Bot - Commands:",
+        "!help                    - Show this help",
+        "!search <query>          - Search books (e.g., !search author:king)",
+        "!search page <n>         - Go to page N of last search",
+        "!info <number>           - Show book information",
+        "!stats                   - Show bot statistics",
+        "",
+        "📝 Examples:",
+        "  !search author:king",
+        "  !search title:hobbit",
+        "  !search id:bd6525...",
+        "  !search author:king page 2",
+        "  !info 1",
+    }
+    
+    for _, line := range help {
         client.SendMessage(target, line)
     }
 }
@@ -118,7 +137,7 @@ func (h *IRCHandler) cmdSearch(client *IRCClient, target string, parts []string)
         }
     }
     
-    client.SendMessage(target, fmt.Sprintf("Searching for: %s (page %d)", query, page))
+    client.SendMessage(target, fmt.Sprintf("🔍 Searching for: %s (page %d)", query, page))
     
     req := SearchRequest{
         Query: query,
@@ -128,8 +147,9 @@ func (h *IRCHandler) cmdSearch(client *IRCClient, target string, parts []string)
     
     jsonData, _ := json.Marshal(req)
     
-    // Отладочный вывод
-    fmt.Fprintf(client.conn.RemoteAddr().String(), "🔍 Sending request to gateway: %s\n", h.gatewayURL+"/search")
+    if h.verbose {
+        fmt.Fprintf(os.Stderr, "🔍 Sending request to gateway: %s\n", h.gatewayURL+"/search")
+    }
     
     resp, err := h.httpClient.Post(
         h.gatewayURL+"/search",
@@ -137,26 +157,28 @@ func (h *IRCHandler) cmdSearch(client *IRCClient, target string, parts []string)
         bytes.NewBuffer(jsonData),
     )
     if err != nil {
-        client.SendMessage(target, "Search service unavailable")
+        client.SendMessage(target, "❌ Search service unavailable")
         return
     }
     defer resp.Body.Close()
     
     var searchResp SearchResponse
     if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
-        client.SendMessage(target, "Invalid response")
+        client.SendMessage(target, "❌ Invalid response")
         return
     }
     
-    // Отладочный вывод - посмотрим что пришло
-    fmt.Fprintf(client.conn.RemoteAddr().String(), "📦 Gateway response: %+v\n", searchResp)
-    for i, book := range searchResp.Books {
-        fmt.Fprintf(client.conn.RemoteAddr().String(), "  Book %d: Title=%q, Authors=%v, FullAuthors=%q\n", 
-            i+1, book.Title, book.Authors, book.FullAuthors)
+    if h.verbose {
+        fmt.Fprintf(os.Stderr, "📦 Gateway response: total=%d, page=%d, pages=%d\n", 
+            searchResp.Total, searchResp.Page, searchResp.Pages)
+        for i, book := range searchResp.Books {
+            fmt.Fprintf(os.Stderr, "  Book %d: Title=%q, FullAuthors=%q\n", 
+                i+1, book.Title, book.FullAuthors)
+        }
     }
     
     if searchResp.Total == 0 {
-        client.SendMessage(target, "No books found")
+        client.SendMessage(target, "📚 No books found")
         return
     }
     
@@ -191,30 +213,34 @@ func (h *IRCHandler) cmdSearch(client *IRCClient, target string, parts []string)
 
 func (h *IRCHandler) cmdGet(client *IRCClient, target string, parts []string) {
     if len(parts) < 2 {
-        client.SendMessage(target, "Usage: !get <number>")
+        client.SendMessage(target, "Usage: !info <number>")
         return
     }
     
-    num, _ := strconv.Atoi(parts[1])
+    num, err := strconv.Atoi(parts[1])
+    if err != nil {
+        client.SendMessage(target, "❌ Invalid number")
+        return
+    }
     
     h.mu.RLock()
     session, exists := h.sessions[client.nick]
     h.mu.RUnlock()
     
     if !exists {
-        client.SendMessage(target, "No recent search. Use !search first")
+        client.SendMessage(target, "❌ No recent search. Use !search first")
         return
     }
     
     if num < 1 || num > len(session.Results.Books) {
-        client.SendMessage(target, fmt.Sprintf("Invalid number. Available: 1-%d", len(session.Results.Books)))
+        client.SendMessage(target, fmt.Sprintf("❌ Invalid number. Available: 1-%d", len(session.Results.Books)))
         return
     }
     
     book := session.Results.Books[num-1]
     
-    client.SendMessage(target, fmt.Sprintf("Title: %s", book.Title))
-    client.SendMessage(target, fmt.Sprintf("Author: %s", book.FullAuthors))
+    client.SendMessage(target, fmt.Sprintf("📖 %s", book.Title))
+    client.SendMessage(target, fmt.Sprintf("👤 %s", book.FullAuthors))
 }
 
 func (h *IRCHandler) cmdStats(client *IRCClient, target string) {
@@ -222,8 +248,9 @@ func (h *IRCHandler) cmdStats(client *IRCClient, target string) {
     sessions := len(h.sessions)
     h.mu.RUnlock()
     
-    client.SendMessage(target, fmt.Sprintf("Active sessions: %d", sessions))
-    client.SendMessage(target, fmt.Sprintf("Gateway: %s", h.gatewayURL))
+    client.SendMessage(target, "📊 Ebusta Bot Statistics:")
+    client.SendMessage(target, fmt.Sprintf("  • Active sessions: %d", sessions))
+    client.SendMessage(target, fmt.Sprintf("  • Gateway: %s", h.gatewayURL))
 }
 
 func (h *IRCHandler) checkRateLimit(key string) bool {

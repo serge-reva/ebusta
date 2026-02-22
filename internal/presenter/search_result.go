@@ -2,36 +2,36 @@ package presenter
 
 // BookDTO дублирует search.BookDTO для избежания циклического импорта
 type BookDTO struct {
-    ID          string
-    Title       string
-    Authors     []string
-    Container   string
-    Filename    string
-    FullAuthors string
+    ID          string   `json:"id"`
+    Title       string   `json:"title"`
+    Authors     []string `json:"authors"`
+    Container   string   `json:"container"`
+    Filename    string   `json:"filename"`
+    FullAuthors string   `json:"full_authors"`
 }
 
 // SearchResult содержит агрегированный результат поиска (БЕЗ пагинации)
 type SearchResult struct {
-    TraceId string
-    Total   int
-    Books   []BookDTO
+    TraceId string    `json:"trace_id"`
+    Total   int       `json:"total"`
+    Books   []BookDTO `json:"books"`
 }
 
 // PresenterResult представляет обогащённый результат поиска с пагинацией
 type PresenterResult struct {
     *SearchResult
-    Pagination *Pagination
+    Pagination *Pagination `json:"pagination"`
 }
 
 // Pagination содержит информацию для пагинации
 type Pagination struct {
-    CurrentPage int
-    TotalPages  int
-    PageSize    int
-    TotalItems  int
-    HasPrev     bool
-    HasNext     bool
-    Pages       []int // номера страниц для отображения (0 означает "...")
+    CurrentPage int  `json:"current_page"`
+    TotalPages  int  `json:"total_pages"`
+    PageSize    int  `json:"page_size"`
+    TotalItems  int  `json:"total_items"`
+    HasPrev     bool `json:"has_prev"`
+    HasNext     bool `json:"has_next"`
+    Pages       []int `json:"pages"`
 }
 
 // NewPresenterResult создаёт общий результат с пагинацией
