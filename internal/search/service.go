@@ -84,8 +84,10 @@ func (s *Service) Search(ctx context.Context, query string, limit int, offset in
 
     for _, b := range resp.GetBooks() {
         authors := b.GetAuthors()
-        fullAuthors := strings.Join(authors, ", ")
-        if fullAuthors == "" {
+        var fullAuthors string
+        if len(authors) > 0 {
+            fullAuthors = strings.Join(authors, ", ")
+        } else {
             fullAuthors = "Unknown"
         }
 

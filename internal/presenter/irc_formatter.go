@@ -34,6 +34,7 @@ func (f *IRCFormatter) FormatSearchResult(result *PresenterResult, page int) ([]
             title = "Unknown Title"
         }
         
+        // Убираем обрезание, показываем полностью
         items[i] = fmt.Sprintf("%d. \"%s\" by %s", i+1, title, authors)
     }
     
@@ -101,7 +102,7 @@ func (f *IRCFormatter) FormatHelp() []string {
         "!help                    - Show this help",
         "!search <query>          - Search books (e.g., !search author:king)",
         "!search page <n>         - Go to page N of last search",
-        "!get <number>            - Download book by number",
+        "!get <number>            - Show book information",
         "",
         "📝 Examples:",
         "  !search author:king",

@@ -84,24 +84,21 @@ func (h *IRCHandler) handleMessage(client *IRCClient, target, message string) {
     
     cmd := strings.ToLower(parts[0])
     
-    // ТЕСТ: всегда отправляем простое ASCII сообщение на любую команду
-    testMsg := fmt.Sprintf("Command received: %s", cmd)
-    client.SendMessage(target, testMsg)
-    
-    // Для !help отправляем больше информации
-    if cmd == "!help" || cmd == "/help" {
-        client.SendMessage(target, "Available commands: !search, !get, !stats")
-        client.SendMessage(target, "Example: !search author:king")
-        return
-    }
-    
     switch cmd {
+    case "!help", "/help":
+        h.cmdHelp(client, target)
     case "!search", "/search":
         h.cmdSearch(client, target, parts)
     case "!get", "/get":
         h.cmdGet(client, target, parts)
     case "!stats", "/stats":
         h.cmdStats(client, target)
+    }
+}
+
+func (h *IRCHandler) cmdHelp(client *IRCClient, target string) {
+    for _, line := range h.formatter.FormatHelp() {
+        client.SendMessage(target, line)
     }
 }
 
@@ -131,6 +128,9 @@ func (h *IRCHandler) cmdSearch(client *IRCClient, target string, parts []string)
     
     jsonData, _ := json.Marshal(req)
     
+    // Отладочный вывод
+    fmt.Fprintf(client.conn.RemoteAddr().String(), "🔍 Sending request to gateway: %s\n", h.gatewayURL+"/search")
+    
     resp, err := h.httpClient.Post(
         h.gatewayURL+"/search",
         "application/json",
@@ -146,6 +146,13 @@ func (h *IRCHandler) cmdSearch(client *IRCClient, target string, parts []string)
     if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
         client.SendMessage(target, "Invalid response")
         return
+    }
+    
+    // Отладочный вывод - посмотрим что пришло
+    fmt.Fprintf(client.conn.RemoteAddr().String(), "📦 Gateway response: %+v\n", searchResp)
+    for i, book := range searchResp.Books {
+        fmt.Fprintf(client.conn.RemoteAddr().String(), "  Book %d: Title=%q, Authors=%v, FullAuthors=%q\n", 
+            i+1, book.Title, book.Authors, book.FullAuthors)
     }
     
     if searchResp.Total == 0 {
@@ -176,11 +183,10 @@ func (h *IRCHandler) cmdSearch(client *IRCClient, target string, parts []string)
     }
     h.mu.Unlock()
     
-    client.SendMessage(target, fmt.Sprintf("Found %d books:", searchResp.Total))
-    for i, book := range searchResp.Books {
-        client.SendMessage(target, fmt.Sprintf("%d. %s by %s", i+1, book.Title, book.FullAuthors))
+    lines, _ := h.formatter.FormatSearchResult(presResult, page)
+    for _, line := range lines {
+        client.SendMessage(target, line)
     }
-    client.SendMessage(target, "Use !get <number> for details")
 }
 
 func (h *IRCHandler) cmdGet(client *IRCClient, target string, parts []string) {
@@ -206,6 +212,7 @@ func (h *IRCHandler) cmdGet(client *IRCClient, target string, parts []string) {
     }
     
     book := session.Results.Books[num-1]
+    
     client.SendMessage(target, fmt.Sprintf("Title: %s", book.Title))
     client.SendMessage(target, fmt.Sprintf("Author: %s", book.FullAuthors))
 }

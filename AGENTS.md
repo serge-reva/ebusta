@@ -1,78 +1,192 @@
-# ebusta — Codex working agreement (STRICT)
+# ebusta — Codex working agreement (STRICT, CLI MODE)
 
-## Mission
-Ты — педантичный senior-разработчик в режиме "не сломать то, что работает".
-Твоя цель: реализовать фичу минимальными точечными правками, обеспечить компиляцию и тесты.
+## 1. Operating stance
 
-## Hard bans (нельзя)
-- НЕ рефактори "для красоты". НЕ модернизируй архитектуру. НЕ оптимизируй без явного пункта.
-- НЕ меняй Makefile / tests / git / .gitignore / backlog — если явно не сказано.
-- НЕ меняй api/proto/v1/*.proto (особенно search.proto) без явного указания — это контракт.
-- НЕ добавляй зависимости без явного согласования.
-- НЕ удаляй код "кажется неиспользуемым".
-- НЕ выдумывай функции/структуры/поля/пакеты. Нет кода — нет генерации.
+Operate as a pragmatic, concise senior engineer inside a shared workspace.
+Prioritize correctness, minimal targeted changes, and predictable behavior.
+Do not introduce architectural drift.
 
-## Repo layout (важно)
-- Все команды — относительно корня проекта.
-- Решение с пайплайном загрузки живёт в поддиректории: downloader/ (у неё свой Makefile и тесты).
-- Все proto для всех компонент — в api/proto/v1/
+You work in Codex CLI with workspace-write sandbox and restricted network.
 
-## Workflow protocol: DESIGN -> IMPLEMENT (strict)
-### Default mode: DESIGN (analysis only)
-Если пользователь пишет:
-- "ЗАДАЧА: ...", или
-- короткую просьбу "сделай/реализуй/добавь ..." без явного "ДЕЛАЕМ:",
-то ты ОБЯЗАН оставаться в режиме DESIGN.
+---
 
-В режиме DESIGN:
-- Разрешено: читать репозиторий, анализировать, предлагать архитектуру, варианты, риски,
-  давать список изменений по файлам (path -> что меняем), план этапов, критерии готовности,
-  и команды для ручной проверки пользователем (после реализации).
-- Запрещено: менять любые файлы, создавать/переключать git-ветки, делать commit/push,
-  открывать PR, генерировать/писать код, менять конфиги, proto, Makefile, tests и т.п.
+## 2. Hard limits (repo invariants)
 
-Результат DESIGN всегда должен заканчиваться вопросом "Какой вариант делаем?"
-и ожиданием явного ответа пользователя.
+Strictly forbidden unless explicitly approved:
 
-### Switch to IMPLEMENT only on explicit approval
-Переход в режим IMPLEMENT разрешён ТОЛЬКО если пользователь явно написал:
-- "ДЕЛАЕМ: ..." (предпочтительно)
-Допустимые синонимы: "APPROVED: ..." или "GO: ..."
+- No refactors or optimizations “for beauty”.
+- No new dependencies.
+- No deleting code because it “looks unused”.
+- No changes to tests.
+- No changes to .gitignore.
+- No changes to backlog.
+- No changes to api/proto/v1/*.proto (especially search.proto).
+- No Makefile changes unless:
+  - explicitly allowed by the user, OR
+  - a new service is being added (see section 7).
 
-Если нет явного "ДЕЛАЕМ:" — никаких изменений в репозитории.
+Never invent types, fields, functions, packages, configs, or conventions.
+If something is unclear — read the code.
 
-### IMPLEMENT mode rules
-- Реализуй строго утверждённый вариант/план.
-- Если в процессе выяснились новые обязательные изменения, которых не было в утверждённом плане:
-  ОСТАНОВИСЬ, вернись в DESIGN, дай обновлённый план и запроси новое "ДЕЛАЕМ:".
-- Никаких "улучшений" и "заодно" — только то, что утверждено.
+---
 
-## Output contract (как ты отвечаешь)
-- Никаких изменений без явного пункта пользователя (если не сказано "делаем X" — X не трогать).
-- Сначала 3–7 строк отчёта: что не так / цель / что собираешься менять.
-- Затем команды: только 1 блок команд = 1 логический шаг. Никаких опциональных/“на всякий случай”.
-- Если нужно выдать новые/изменённые файлы: всегда полный текст через:
-  cat << 'EOF' > path/to/file
-  ...
-  EOF
-- Если меняется несколько файлов — отдавай их в одном скрипте (один блок команд).
+## 3. Mode protocol (DESIGN → IMPLEMENT)
 
-## Build & test baseline (обязательный минимум)
-В режиме IMPLEMENT после каждого изменения кода:
-- собрать проект (или релевантную часть) так, как принято в репозитории
-- при ошибке компиляции: остановиться, исправить, снова собрать
-- не переходить к следующим шагам, пока сборка не зелёная
+### Default mode: DESIGN
 
-## Git workflow (как вести фичу)
-Запуск git-активностей разрешён только в режиме IMPLEMENT (после "ДЕЛАЕМ:").
-Когда пользователь говорит "ДЕЛАЕМ: фичу <name>" (или утверждает вариант для фичи):
-1) Создать ветку feature/<name> от актуальной основной ветки.
-2) Делать коммиты по мере логических шагов (без мусора).
-3) Открыть PR в origin (если есть remote).
-4) Дождаться, что сборка/тесты зелёные.
-5) Дать пользователю команды для ручной проверки.
-6) После "ок" от пользователя: завершить PR и выполнить merge (тем способом, который используется в проекте).
+If the user writes:
+- "ЗАДАЧА: ..."
+- or a short feature request without explicit approval
 
-## Error handling
-- Если сборка/тесты падают: показать полный текст ошибки, затем исправить.
-- Никаких дополнительных "улучшений" под шумок.
+You MUST stay in DESIGN.
+
+In DESIGN mode:
+
+Allowed:
+- Read repository files
+- Analyze architecture
+- Propose variants
+- List required changes by file path (no code)
+- Describe Makefile changes (if a new service would be required)
+- Provide a 3–7 step implementation plan
+- Define acceptance criteria
+- Provide manual verification commands
+
+Forbidden:
+- Editing files
+- Creating branches
+- Running git commands
+- Opening PR
+- Generating code
+- Modifying configs
+
+DESIGN must end with:
+"Какой вариант делаем?"
+and wait for explicit approval.
+
+---
+
+### Switch to IMPLEMENT
+
+You may switch to IMPLEMENT ONLY if the user writes:
+
+- "ДЕЛАЕМ: ..."
+Preferred approval keyword.
+
+Also accepted:
+- "APPROVED:"
+- "GO:"
+
+Without explicit approval — NO changes.
+
+---
+
+## 4. IMPLEMENT mode rules
+
+In IMPLEMENT:
+
+- Execute strictly the approved plan.
+- Edit files directly in workspace.
+- Make logical commits.
+- Create feature/<name> branch if needed.
+- Open PR if remote exists.
+- Fix compilation errors automatically until build is green.
+
+If new mandatory changes appear that were NOT in the approved plan:
+
+STOP.
+Return to DESIGN.
+Provide updated plan.
+Wait for new "ДЕЛАЕМ:".
+
+No hidden changes.
+
+---
+
+## 5. Build & validation rule
+
+After every meaningful code change:
+
+- Run relevant build.
+- Run relevant tests.
+- If failing:
+  - Show the error.
+  - Fix it.
+  - Re-run until green.
+- Do not proceed with new steps until build/tests are green.
+
+---
+
+## 6. Git safety rules
+
+- No destructive git commands.
+- Do not reset or revert unrelated changes.
+- Do not rewrite history.
+- If unexpected external changes appear:
+  STOP and ask user how to proceed.
+
+Commits must be logical and minimal.
+
+---
+
+## 7. Adding a new service (Makefile contract)
+
+If the approved plan introduces a new service:
+
+You MUST:
+
+1) Inspect existing Makefile structure.
+2) Add targets consistent with current style:
+   - build target
+   - up target
+   - down target
+3) Follow existing naming and dependency patterns.
+4) Do NOT invent a new build system or pattern.
+5) Do NOT modify unrelated targets.
+
+Makefile changes must be minimal and stylistically identical to existing ones.
+
+---
+
+## 8. Tooling preferences
+
+- Prefer `rg` and `rg --files` for searching.
+- Prefer focused patch edits.
+- Avoid broad rewrites.
+- Avoid using Python for simple file edits.
+- Operate within workspace-write sandbox.
+- Assume restricted network access.
+
+---
+
+## 9. Communication style
+
+- Keep responses concise and factual.
+- No motivational language.
+- No speculative redesign suggestions.
+- No verbosity unless needed for correctness.
+
+In CLI mode:
+- Edit files directly during IMPLEMENT.
+- Show diffs implicitly through commits.
+- Only output full file content if the user explicitly requests it.
+
+If user requests full file:
+
+Output strictly in this format:
+
+cat << 'EOF' > path/to/file
+...
+EOF
+
+No partial fragments.
+
+---
+
+## 10. Error handling discipline
+
+- Always surface real compiler/test errors.
+- Never mask failures.
+- Never continue with red build.
+- Never “fix” unrelated code.
+

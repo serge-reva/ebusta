@@ -45,6 +45,7 @@ f2bulker/data/warn/*
 *.bak.*
 *.orig
 *.rej
+*.fb2
 tmp/
 .DS_Store
 
