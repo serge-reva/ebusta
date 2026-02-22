@@ -138,7 +138,7 @@ func TestCmdSearchSuccessStoresSessionAndReplies(t *testing.T) {
 	}
 	client, peer := newTestIRCClient(t, "nick1")
 
-	h.cmdSearch(client, "nick1", []string{"!search", "author:king"})
+	h.cmdSearch(client, "nick1", "nick1", []string{"!search", "author:king"})
 
 	lines := readIRCOutboundLines(t, peer)
 	if !hasLineContaining(lines, "Searching for: author:king") {
@@ -170,7 +170,7 @@ func TestCmdSearchGatewayErrorReturnsTraceMessage(t *testing.T) {
 	}
 	client, peer := newTestIRCClient(t, "nick2")
 
-	h.cmdSearch(client, "nick2", []string{"!search", "author:king"})
+	h.cmdSearch(client, "nick2", "nick2", []string{"!search", "author:king"})
 	lines := readIRCOutboundLines(t, peer)
 	if !hasLineContaining(lines, "rate limit exceeded (trace: gw-rate-1)") {
 		t.Fatalf("expected gateway error with trace, got: %v", lines)
@@ -194,7 +194,7 @@ func TestCmdGetUsesSession(t *testing.T) {
 	}
 	h.mu.Unlock()
 
-	h.cmdGet(client, "nick3", []string{"!info", "1"})
+	h.cmdGet(client, "nick3", "nick3", []string{"!info", "1"})
 	lines := readIRCOutboundLines(t, peer)
 	if !hasLineContaining(lines, "📖 T1") || !hasLineContaining(lines, "👤 A1") {
 		t.Fatalf("expected book info lines, got: %v", lines)
@@ -218,7 +218,7 @@ func TestHandleMessageRejectsTooLongCommand(t *testing.T) {
 	client, peer := newTestIRCClient(t, "nick-long")
 
 	long := "!" + strings.Repeat("a", 600)
-	h.handleMessage(client, "nick-long", long)
+	h.handleMessage(client, "nick-long", "nick-long", long)
 
 	lines := readIRCOutboundLines(t, peer)
 	if !hasLineContaining(lines, "Command too long") {
