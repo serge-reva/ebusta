@@ -1,117 +1,161 @@
 package main
 
 import (
-    "bytes"
-    "context"
-    "encoding/json"
-    "fmt"
-    "io"
-    "net"
-    "net/http"
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
 
-    libraryv1 "ebusta/api/proto/v1"
-    "ebusta/internal/config"
-    "ebusta/internal/logger"
+	libraryv1 "ebusta/api/proto/v1"
+	"ebusta/internal/config"
+	"ebusta/internal/logger"
 
-    "google.golang.org/grpc"
+	"google.golang.org/grpc"
 )
 
 type storageServer struct {
-    libraryv1.UnimplementedStorageServiceServer
-    cfg *config.Config
+	libraryv1.UnimplementedStorageServiceServer
+	cfg *config.Config
 }
 
 type osSource struct {
-    Title    string   `json:"title"`
-    Authors  []string `json:"authors"`
-    FileInfo struct {
-        Container string `json:"container"`
-        Filename  string `json:"filename"`
-    } `json:"fileInfo"`
+	Title    string   `json:"title"`
+	Authors  []string `json:"authors"`
+	FileInfo struct {
+		Container string `json:"container"`
+		Filename  string `json:"filename"`
+	} `json:"fileInfo"`
 }
 
 type osHit struct {
-    ID     string   `json:"_id"`
-    Source osSource `json:"_source"`
+	ID     string   `json:"_id"`
+	Source osSource `json:"_source"`
 }
 
 type osResponse struct {
-    Hits struct {
-        Total struct {
-            Value int `json:"value"`
-        } `json:"total"`
-        Hits []osHit `json:"hits"`
-    } `json:"hits"`
+	Hits struct {
+		Total struct {
+			Value int `json:"value"`
+		} `json:"total"`
+		Hits []osHit `json:"hits"`
+	} `json:"hits"`
+}
+
+func applyPagination(searchJSON string, limit, offset int32) (string, error) {
+	if searchJSON == "" {
+		return "", nil
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal([]byte(searchJSON), &payload); err != nil {
+		return "", err
+	}
+
+	if _, isTemplate := payload["id"]; isTemplate {
+		params, ok := payload["params"].(map[string]interface{})
+		if !ok || params == nil {
+			params = map[string]interface{}{}
+		}
+		if limit > 0 {
+			params["size"] = limit
+		}
+		if offset >= 0 {
+			params["from"] = offset
+		}
+		payload["params"] = params
+	} else {
+		if limit > 0 {
+			payload["size"] = limit
+		}
+		if offset >= 0 {
+			payload["from"] = offset
+		}
+	}
+
+	out, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
 }
 
 func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
-    searchJSON := req.GetDebugOpenSearchJson()
-    if searchJSON == "" {
-        return nil, fmt.Errorf("datamanager: debug_open_search_json is empty")
-    }
+	searchJSON := req.GetDebugOpenSearchJson()
+	if searchJSON == "" {
+		return nil, fmt.Errorf("datamanager: debug_open_search_json is empty")
+	}
 
-    url := fmt.Sprintf("%s/%s/_search", s.cfg.OpenSearch.URL, s.cfg.OpenSearch.IndexName)
-    
-    if bytes.Contains([]byte(searchJSON), []byte(`"id":`)) {
-        url = fmt.Sprintf("%s/%s/_search/template", s.cfg.OpenSearch.URL, s.cfg.OpenSearch.IndexName)
-    }
+	patchedJSON, err := applyPagination(searchJSON, req.GetLimit(), req.GetOffset())
+	if err != nil {
+		return nil, fmt.Errorf("datamanager: failed to apply pagination: %w", err)
+	}
+	searchJSON = patchedJSON
 
-    l := logger.GetGlobal().WithField("url", url).WithField("execution_type", req.GetExecutionType())
-    l.InfoCtx(ctx, "[datamanager] forwarding to OpenSearch")
+	url := fmt.Sprintf("%s/%s/_search", s.cfg.OpenSearch.URL, s.cfg.OpenSearch.IndexName)
 
-    resp, err := http.Post(url, "application/json", bytes.NewBufferString(searchJSON))
-    if err != nil {
-        l.ErrorCtx(ctx, "[datamanager] opensearch request failed", err)
-        return nil, fmt.Errorf("opensearch request failed: %v", err)
-    }
-    defer resp.Body.Close()
+	if bytes.Contains([]byte(searchJSON), []byte(`"id":`)) {
+		url = fmt.Sprintf("%s/%s/_search/template", s.cfg.OpenSearch.URL, s.cfg.OpenSearch.IndexName)
+	}
 
-    body, _ := io.ReadAll(resp.Body)
-    if resp.StatusCode != http.StatusOK {
-        l.WithField("status", resp.StatusCode).WithField("body", string(body)).ErrorCtx(ctx, "[datamanager] opensearch error", nil)
-        return nil, fmt.Errorf("opensearch error: %s", string(body))
-    }
+	l := logger.GetGlobal().WithField("url", url).WithField("execution_type", req.GetExecutionType())
+	l.InfoCtx(ctx, "[datamanager] forwarding to OpenSearch")
 
-    var osResp osResponse
-    if err := json.Unmarshal(body, &osResp); err != nil {
-        l.ErrorCtx(ctx, "[datamanager] failed to decode response", err)
-        return nil, fmt.Errorf("failed to decode response: %v", err)
-    }
+	resp, err := http.Post(url, "application/json", bytes.NewBufferString(searchJSON))
+	if err != nil {
+		l.ErrorCtx(ctx, "[datamanager] opensearch request failed", err)
+		return nil, fmt.Errorf("opensearch request failed: %v", err)
+	}
+	defer resp.Body.Close()
 
-    pbBooks := make([]*libraryv1.Book, 0, len(osResp.Hits.Hits))
-    for _, hit := range osResp.Hits.Hits {
-        pbBooks = append(pbBooks, &libraryv1.Book{
-            Id:        hit.ID,
-            Title:     hit.Source.Title,
-            Authors:   hit.Source.Authors,
-            Container: hit.Source.FileInfo.Container,
-            Filename:  hit.Source.FileInfo.Filename,
-        })
-    }
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		l.WithField("status", resp.StatusCode).WithField("body", string(body)).ErrorCtx(ctx, "[datamanager] opensearch error", nil)
+		return nil, fmt.Errorf("opensearch error: %s", string(body))
+	}
 
-    l.WithField("total", osResp.Hits.Total.Value).WithField("returned", len(pbBooks)).InfoCtx(ctx, "[datamanager] search completed")
+	var osResp osResponse
+	if err := json.Unmarshal(body, &osResp); err != nil {
+		l.ErrorCtx(ctx, "[datamanager] failed to decode response", err)
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
 
-    return &libraryv1.SearchResponse{
-        Status: "ok",
-        Total:  int32(osResp.Hits.Total.Value),
-        Books:  pbBooks,
-    }, nil
+	pbBooks := make([]*libraryv1.Book, 0, len(osResp.Hits.Hits))
+	for _, hit := range osResp.Hits.Hits {
+		pbBooks = append(pbBooks, &libraryv1.Book{
+			Id:        hit.ID,
+			Title:     hit.Source.Title,
+			Authors:   hit.Source.Authors,
+			Container: hit.Source.FileInfo.Container,
+			Filename:  hit.Source.FileInfo.Filename,
+		})
+	}
+
+	l.WithField("total", osResp.Hits.Total.Value).WithField("returned", len(pbBooks)).InfoCtx(ctx, "[datamanager] search completed")
+
+	return &libraryv1.SearchResponse{
+		Status: "ok",
+		Total:  int32(osResp.Hits.Total.Value),
+		Books:  pbBooks,
+	}, nil
 }
 
 func main() {
-    cfg := config.Get()
-    logger.InitFromConfig(cfg.Logger, "datamanager")
+	cfg := config.Get()
+	logger.InitFromConfig(cfg.Logger, "datamanager")
 
-    lis, err := net.Listen("tcp", cfg.Datamanager.Address())
-    if err != nil {
-        logger.GetGlobal().FatalCtx(context.Background(), "failed to listen", err)
-    }
+	lis, err := net.Listen("tcp", cfg.Datamanager.Address())
+	if err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "failed to listen", err)
+	}
 
-    s := grpc.NewServer()
-    libraryv1.RegisterStorageServiceServer(s, &storageServer{cfg: cfg})
+	s := grpc.NewServer()
+	libraryv1.RegisterStorageServiceServer(s, &storageServer{cfg: cfg})
 
-    logger.GetGlobal().WithField("addr", cfg.Datamanager.Address()).InfoCtx(context.Background(), "[datamanager] started")
-    if err := s.Serve(lis); err != nil {
-        logger.GetGlobal().FatalCtx(context.Background(), "failed to serve", err)
-    }
+	logger.GetGlobal().WithField("addr", cfg.Datamanager.Address()).InfoCtx(context.Background(), "[datamanager] started")
+	if err := s.Serve(lis); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "failed to serve", err)
+	}
 }
