@@ -1,11 +1,18 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"mime"
+	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,14 +33,19 @@ type SearchSession struct {
 }
 
 type IRCHandler struct {
-	gatewayURL string
-	httpClient *http.Client
-	sessions   map[string]*SearchSession // nick -> session
-	engine     *edge.Engine
-	formatter  *presenter.IRCFormatter
-	pageSize   int
-	verbose    bool
-	mu         sync.RWMutex
+	gatewayURL  string
+	httpClient  *http.Client
+	sessions    map[string]*SearchSession // nick -> session
+	engine      *edge.Engine
+	formatter   *presenter.IRCFormatter
+	pageSize    int
+	verbose     bool
+	dccEnabled  bool
+	dccPublicIP string
+	dccPortMin  int
+	dccPortMax  int
+	dccTimeout  time.Duration
+	mu          sync.RWMutex
 }
 
 type SearchRequest struct {
@@ -64,11 +76,31 @@ func NewIRCHandlerWithPolicy(gatewayURL string, pageSize int, verbose bool, poli
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
-		sessions:  make(map[string]*SearchSession),
-		engine:    edge.NewEngine(policy, edge.NewMultiHook(hook, &edge.OTelHook{})),
-		formatter: presenter.NewIRCFormatter(pageSize),
-		pageSize:  pageSize,
-		verbose:   verbose,
+		sessions:   make(map[string]*SearchSession),
+		engine:     edge.NewEngine(policy, edge.NewMultiHook(hook, &edge.OTelHook{})),
+		formatter:  presenter.NewIRCFormatter(pageSize),
+		pageSize:   pageSize,
+		verbose:    verbose,
+		dccPortMin: 40000,
+		dccPortMax: 40100,
+		dccTimeout: 60 * time.Second,
+	}
+}
+
+func (h *IRCHandler) SetDCCConfig(enabled bool, publicIP string, portMin, portMax, timeoutSec int) {
+	h.dccEnabled = enabled
+	h.dccPublicIP = strings.TrimSpace(publicIP)
+	if portMin > 0 {
+		h.dccPortMin = portMin
+	}
+	if portMax > 0 {
+		h.dccPortMax = portMax
+	}
+	if h.dccPortMax < h.dccPortMin {
+		h.dccPortMax = h.dccPortMin
+	}
+	if timeoutSec > 0 {
+		h.dccTimeout = time.Duration(timeoutSec) * time.Second
 	}
 }
 
@@ -121,6 +153,8 @@ func (h *IRCHandler) handleMessage(client *IRCClient, target, sender, message st
 		h.cmdLines(client, target, sender, parts)
 	case "!get", "/get", "!info", "/info":
 		h.cmdInfo(client, target, sender, parts)
+	case "!download", "/download":
+		h.cmdDownload(client, target, sender, parts)
 	case "!stats", "/stats":
 		h.cmdStats(client, target)
 	default:
@@ -137,6 +171,7 @@ func (h *IRCHandler) cmdHelp(client *IRCClient, target string) {
 		"!next / !prev            - Navigate pages",
 		"!lines <n>               - Set books per page and reset to page 1",
 		"!info <number>           - Show book information",
+		"!download <number>       - Start DCC file transfer",
 		"!stats                   - Show bot statistics",
 		"",
 		"📝 Examples:",
@@ -146,6 +181,7 @@ func (h *IRCHandler) cmdHelp(client *IRCClient, target string) {
 		"  !lines 10",
 		"  !search id:bd6525...",
 		"  !info 1",
+		"  !download 1",
 	}
 
 	for _, line := range help {
@@ -342,55 +378,14 @@ func (h *IRCHandler) cmdInfo(client *IRCClient, target, sender string, parts []s
 		return
 	}
 
-	h.mu.RLock()
-	session, exists := h.sessions[sender]
-	h.mu.RUnlock()
-
-	if !exists {
-		client.SendMessage(target, "❌ No recent search. Use !search first")
+	book, targetPage, totalPages, appErr, err := h.resolveBookByGlobalIndex(sender, num)
+	if err != nil {
+		client.SendMessage(target, fmt.Sprintf("❌ %s", err.Error()))
 		return
 	}
-
-	total := session.Results.Total
-	if num < 1 || num > total {
-		client.SendMessage(target, fmt.Sprintf("❌ Invalid number. Available: 1-%d", total))
+	if appErr != nil {
+		client.SendMessage(target, fmt.Sprintf("❌ %s (trace: %s)", appErr.Message, appErr.TraceID))
 		return
-	}
-
-	pageSize := session.PageSize
-	if pageSize <= 0 {
-		pageSize = h.pageSize
-	}
-	targetPage := ((num - 1) / pageSize) + 1
-	targetOffset := (num - 1) % pageSize
-
-	var book presenter.BookDTO
-	currentPage := 0
-	totalPages := 0
-
-	if session.Results.Pagination != nil {
-		currentPage = session.Results.Pagination.CurrentPage
-		totalPages = session.Results.Pagination.TotalPages
-	}
-	if targetPage == currentPage && targetOffset < len(session.Results.Books) {
-		book = session.Results.Books[targetOffset]
-	} else {
-		traceID := errutil.GenerateTraceID("irc")
-		searchResp, appErr, reqErr := h.requestSearch(session.Query, targetPage, pageSize, traceID)
-		if reqErr != nil {
-			client.SendMessage(target, fmt.Sprintf("❌ Search service unavailable (trace: %s)", traceID))
-			return
-		}
-		if appErr != nil {
-			client.SendMessage(target, fmt.Sprintf("❌ %s (trace: %s)", appErr.Message, appErr.TraceID))
-			return
-		}
-		if targetOffset >= len(searchResp.Books) {
-			client.SendMessage(target, "❌ Book index out of range for selected page")
-			return
-		}
-		book = searchResp.Books[targetOffset]
-		totalPages = searchResp.Pages
 	}
 
 	client.SendMessage(target, fmt.Sprintf("ℹ️ Book #%d • page %d/%d", num, targetPage, totalPages))
@@ -400,6 +395,51 @@ func (h *IRCHandler) cmdInfo(client *IRCClient, target, sender string, parts []s
 	if downloadURL != "" {
 		client.SendMessage(target, fmt.Sprintf("📥 Download: %s", downloadURL))
 	}
+	client.SendMessage(target, fmt.Sprintf("📦 DCC: !download %d", num))
+}
+
+func (h *IRCHandler) resolveBookByGlobalIndex(sender string, num int) (presenter.BookDTO, int, int, *errutil.AppError, error) {
+	h.mu.RLock()
+	session, exists := h.sessions[sender]
+	h.mu.RUnlock()
+
+	if !exists || session == nil || session.Results == nil {
+		return presenter.BookDTO{}, 0, 0, nil, errors.New("No recent search. Use !search first")
+	}
+	total := session.Results.Total
+	if num < 1 || num > total {
+		return presenter.BookDTO{}, 0, 0, nil, fmt.Errorf("Invalid number. Available: 1-%d", total)
+	}
+
+	pageSize := session.PageSize
+	if pageSize <= 0 {
+		pageSize = h.pageSize
+	}
+	targetPage := ((num - 1) / pageSize) + 1
+	targetOffset := (num - 1) % pageSize
+
+	currentPage := 0
+	totalPages := 0
+	if session.Results.Pagination != nil {
+		currentPage = session.Results.Pagination.CurrentPage
+		totalPages = session.Results.Pagination.TotalPages
+	}
+	if targetPage == currentPage && targetOffset < len(session.Results.Books) {
+		return session.Results.Books[targetOffset], targetPage, totalPages, nil, nil
+	}
+
+	traceID := errutil.GenerateTraceID("irc")
+	searchResp, appErr, reqErr := h.requestSearch(session.Query, targetPage, pageSize, traceID)
+	if reqErr != nil {
+		return presenter.BookDTO{}, targetPage, totalPages, nil, fmt.Errorf("Search service unavailable (trace: %s)", traceID)
+	}
+	if appErr != nil {
+		return presenter.BookDTO{}, targetPage, totalPages, appErr, nil
+	}
+	if targetOffset >= len(searchResp.Books) {
+		return presenter.BookDTO{}, targetPage, totalPages, nil, errors.New("Book index out of range for selected page")
+	}
+	return searchResp.Books[targetOffset], targetPage, searchResp.Pages, nil, nil
 }
 
 func (h *IRCHandler) requestSearch(query string, page, limit int, traceID string) (*SearchResponse, *errutil.AppError, error) {
@@ -430,6 +470,236 @@ func (h *IRCHandler) requestSearch(query string, page, limit int, traceID string
 		return nil, nil, fmt.Errorf("invalid gateway response: %w", err)
 	}
 	return &searchResp, nil, nil
+}
+
+func (h *IRCHandler) cmdDownload(client *IRCClient, target, sender string, parts []string) {
+	if len(parts) < 2 {
+		client.SendMessage(target, "Usage: !download <number>")
+		return
+	}
+	if !h.dccEnabled {
+		client.SendMessage(target, "❌ DCC download is disabled in config")
+		return
+	}
+	num, err := strconv.Atoi(parts[1])
+	if err != nil || num <= 0 {
+		client.SendMessage(target, "❌ Invalid number")
+		return
+	}
+
+	book, _, _, appErr, resolveErr := h.resolveBookByGlobalIndex(sender, num)
+	if resolveErr != nil {
+		client.SendMessage(target, fmt.Sprintf("❌ %s", resolveErr.Error()))
+		return
+	}
+	if appErr != nil {
+		client.SendMessage(target, fmt.Sprintf("❌ %s (trace: %s)", appErr.Message, appErr.TraceID))
+		return
+	}
+	downloadURL := h.toAbsoluteDownloadURL(book.DownloadURL)
+	if strings.TrimSpace(downloadURL) == "" {
+		client.SendMessage(target, "❌ No download URL for selected book")
+		return
+	}
+
+	traceID := errutil.GenerateTraceID("irc-dcc")
+	filename, size, metaErr := h.fetchDownloadMeta(downloadURL, traceID)
+	if metaErr != nil {
+		client.SendMessage(target, fmt.Sprintf("❌ DCC metadata failed: %v (trace: %s)", metaErr, traceID))
+		return
+	}
+	if filename == "" {
+		filename = fmt.Sprintf("book-%d.fb2", num)
+	}
+
+	listener, port, listenErr := h.openDCCListener()
+	if listenErr != nil {
+		client.SendMessage(target, fmt.Sprintf("❌ DCC listen failed: %v", listenErr))
+		return
+	}
+
+	ip, ipErr := h.resolveDCCIP(client)
+	if ipErr != nil {
+		listener.Close()
+		client.SendMessage(target, fmt.Sprintf("❌ DCC IP resolution failed: %v", ipErr))
+		return
+	}
+
+	dccMsg, dccErr := buildDCCSendMessage(filename, ip, port, size)
+	if dccErr != nil {
+		listener.Close()
+		client.SendMessage(target, fmt.Sprintf("❌ DCC setup failed: %v", dccErr))
+		return
+	}
+
+	client.Send("PRIVMSG", sender, dccMsg)
+	client.SendMessage(target, fmt.Sprintf("📦 DCC offer sent to %s for book #%d (%s, %d bytes)", sender, num, filename, size))
+
+	go h.serveDCCTransfer(client, target, sender, listener, downloadURL, traceID)
+}
+
+func (h *IRCHandler) fetchDownloadMeta(downloadURL, traceID string) (string, int64, error) {
+	req, err := http.NewRequest(http.MethodHead, downloadURL, nil)
+	if err != nil {
+		return "", 0, err
+	}
+	req.Header.Set("X-Trace-Id", traceID)
+	resp, err := h.httpClient.Do(req)
+	if err != nil {
+		return "", 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// HEAD often has empty body; retry with GET to get downstream JSON error details.
+		detail, derr := h.fetchDownloadErrorDetail(downloadURL, traceID)
+		if derr != nil {
+			return "", 0, derr
+		}
+		return "", 0, errors.New(detail)
+	}
+
+	if _, appErr := errutil.ReadBodyAndError(resp, traceID); appErr != nil {
+		return "", 0, fmt.Errorf("%s", appErr.Message)
+	}
+
+	size, _ := strconv.ParseInt(resp.Header.Get("Content-Length"), 10, 64)
+	filename := filenameFromDisposition(resp.Header.Get("Content-Disposition"))
+	if filename == "" {
+		if u, perr := url.Parse(downloadURL); perr == nil {
+			filename = path.Base(u.Path)
+		}
+	}
+	return sanitizeDCCFilename(filename), size, nil
+}
+
+func (h *IRCHandler) fetchDownloadErrorDetail(downloadURL, traceID string) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, downloadURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("X-Trace-Id", traceID)
+	resp, err := h.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if _, appErr := errutil.ReadBodyAndError(resp, traceID); appErr != nil {
+		if strings.TrimSpace(appErr.Message) != "" {
+			return appErr.Message, nil
+		}
+		return appErr.Code, nil
+	}
+	return "download metadata unavailable", nil
+}
+
+func (h *IRCHandler) openDCCListener() (net.Listener, int, error) {
+	var lastErr error
+	for p := h.dccPortMin; p <= h.dccPortMax; p++ {
+		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", p))
+		if err == nil {
+			return ln, p, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = errors.New("no available DCC port")
+	}
+	return nil, 0, lastErr
+}
+
+func (h *IRCHandler) resolveDCCIP(client *IRCClient) (net.IP, error) {
+	if h.dccPublicIP != "" {
+		ip := net.ParseIP(h.dccPublicIP)
+		if ip == nil || ip.To4() == nil {
+			return nil, fmt.Errorf("dcc_public_ip must be a valid IPv4 address")
+		}
+		return ip.To4(), nil
+	}
+	if tcpAddr, ok := client.conn.LocalAddr().(*net.TCPAddr); ok {
+		if tcpAddr.IP != nil && tcpAddr.IP.To4() != nil {
+			return tcpAddr.IP.To4(), nil
+		}
+	}
+	return nil, errors.New("unable to determine IPv4 address; set irc_adapter.dcc_public_ip")
+}
+
+func buildDCCSendMessage(filename string, ip net.IP, port int, size int64) (string, error) {
+	ip4 := ip.To4()
+	if ip4 == nil {
+		return "", errors.New("DCC requires IPv4")
+	}
+	ipNum := binary.BigEndian.Uint32(ip4)
+	name := sanitizeDCCFilename(filename)
+	if name == "" {
+		name = "book.fb2"
+	}
+	return fmt.Sprintf("\x01DCC SEND %s %d %d %d\x01", name, ipNum, port, size), nil
+}
+
+func filenameFromDisposition(cd string) string {
+	if strings.TrimSpace(cd) == "" {
+		return ""
+	}
+	_, params, err := mime.ParseMediaType(cd)
+	if err != nil {
+		return ""
+	}
+	return params["filename"]
+}
+
+func sanitizeDCCFilename(name string) string {
+	n := strings.TrimSpace(name)
+	if n == "" {
+		return ""
+	}
+	n = strings.ReplaceAll(n, " ", "_")
+	n = strings.ReplaceAll(n, "/", "_")
+	n = strings.ReplaceAll(n, "\\", "_")
+	return n
+}
+
+func (h *IRCHandler) serveDCCTransfer(client *IRCClient, target, sender string, listener net.Listener, downloadURL, traceID string) {
+	defer listener.Close()
+	if tcpLn, ok := listener.(*net.TCPListener); ok {
+		_ = tcpLn.SetDeadline(time.Now().Add(h.dccTimeout))
+	}
+	conn, err := listener.Accept()
+	if err != nil {
+		client.SendMessage(target, fmt.Sprintf("❌ DCC timeout or accept error: %v", err))
+		return
+	}
+	defer conn.Close()
+
+	req, err := http.NewRequest(http.MethodGet, downloadURL, nil)
+	if err != nil {
+		client.SendMessage(target, fmt.Sprintf("❌ DCC internal request error: %v", err))
+		return
+	}
+	req.Header.Set("X-Trace-Id", traceID)
+	resp, err := h.httpClient.Do(req)
+	if err != nil {
+		client.SendMessage(target, fmt.Sprintf("❌ DCC download failed: %v (trace: %s)", err, traceID))
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		_, appErr := errutil.ReadBodyAndError(resp, traceID)
+		if appErr != nil {
+			client.SendMessage(target, fmt.Sprintf("❌ DCC download failed: %s (trace: %s)", appErr.Message, appErr.TraceID))
+		} else {
+			client.SendMessage(target, fmt.Sprintf("❌ DCC download failed: status %d", resp.StatusCode))
+		}
+		return
+	}
+
+	_, err = io.Copy(conn, bufio.NewReader(resp.Body))
+	if err != nil {
+		client.SendMessage(target, fmt.Sprintf("❌ DCC transfer interrupted: %v", err))
+		return
+	}
+	client.SendMessage(sender, "✅ DCC transfer complete")
 }
 
 func (h *IRCHandler) toAbsoluteDownloadURL(downloadURL string) string {

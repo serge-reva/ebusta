@@ -385,6 +385,58 @@ func TestCmdNextOnLastPageAndPrevOnFirstPage(t *testing.T) {
 	}
 }
 
+func TestBuildDCCSendMessage(t *testing.T) {
+	msg, err := buildDCCSendMessage("My Book.fb2", net.ParseIP("192.168.1.10"), 40001, 12345)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(msg, "DCC SEND My_Book.fb2") {
+		t.Fatalf("unexpected message: %q", msg)
+	}
+	if !strings.Contains(msg, " 40001 12345") {
+		t.Fatalf("unexpected port/size in message: %q", msg)
+	}
+}
+
+func TestCmdDownloadDisabled(t *testing.T) {
+	h := NewIRCHandler("http://gw.local", 5, false)
+	h.SetDCCConfig(false, "", 0, 0, 0)
+	client, peer := newTestIRCClient(t, "nick-dl")
+	h.cmdDownload(client, "#test", "nick-dl", []string{"!download", "1"})
+	lines := readIRCOutboundLines(t, peer)
+	if !hasLineContaining(lines, "DCC download is disabled") {
+		t.Fatalf("expected disabled message, got: %v", lines)
+	}
+}
+
+func TestFetchDownloadMetaFallbackToGetForHeadError(t *testing.T) {
+	h := NewIRCHandler("http://gw.local", 5, false)
+	h.httpClient = &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if r.Method == http.MethodHead {
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader("")),
+				}, nil
+			}
+			return &http.Response{
+				StatusCode: http.StatusNotFound,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"NOT_FOUND","message":"NOT_FOUND","trace_id":"dl-1"}}`)),
+			}, nil
+		}),
+	}
+
+	_, _, err := h.fetchDownloadMeta("http://gw.local/download/token", "irc-dcc-1")
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "NOT_FOUND") {
+		t.Fatalf("expected NOT_FOUND detail, got %v", err)
+	}
+}
+
 func TestCmdInfoFetchesTargetPageForGlobalIndex(t *testing.T) {
 	h := NewIRCHandler("http://gw.local", 5, false)
 	var mu sync.Mutex

@@ -37,6 +37,7 @@ func main() {
 
 	policy := edge.PolicyFromConfig(cfg, "irc")
 	handler := NewIRCHandlerWithPolicy(ircCfg.GatewayURL, ircCfg.PageSize, ircCfg.Debug, policy, edge.NewLabelCounterHook())
+	handler.SetDCCConfig(ircCfg.DCCEnabled, ircCfg.DCCPublicIP, ircCfg.DCCPortMin, ircCfg.DCCPortMax, ircCfg.DCCTimeoutSec)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
@@ -220,6 +221,18 @@ func loadIRCConfig(cfg *config.Config, verboseFlag bool) *config.IRCAdapterConfi
 	}
 	if irc.BotReconnectSeconds <= 0 {
 		irc.BotReconnectSeconds = 5
+	}
+	if irc.DCCPortMin <= 0 {
+		irc.DCCPortMin = 40000
+	}
+	if irc.DCCPortMax <= 0 {
+		irc.DCCPortMax = 40100
+	}
+	if irc.DCCPortMax < irc.DCCPortMin {
+		irc.DCCPortMax = irc.DCCPortMin
+	}
+	if irc.DCCTimeoutSec <= 0 {
+		irc.DCCTimeoutSec = 60
 	}
 
 	if verboseFlag {

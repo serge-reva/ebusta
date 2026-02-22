@@ -27,6 +27,11 @@ func TestLoadIRCConfigDefaultsAndVerboseOverride(t *testing.T) {
 			BotRealName:         "Bot Real",
 			BotChannels:         []string{"#books"},
 			BotReconnectSeconds: 17,
+			DCCEnabled:          true,
+			DCCPublicIP:         "203.0.113.10",
+			DCCPortMin:          41000,
+			DCCPortMax:          41010,
+			DCCTimeoutSec:       90,
 		},
 	}
 
@@ -51,6 +56,12 @@ func TestLoadIRCConfigDefaultsAndVerboseOverride(t *testing.T) {
 	}
 	if irc.BotReconnectSeconds != 17 {
 		t.Fatalf("expected reconnect override, got %d", irc.BotReconnectSeconds)
+	}
+	if !irc.DCCEnabled || irc.DCCPublicIP != "203.0.113.10" {
+		t.Fatalf("expected explicit dcc config to stay set")
+	}
+	if irc.DCCPortMin != 41000 || irc.DCCPortMax != 41010 || irc.DCCTimeoutSec != 90 {
+		t.Fatalf("unexpected dcc range/timeout: %d-%d timeout=%d", irc.DCCPortMin, irc.DCCPortMax, irc.DCCTimeoutSec)
 	}
 }
 
@@ -92,5 +103,14 @@ func TestLoadIRCConfigFallbacks(t *testing.T) {
 	}
 	if irc.BotReconnectSeconds != 5 {
 		t.Fatalf("default bot reconnect mismatch: %d", irc.BotReconnectSeconds)
+	}
+	if irc.DCCEnabled {
+		t.Fatalf("expected dcc disabled by default")
+	}
+	if irc.DCCPortMin != 40000 || irc.DCCPortMax != 40100 {
+		t.Fatalf("default dcc range mismatch: %d-%d", irc.DCCPortMin, irc.DCCPortMax)
+	}
+	if irc.DCCTimeoutSec != 60 {
+		t.Fatalf("default dcc timeout mismatch: %d", irc.DCCTimeoutSec)
 	}
 }

@@ -59,7 +59,7 @@ func (f *IRCFormatter) FormatSearchResult(result *PresenterResult, page int) ([]
 		output = append(output, "🔍 Navigation: "+strings.Join(nav, " | "))
 	}
 	if len(result.Books) > 0 {
-		output = append(output, "📥 Use !info <number> to show book information")
+		output = append(output, "📥 Use !info <number> for details • !download <number> for DCC")
 	}
 
 	return output, &Page{

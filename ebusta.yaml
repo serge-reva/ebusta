@@ -156,6 +156,11 @@ gateway:
 ##  bot_real_name: "Ebusta Book Search Bot"
 #3  bot_channels: []
 ##  bot_reconnect_seconds: 5
+##  dcc_enabled: false
+##  dcc_public_ip: ""
+##  dcc_port_min: 40000
+##  dcc_port_max: 40100
+##  dcc_timeout_sec: 60
 
 
 irc_adapter:
@@ -182,6 +187,11 @@ irc_adapter:
       - "#books"
       - "#test"
     bot_reconnect_seconds: 5
+    dcc_enabled: true
+    dcc_public_ip: "192.168.1.179"
+    dcc_port_min: 40000
+    dcc_port_max: 40100
+    dcc_timeout_sec: 60
   
 
 telegram_adapter:

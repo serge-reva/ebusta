@@ -75,6 +75,12 @@ type IRCAdapterConfig struct {
 	BotRealName         string   `yaml:"bot_real_name"`
 	BotChannels         []string `yaml:"bot_channels"`
 	BotReconnectSeconds int      `yaml:"bot_reconnect_seconds"`
+
+	DCCEnabled    bool   `yaml:"dcc_enabled"`
+	DCCPublicIP   string `yaml:"dcc_public_ip"`
+	DCCPortMin    int    `yaml:"dcc_port_min"`
+	DCCPortMax    int    `yaml:"dcc_port_max"`
+	DCCTimeoutSec int    `yaml:"dcc_timeout_sec"`
 }
 
 func (c IRCAdapterConfig) Address() string {
