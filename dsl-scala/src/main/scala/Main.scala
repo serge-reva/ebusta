@@ -47,10 +47,12 @@ class BookQueryParser extends JavaTokenParsers {
   
   def termExpr: Parser[Query] = "NOT" ~> termExpr ^^ { Not(_) } | "(" ~> or <~ ")" | fieldTerm | implicitId | plainTerm
   
-  def fieldTerm: Parser[Term] = (ident <~ ":") ~ (quotedString | plainWord) >> {
+  def fieldTerm: Parser[Term] = (ident <~ ":") ~ fieldValue >> {
     case f ~ v if fields.contains(f) => success(Term(f, v))
     case f ~ _ => failure(s"Unknown field: $f")
   }
+
+  def fieldValue: Parser[String] = quotedString | rep1(plainWord) ^^ { words => words.mkString(" ") }
   
   def implicitId: Parser[Term] = """[a-fA-F0-9]{40}""".r ^^ { id => Term("id", id) }
 

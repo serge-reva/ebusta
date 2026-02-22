@@ -36,6 +36,7 @@ object ParserSelfTest {
 
     // Existing fielded syntax remains intact.
     assertEquals(parseOk("author:king"), Term("author", "king"), "field term")
+    assertEquals(parseOk("author:михаил булгаков"), Term("author", "михаил булгаков"), "field multi-word")
     assertEquals(parseOk("title:\"dark tower\""), Term("title", "dark tower"), "field quoted")
 
     // Logical operators must still work and not be swallowed by plain phrase parser.
@@ -43,6 +44,11 @@ object ParserSelfTest {
       parseOk("author:king AND title:it"),
       And(Term("author", "king"), Term("title", "it")),
       "and expression"
+    )
+    assertEquals(
+      parseOk("author:михаил булгаков AND title:мастер"),
+      And(Term("author", "михаил булгаков"), Term("title", "мастер")),
+      "and expression with field multi-word"
     )
     assertEquals(
       parseOk("stephen king OR title:it"),
