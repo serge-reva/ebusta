@@ -47,16 +47,21 @@ class BookQueryParser extends JavaTokenParsers {
   
   def termExpr: Parser[Query] = "NOT" ~> termExpr ^^ { Not(_) } | "(" ~> or <~ ")" | fieldTerm | implicitId | plainTerm
   
-  def fieldTerm: Parser[Term] = (ident <~ ":") ~ fieldValue >> {
-    case f ~ v if fields.contains(f) => success(Term(f, v))
-    case f ~ _ => failure(s"Unknown field: $f")
-  }
+  def fieldTerm: Parser[Term] =
+    ((ident <~ ":") ~ quotedString) >> {
+      case f ~ v if fields.contains(f) => success(Term(s"${f}_exact", v))
+      case f ~ _ => failure(s"Unknown field: $f")
+    } |
+    ((ident <~ ":") ~ fieldValue) >> {
+      case f ~ v if fields.contains(f) => success(Term(f, v))
+      case f ~ _ => failure(s"Unknown field: $f")
+    }
 
-  def fieldValue: Parser[String] = quotedString | rep1(plainWord) ^^ { words => words.mkString(" ") }
+  def fieldValue: Parser[String] = rep1(plainWord) ^^ { words => words.mkString(" ") }
   
   def implicitId: Parser[Term] = """[a-fA-F0-9]{40}""".r ^^ { id => Term("id", id) }
 
-  def plainTerm: Parser[Term] = quotedString ^^ { v => Term("_all", v) } | plainPhrase
+  def plainTerm: Parser[Term] = quotedString ^^ { v => Term("_all_exact", v) } | plainPhrase
 
   def quotedString: Parser[String] = "\"" ~> """[^"]*""".r <~ "\""
   def plainPhrase: Parser[Term] = rep1(plainWord) ^^ { words => Term("_all", words.mkString(" ")) }

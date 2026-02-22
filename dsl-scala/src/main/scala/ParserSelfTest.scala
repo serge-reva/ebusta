@@ -32,12 +32,12 @@ object ParserSelfTest {
     assertEquals(parseOk("stephen king"), Term("_all", "stephen king"), "plain latin multi-word")
 
     // Quoted phrases remain supported.
-    assertEquals(parseOk("\"стивен кинг\""), Term("_all", "стивен кинг"), "quoted phrase")
+    assertEquals(parseOk("\"стивен кинг\""), Term("_all_exact", "стивен кинг"), "quoted phrase")
 
     // Existing fielded syntax remains intact.
     assertEquals(parseOk("author:king"), Term("author", "king"), "field term")
     assertEquals(parseOk("author:михаил булгаков"), Term("author", "михаил булгаков"), "field multi-word")
-    assertEquals(parseOk("title:\"dark tower\""), Term("title", "dark tower"), "field quoted")
+    assertEquals(parseOk("title:\"dark tower\""), Term("title_exact", "dark tower"), "field quoted")
 
     // Logical operators must still work and not be swallowed by plain phrase parser.
     assertEquals(

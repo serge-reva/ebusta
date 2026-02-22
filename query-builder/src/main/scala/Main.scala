@@ -55,6 +55,20 @@ object OsDslBuilder {
 
   private def buildFilter(node: FilterNode): Json = {
     node.field match {
+      case "author_exact" =>
+        Json.obj("match_phrase" -> Json.obj("authors" -> Json.obj("query" -> node.value.asJson)))
+      case "title_exact" =>
+        Json.obj("match_phrase" -> Json.obj("title" -> Json.obj("query" -> node.value.asJson)))
+      case "_all_exact" =>
+        Json.obj("bool" -> Json.obj(
+          "should" -> Json.arr(
+            Json.obj("match_phrase" -> Json.obj("title" -> Json.obj("query" -> node.value.asJson, "boost" -> 5.asJson))),
+            Json.obj("match_phrase" -> Json.obj("authors" -> Json.obj("query" -> node.value.asJson, "boost" -> 4.asJson))),
+            Json.obj("term" -> Json.obj("title.kw" -> node.value.asJson)),
+            Json.obj("term" -> Json.obj("authors.kw" -> node.value.asJson))
+          ),
+          "minimum_should_match" -> 1.asJson
+        ))
       case "author" =>
         Json.obj("bool" -> Json.obj("should" -> Json.arr(
           Json.obj("term" -> Json.obj("authors.kw" -> Json.obj("value" -> node.value.asJson, "boost" -> 10.asJson))),
@@ -89,12 +103,19 @@ object OsDslBuilder {
 }
 
 object OsStrategy {
+  private def isExactField(field: String): Boolean = field == "author_exact" || field == "title_exact" || field == "_all_exact"
+
   def build(ast: SearchQuery, size: Int, from: Int): (Json, QueryType) = {
     ast.query match {
       case SearchQuery.Query.Filter(filter) =>
-        val (tplId, params) = mapToTemplate(filter.field, filter.value)
-        val fullParams = params ++ Map("size" -> size.toString, "from" -> from.toString)
-        (Json.obj("id" -> tplId.asJson, "params" -> fullParams.asJson), QueryType.TEMPLATE)
+        if (isExactField(filter.field)) {
+          val dslQuery = OsDslBuilder.toDsl(ast)
+          (Json.obj("size" -> size.asJson, "from" -> from.asJson, "query" -> dslQuery), QueryType.DSL)
+        } else {
+          val (tplId, params) = mapToTemplate(filter.field, filter.value)
+          val fullParams = params ++ Map("size" -> size.toString, "from" -> from.toString)
+          (Json.obj("id" -> tplId.asJson, "params" -> fullParams.asJson), QueryType.TEMPLATE)
+        }
       case SearchQuery.Query.Logical(_) =>
         val dslQuery = OsDslBuilder.toDsl(ast)
         (Json.obj("size" -> size.asJson, "from" -> from.asJson, "query" -> dslQuery), QueryType.DSL)
