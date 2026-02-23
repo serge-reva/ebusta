@@ -232,7 +232,7 @@ func loadIRCConfig(cfg *config.Config, verboseFlag bool) *config.IRCAdapterConfi
 		irc.DCCPortMax = irc.DCCPortMin
 	}
 	if irc.DCCTimeoutSec <= 0 {
-		irc.DCCTimeoutSec = 60
+		irc.DCCTimeoutSec = 180
 	}
 
 	if verboseFlag {
