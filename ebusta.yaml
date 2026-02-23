@@ -160,7 +160,7 @@ gateway:
 ##  dcc_public_ip: ""
 ##  dcc_port_min: 40000
 ##  dcc_port_max: 40100
-##  dcc_timeout_sec: 60
+##  dcc_timeout_sec: 180
 
 
 irc_adapter:
@@ -188,10 +188,10 @@ irc_adapter:
       - "#test"
     bot_reconnect_seconds: 5
     dcc_enabled: true
-    dcc_public_ip: "192.168.1.179"
+    dcc_public_ip: "192.168.1.178"
     dcc_port_min: 40000
     dcc_port_max: 40100
-    dcc_timeout_sec: 60
+    dcc_timeout_sec: 180
   
 
 telegram_adapter:

@@ -35,6 +35,7 @@ type SearchSession struct {
 type IRCHandler struct {
 	gatewayURL  string
 	httpClient  *http.Client
+	dccClient   *http.Client
 	sessions    map[string]*SearchSession // nick -> session
 	engine      *edge.Engine
 	formatter   *presenter.IRCFormatter
@@ -76,6 +77,7 @@ func NewIRCHandlerWithPolicy(gatewayURL string, pageSize int, verbose bool, poli
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
+		dccClient: &http.Client{},
 		sessions:   make(map[string]*SearchSession),
 		engine:     edge.NewEngine(policy, edge.NewMultiHook(hook, &edge.OTelHook{})),
 		formatter:  presenter.NewIRCFormatter(pageSize),
@@ -671,6 +673,29 @@ func (h *IRCHandler) serveDCCTransfer(client *IRCClient, target, sender string, 
 		return
 	}
 	defer conn.Close()
+	ackCh := make(chan uint32, 1)
+	ackErrCh := make(chan error, 1)
+	go func() {
+		// DCC receiver sends 32-bit network-order ACK counters.
+		buf := make([]byte, 4)
+		for {
+			if _, rerr := io.ReadFull(conn, buf); rerr != nil {
+				ackErrCh <- rerr
+				close(ackCh)
+				return
+			}
+			ack := binary.BigEndian.Uint32(buf)
+			select {
+			case ackCh <- ack:
+			default:
+				select {
+				case <-ackCh:
+				default:
+				}
+				ackCh <- ack
+			}
+		}
+	}()
 
 	req, err := http.NewRequest(http.MethodGet, downloadURL, nil)
 	if err != nil {
@@ -678,8 +703,10 @@ func (h *IRCHandler) serveDCCTransfer(client *IRCClient, target, sender string, 
 		return
 	}
 	req.Header.Set("X-Trace-Id", traceID)
-	resp, err := h.httpClient.Do(req)
+	resp, err := h.dccClient.Do(req)
 	if err != nil {
+		logger.GetGlobal().WithField("trace_id", traceID).WithField("url", downloadURL).
+			Error("irc", "dcc downstream request failed", err)
 		client.SendMessage(target, fmt.Sprintf("❌ DCC download failed: %v (trace: %s)", err, traceID))
 		return
 	}
@@ -694,10 +721,65 @@ func (h *IRCHandler) serveDCCTransfer(client *IRCClient, target, sender string, 
 		return
 	}
 
-	_, err = io.Copy(conn, bufio.NewReader(resp.Body))
+	written, err := io.Copy(conn, bufio.NewReader(resp.Body))
 	if err != nil {
+		logger.GetGlobal().WithField("trace_id", traceID).
+			Error("irc", "dcc transfer interrupted", err)
 		client.SendMessage(target, fmt.Sprintf("❌ DCC transfer interrupted: %v", err))
 		return
+	}
+	if resp.ContentLength > 0 && written != resp.ContentLength {
+		msg := fmt.Sprintf("short transfer: wrote %d of %d bytes", written, resp.ContentLength)
+		logger.GetGlobal().WithField("trace_id", traceID).
+			Error("irc", "dcc short transfer", errors.New(msg))
+		client.SendMessage(target, fmt.Sprintf("❌ DCC transfer interrupted: %s", msg))
+		return
+	}
+	sentBytes := uint32(written)
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		_ = tcpConn.CloseWrite()
+		_ = tcpConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	}
+	acked := uint32(0)
+	for acked < sentBytes {
+		select {
+		case ack, ok := <-ackCh:
+			if !ok {
+				if acked >= sentBytes {
+					break
+				}
+				select {
+				case aerr := <-ackErrCh:
+					msg := fmt.Sprintf("ack channel closed early after %d/%d bytes: %v", acked, sentBytes, aerr)
+					logger.GetGlobal().WithField("trace_id", traceID).
+						Error("irc", "dcc ack incomplete", errors.New(msg))
+					client.SendMessage(target, fmt.Sprintf("❌ DCC transfer interrupted: %s", msg))
+					return
+				default:
+					msg := fmt.Sprintf("ack channel closed early after %d/%d bytes", acked, sentBytes)
+					logger.GetGlobal().WithField("trace_id", traceID).
+						Error("irc", "dcc ack incomplete", errors.New(msg))
+					client.SendMessage(target, fmt.Sprintf("❌ DCC transfer interrupted: %s", msg))
+					return
+				}
+			}
+			acked = ack
+		case aerr := <-ackErrCh:
+			if acked >= sentBytes {
+				break
+			}
+			msg := fmt.Sprintf("ack read failed after %d/%d bytes: %v", acked, sentBytes, aerr)
+			logger.GetGlobal().WithField("trace_id", traceID).
+				Error("irc", "dcc ack read failed", errors.New(msg))
+			client.SendMessage(target, fmt.Sprintf("❌ DCC transfer interrupted: %s", msg))
+			return
+		case <-time.After(5 * time.Second):
+			msg := fmt.Sprintf("ack timeout after %d/%d bytes", acked, sentBytes)
+			logger.GetGlobal().WithField("trace_id", traceID).
+				Error("irc", "dcc ack timeout", errors.New(msg))
+			client.SendMessage(target, fmt.Sprintf("❌ DCC transfer interrupted: %s", msg))
+			return
+		}
 	}
 	client.SendMessage(sender, "✅ DCC transfer complete")
 }
