@@ -27,7 +27,7 @@ DOWNLOADER_PORT := $(shell sed -n '/downloader:/,/listen_port:/p'      $(CONFIG_
 WEB_FRONTEND_PORT := $(shell sed -n '/web_frontend:/,/listen_port:/p'  $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 GATEWAY_PORT    := $(shell sed -n '/gateway:/,/port:/p'                $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
 
-.PHONY: all build proto build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean
+.PHONY: all build proto build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean architecture-check docs-check proto-lint proto-breaking test-go ci-check
 
 all: build
 
@@ -171,3 +171,47 @@ restart: up
 
 clean:
 	@rm -rf $(BIN_DIR) $(LOG_DIR) *.jar *.log
+
+.PHONY: architecture-check
+architecture-check:
+	@echo "🔍 Checking architecture boundaries..."
+	@command -v rg >/dev/null 2>&1 || (echo "❌ rg not installed"; exit 1)
+	@if rg -n 'os\.(Create|OpenFile|WriteFile|Rename|Mkdir|MkdirAll|ReadDir|ReadFile)' cmd/gateway internal/gateway; then \
+		echo "❌ Gateway must not perform filesystem operations"; exit 1; \
+	fi
+	@if rg -n '"ebusta/internal/downloads"' cmd/gateway internal/gateway; then \
+		echo "❌ Gateway must not import internal/downloads"; exit 1; \
+	fi
+	@test -f cmd/datamanager/main.go || (echo "❌ cmd/datamanager/main.go missing"; exit 1)
+	@test -f cmd/orchestrator/main.go || (echo "❌ cmd/orchestrator/main.go missing"; exit 1)
+	@test -f cmd/gateway/main.go || (echo "❌ cmd/gateway/main.go missing"; exit 1)
+	@if rg --files -g 'Dockerfile*' | grep -q .; then \
+		if rg -n --glob 'Dockerfile*' '^[[:space:]]*RUN[[:space:]]+(go build|npm)' ; then \
+			echo "❌ Dockerfile must not run go build or npm"; exit 1; \
+		fi; \
+	fi
+	@echo "✅ architecture-check passed"
+
+.PHONY: docs-check
+docs-check:
+	@test -f docs/ARCHITECTURAL_CONSTITUTION.md || echo "⚠️  docs/ARCHITECTURAL_CONSTITUTION.md missing (will be created later)"
+	@test -f docs/API_ERROR_MAPPING.md || echo "⚠️  docs/API_ERROR_MAPPING.md missing"
+	@test -f docs/TRACE.md || echo "⚠️  docs/TRACE.md missing"
+	@echo "✅ docs-check passed (warnings are non-fatal for now)"
+
+.PHONY: proto-lint proto-breaking
+proto-lint:
+	@command -v buf >/dev/null 2>&1 || (echo "❌ buf not installed"; exit 1)
+	buf lint
+
+proto-breaking:
+	@command -v buf >/dev/null 2>&1 || (echo "❌ buf not installed"; exit 1)
+	buf breaking --against '.git#branch=main'
+
+.PHONY: test-go
+test-go:
+	go test ./...
+
+.PHONY: ci-check
+ci-check: test-go proto-lint proto-breaking architecture-check docs-check
+	@echo "✅ ci-check passed"
