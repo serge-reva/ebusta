@@ -1,24 +1,38 @@
-# API_ERROR_MAPPING.md
+# API Error Mapping
 
-## Маппинг ошибок: условие → gRPC код → внутренний код → retryable
+Version: 1.0  
+Last Updated: 2026-03-01
 
-| Условие | gRPC код | Внутренний код (errutil) | Retryable |
-|---------|----------|---------------------------|-----------|
-| Невалидный аргумент (пустой запрос, неверный формат) | `InvalidArgument` | `INVALID_ARGUMENT` | false |
-| Ресурс не найден (книга, пользователь) | `NotFound` | `NOT_FOUND` | false |
-| Ошибка авторизации (нет прав) | `PermissionDenied` | `FORBIDDEN` | false |
-| Неаутентифицирован | `Unauthenticated` | `UNAUTHORIZED` | false |
-| Сервис недоступен (плазма, даунлоадер) | `Unavailable` | `UNAVAILABLE` | true |
-| Таймаут | `DeadlineExceeded` | `TIMEOUT` | true |
-| Внутренняя ошибка (IO, база данных) | `Internal` | `INTERNAL` | false |
-| Ошибка парсинга DSL | `InvalidArgument` | `DSL_INVALID` | false |
-| Конфликт версий ( optimistic lock ) | `FailedPrecondition` | `VERSION_CONFLICT` | false |
+Canonical mapping source: `internal/errutil/codes.go`.
 
-## Правила
-- Все ответы с ошибкой (включая gRPC и HTTP) **обязаны** содержать `trace_id`.
-- Поле `retryable` используется клиентами для автоматических повторов (только для `UNAVAILABLE`, `TIMEOUT`).
-- Новые внутренние коды добавляются только в конец списка (append-only).
+## Mapping Table
 
-## Ссылки
-- [TRACE.md](TRACE.md) – правила работы с TraceID.
-- [internal/errutil/codes.go](../../internal/errutil/codes.go) – реализация кодов.
+| Condition | gRPC Code | Internal Code (`errutil`) | Retryable |
+|---|---|---|---|
+| Invalid client input, malformed request, validation failure | `InvalidArgument` | `INVALID_ARGUMENT` | `false` |
+| Requested resource not found | `NotFound` | `NOT_FOUND` | `false` |
+| Missing authentication | `Unauthenticated` | `UNAUTHORIZED` | `false` |
+| Permission denied | `PermissionDenied` | `FORBIDDEN` | `false` |
+| Downstream/service unavailable | `Unavailable` | `SERVICE_UNAVAILABLE` | `true` |
+| Timeout/deadline exceeded | `DeadlineExceeded` | `TIMEOUT` | `true` |
+| Upstream gateway/proxy failure | `Internal` or translated HTTP 502 path | `BAD_GATEWAY` / `UPSTREAM_ERROR` | `true` |
+| Internal unexpected failure | `Internal` | `INTERNAL_ERROR` | `false` |
+| Request payload too large | usually HTTP only | `REQUEST_TOO_LARGE` | `false` |
+| Downloader/storage specific failure | service-specific | `DOWNLOADER_ERROR` / `ZIP_ERROR` / `SEARCH_ERROR` | depends on cause |
+
+## Rules
+- Every error response must include `trace_id`.
+- HTTP error envelope must be stable: `{"error": {"code", "message", "trace_id", ...}}`.
+- gRPC-facing errors should be created via `errutil.ToGRPCError` from `AppError`.
+- New internal error codes are `append-only` (additive); do not rename or repurpose existing codes.
+- Retry policy defaults to `false`; enable retries only for transient categories (`SERVICE_UNAVAILABLE`, `TIMEOUT`, selected upstream failures).
+
+## Change Policy
+- Any mapping change requires doc update in this file and corresponding code update in `internal/errutil/`.
+- Contract-breaking error semantics are not allowed without explicit review.
+
+## References
+- `internal/errutil/codes.go`
+- `internal/errutil/grpc.go`
+- `internal/errutil/http.go`
+- [TRACE.md](TRACE.md)

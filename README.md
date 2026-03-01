@@ -60,3 +60,13 @@ Quick test commands:
 - `make test-scala`
 - `make test-e2e`
 - `make test-load`
+
+## Documentation
+
+Core architecture and operations docs:
+
+- `docs/ARCHITECTURAL_CONSTITUTION.md`
+- `docs/API_ERROR_MAPPING.md`
+- `docs/TRACE.md`
+- `docs/ENGINEERING_STANDARD.md`
+- `docs/PROTO_IMMUTABILITY.md`

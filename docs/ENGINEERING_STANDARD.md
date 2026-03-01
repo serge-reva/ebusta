@@ -1,35 +1,53 @@
-# ENGINEERING_STANDARD.md
+# Engineering Standard
 
-## Стандарты разработки
+Version: 1.0  
+Last Updated: 2026-03-01
 
-### 1. Docker-First верификация
-После любого функционального изменения, затрагивающего:
-- сборку,
-- запуск сервисов,
-- внешние интерфейсы,
-- конфигурацию,
+This document defines daily engineering execution standards for `ebusta`.
 
-**обязательно**:
-1. Запустить `make ci-check` (линтеры, тесты, проверка прото).
-2. Запустить `make e2e-host` (end-to-end тесты на хосте).
-3. Запустить `make e2e-docker` (end-to-end тесты в Docker).
-4. Предоставить **ручные шаги проверки** в Docker:
-   - `make docker-up`
-   - URL для открытия
-   - точные входные данные и ожидаемый результат
-   - `make docker-down`
+## Docker-First Verification
+After meaningful changes (contracts, wiring, runtime behavior):
+1. Build host artifacts.
+2. Start stack in Docker.
+3. Run manual happy path and error path checks.
+4. Stop stack.
 
-### 2. Разделение фич и рефакторинга
-- Реализация новой функциональности и рефакторинг не должны смешиваться в одном коммите.
-- Рефакторинг выполняется только по явному запросу архитектора.
-- После рефакторига все тесты должны быть зелёными.
+Minimum command set:
+- `make docker-build`
+- `make docker-up`
+- `make docker-status`
+- `make docker-logs`
+- `make docker-down`
 
-### 3. Документация
-- **Перед началом** новой стадии разработки, изменения DSL или storage, перечитайте все файлы в `docs/`.
-- Это обеспечивает архитектурную согласованность при сбросе контекста чата.
+## Feature vs Refactor Separation
+- Keep feature work and refactoring in separate commits.
+- Avoid mixed commits that change behavior and structure simultaneously.
+- Preserve green gates per commit whenever possible.
 
-### 4. Тестирование документации
-- В CI должна быть цель `make docs-test`, проверяющая:
-  - отсутствие битых ссылок (например, `markdown-link-check`),
-  - соответствие примеров схеме (если есть JSON Schema),
-  - актуальность реестров (генерация из кода).
+## Documentation Discipline
+- Read relevant files in `docs/` before starting a new stage.
+- Update docs in the same change when behavior/contracts/rules change.
+- Keep architecture and operations docs synchronized with Makefile gates.
+
+## Testing Standard
+- Follow taxonomy and execution model in:
+  - `test/classification/README.md`
+  - `test/classification/ci-matrix.md`
+  - `test/classification/inventory.md`
+- PR baseline gates:
+  - `make test-unit`
+  - `make test-integration`
+  - `make test-scala`
+- Use `make test-e2e` for docker stack validation.
+- Keep load/diagnostics out of PR merge gate.
+
+## Proto Workflow
+- Proto contracts are immutable by default; use additive evolution.
+- Required checks:
+  - `make proto-generate`
+  - `make proto-verify`
+- See [PROTO_IMMUTABILITY.md](PROTO_IMMUTABILITY.md).
+
+## Operational Error/Trace Discipline
+- Error mapping follows [API_ERROR_MAPPING.md](API_ERROR_MAPPING.md).
+- Trace propagation follows [TRACE.md](TRACE.md).

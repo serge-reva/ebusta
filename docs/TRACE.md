@@ -1,21 +1,30 @@
-# TRACE.md
+# Trace Propagation Standard
 
-## TraceID: сквозная трассировка
+Version: 1.0  
+Last Updated: 2026-03-01
 
-### Обязательные правила
-1. **Каждый входящий запрос** (HTTP/gRPC) должен проверять наличие TraceID в заголовках:
-   - HTTP: `X-Trace-Id`
-   - gRPC: metadata key `x-trace-id`
-2. Если TraceID отсутствует или пуст, сервис **генерирует новый** по шаблону `<префикс>-<timestamp>` (например, `gw-1643723900`).
-3. Сгенерированный или полученный TraceID **обязан**:
-   - присутствовать во всех логах, относящихся к запросу (через поле `trace_id`);
-   - передаваться далее при вызове downstream-сервисов (в metadata или поле proto);
-   - возвращаться клиенту в ответе (в заголовке `X-Trace-Id` для HTTP, или в поле `trace_id` для JSON-ответов, или в gRPC-статусе).
-4. При формировании ошибки (как транспортной, так и бизнес-) TraceID **обязательно** включается в структуру ошибки (например, `ApiErrorDetails.trace_id`).
+This document defines mandatory trace propagation behavior across `ebusta` services.
 
-### Префиксы генерации (рекомендованные)
-| Компонент | Префикс |
-|-----------|---------|
+## Core Rules
+- Every request must have a trace id.
+- Accept incoming trace id if provided.
+- Generate one if missing using `errutil.GenerateTraceID(prefix)`.
+- Propagate trace id to every downstream call.
+- Include trace id in logs and in error responses.
+
+## Protocol Conventions
+- HTTP inbound/outbound header: `X-Trace-Id`
+- gRPC metadata key: `x-trace-id`
+
+## Generation Format
+Current helper behavior (`internal/errutil/trace.go`):
+- format: `<prefix>-<unix_nano_timestamp>`
+- example: `gw-1700000000000000000`
+
+## Service Prefixes
+
+| Service | Prefix |
+|---|---|
 | gateway | `gw` |
 | orchestrator | `orch` |
 | datamanager | `dm` |
@@ -23,25 +32,33 @@
 | archive-node | `arch` |
 | tier-node | `tier` |
 | plasma-node | `plasma` |
+| web-frontend | `wf` |
+| auth-manager | `auth` |
 | irc-adapter | `irc` |
 | telegram-adapter | `tg` |
-| web-frontend | `wf` |
 | cli | `cli` |
 
-### Пример HTTP-запроса с TraceID
+## Mandatory Flow
+- HTTP server:
+  - read `X-Trace-Id`
+  - generate if absent
+  - set `X-Trace-Id` in response
+  - pass into downstream context/headers
+- gRPC server:
+  - read `x-trace-id` from incoming metadata (`errutil.TraceIDFromContext`)
+  - generate if absent
+  - use in logs and propagated context
+- gRPC client:
+  - set outgoing metadata (`errutil.ContextWithTraceID`)
+- HTTP client:
+  - set outgoing header `X-Trace-Id`
 
-GET /search?q=king HTTP/1.1
-Host: localhost:8443
-X-Trace-Id: gw-1234567890
-text
+## Logging Requirement
+- All request-scoped logs must include `trace_id` as a structured field.
+- Transport errors and business errors must carry the same trace id observed/generated at request ingress.
 
-
-### Пример gRPC-метаданных
-
-x-trace-id: orch-1234567890
-text
-
-
-### Ссылки
-- [internal/logger/context.go](../../internal/logger/context.go) – реализация.
-- [internal/errutil/trace.go](../../internal/errutil/trace.go) – утилиты.
+## References
+- `internal/errutil/trace.go`
+- `internal/logger/context.go`
+- [API_ERROR_MAPPING.md](API_ERROR_MAPPING.md)
+- [ARCHITECTURAL_CONSTITUTION.md](ARCHITECTURAL_CONSTITUTION.md)

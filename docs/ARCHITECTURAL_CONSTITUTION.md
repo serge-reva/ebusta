@@ -1,28 +1,55 @@
-# ARCHITECTURAL_CONSTITUTION.md
+# Architectural Constitution
 
-## Инварианты (неизменяемые правила)
-1. **Protobuf-first** – все бизнес-интерфейсы между микросервисами описываются в proto (исключение – внешние адаптеры, которые могут использовать REST, но только как прокси к gRPC).
-2. **TraceID обязателен** – каждый запрос должен содержать сквозной идентификатор, передаваемый в HTTP-заголовке `X-Trace-Id` и в gRPC-метаданных `x-trace-id`. Если клиент не прислал, сервис генерирует и возвращает.
-3. **Ошибки — данные** – бизнес-ошибки возвращаются в теле ответа (например, `error` в JSON) с кодом и сообщением, транспортные ошибки – через gRPC status.
-4. **Разделение ответственности**:
-   - `cmd/gateway` – только адаптер (HTTP, gRPC-клиенты), не содержит логики предметной области и persistence.
-   - `cmd/orchestrator` – оркестрация поискового пайплайна.
-   - `cmd/datamanager` – только запросы к OpenSearch.
-   - `cmd/downloads/*` – только хранение и отдача файлов.
-   - `internal/` – переиспользуемые пакеты, не содержащие main-пакетов.
-5. **Иммутабельность контрактов** – proto и схема layout (если появится) изменяются только через версионирование и миграцию.
+Version: 1.0  
+Last Updated: 2026-03-01
 
-## Требуемые проверки CI
-- `make proto-lint` (buf lint)
-- `make proto-breaking` (buf breaking)
-- `make test` (go test ./...)
-- `make e2e` (end-to-end тесты)
+This document defines non-negotiable architectural rules for `ebusta`.
 
-## Компоненты для отладки
-- `cmd/web-adapter` — вспомогательный HTTP-адаптер для ручных и регрессионных проверок.
-- `cmd/web-adapter` не является обязательной частью production-архитектуры и не должен использоваться как основной внешний API.
-- Для production-сценариев точка входа — `cmd/gateway`.
+## Invariants
+- `protobuf-first`: inter-service contracts are defined via `.proto` and validated with `buf`.
+- `trace-id required`: every request must carry a trace id; if absent, service generates one.
+- `errors as data`: domain/business errors are represented as structured diagnostics, not hidden transport failures.
+- `separation of responsibilities`: adapters, orchestration, storage, and shared infra must stay isolated.
+- `append-only contract policy`: backward compatibility is mandatory for public contracts.
 
-## Ссылки
-- [PROTO_IMMUTABILITY.md](PROTO_IMMUTABILITY.md)
+## Component Boundaries
+- `gateway` (`cmd/gateway`, `internal/gateway`): HTTP adapter only.
+- `gateway` must not implement persistence logic, storage node behavior, or domain search rules.
+- `gateway` must not perform filesystem operations in request flow.
+- `gateway` must not import `internal/downloads`.
+- `orchestrator` (`cmd/orchestrator`): coordinates search flow between DSL, query-builder, and datamanager.
+- `datamanager` (`cmd/datamanager`): OpenSearch query execution and mapping only.
+- `download nodes` (`cmd/archive-node`, `cmd/tier-node`, `cmd/plasma-node`, `cmd/downloader`): storage and file delivery only.
+- shared libraries (`internal/errutil`, `internal/logger`, `internal/config`): cross-service infra.
+
+## Component Status
+- `cmd/web-adapter` is a debug-only component.
+- It is allowed for manual diagnostics/regression experiments.
+- It is not part of the production entrypoint architecture.
+- Production HTTP entrypoint is `cmd/gateway`.
+
+## Required CI Checks
+The minimum required checks are:
+- `make proto-lint`
+- `make proto-breaking`
+- `make architecture-check`
+- `make docs-check`
+- `make test-unit`
+- `make test-integration`
+- `make test-scala`
+
+Recommended aggregate gate: `make ci-check`.
+
+## Forbidden Practices
+- raw logging via direct `log.Printf` / ad-hoc stdout in production handlers instead of shared logger.
+- filesystem writes/reads in gateway request handlers.
+- importing `internal/downloads` from gateway code.
+- bypassing `errutil` mapping for transport-facing errors.
+- runtime Dockerfiles compiling sources (`RUN go build`, `RUN npm`) instead of copying host-built artifacts.
+- breaking proto contracts without versioned migration process.
+
+## References
 - [TRACE.md](TRACE.md)
+- [API_ERROR_MAPPING.md](API_ERROR_MAPPING.md)
+- [ENGINEERING_STANDARD.md](ENGINEERING_STANDARD.md)
+- [PROTO_IMMUTABILITY.md](PROTO_IMMUTABILITY.md)
