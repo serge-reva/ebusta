@@ -18,6 +18,11 @@
 - `make test` (go test ./...)
 - `make e2e` (end-to-end тесты)
 
+## Компоненты для отладки
+- `cmd/web-adapter` — вспомогательный HTTP-адаптер для ручных и регрессионных проверок.
+- `cmd/web-adapter` не является обязательной частью production-архитектуры и не должен использоваться как основной внешний API.
+- Для production-сценариев точка входа — `cmd/gateway`.
+
 ## Ссылки
 - [PROTO_IMMUTABILITY.md](PROTO_IMMUTABILITY.md)
 - [TRACE.md](TRACE.md)

@@ -13,6 +13,7 @@ import (
 )
 
 func main() {
+    // Debug-only adapter: used for manual/regression checks, not as production entrypoint.
     cfg := config.Get()
     logger.InitFromConfig(cfg.Logger, "web-adapter")
 
