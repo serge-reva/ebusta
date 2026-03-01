@@ -34,8 +34,8 @@ Legend:
 | tests/errutil/http_test.go | integration-local | medium | integration | P1 | Useful but duplicated placement. |
 | tests/errutil/trace_test.go | integration-local | medium | integration | P1 | Useful but duplicated placement. |
 | tests/gateway/integration_test.go | pseudo-integration | bad | integration | P1 | Named integration, mostly partial local checks. |
-| test/e2e/datamanager.sh | e2e-script | medium | e2e | P2 | Depends on running gRPC service. |
-| test/e2e/orchestrator.sh | e2e-script | medium | e2e | P1 | Updated to current orchestrator port (`50054`), kept as live gRPC check. |
+| test/e2e/datamanager.sh | e2e-script | good | e2e | P2 | Gateway-based search contract check (`/search`) covering datamanager through orchestrator path. |
+| test/e2e/orchestrator.sh | e2e-script | good | e2e | P1 | Gateway-based search check validating orchestrator diagnostics (`exec_mode`, `match_mode`). |
 | tests/test_component_web_adapter.sh | removed | n/a | drop | done | Removed as legacy web-adapter-only contract test. |
 | tests/test_functional_ast_web_adapter.sh | removed | n/a | drop | done | Removed (legacy `/input` + log-grepping). |
 | tests/test_functional_results_web_adapter.sh | removed | n/a | drop | done | Removed as web-adapter legacy suite. |
