@@ -4,6 +4,10 @@ import (
     "context"
     "net"
     "os"
+    "os/signal"
+    "sync"
+    "syscall"
+    "time"
 
     "ebusta/api/proto/v1"
     "ebusta/internal/config"
@@ -88,7 +92,37 @@ func main() {
     libraryv1.RegisterAuthServiceServer(s, &authServer{whitelist: wl})
 
     logger.GetGlobal().WithField("addr", ":50055").InfoCtx(context.Background(), "[auth] started")
-    if err := s.Serve(lis); err != nil {
+    serveErr := make(chan error, 1)
+    var wg sync.WaitGroup
+    wg.Add(1)
+    go func() {
+        defer wg.Done()
+        if err := s.Serve(lis); err != nil {
+            serveErr <- err
+        }
+    }()
+
+    stop := make(chan os.Signal, 1)
+    signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+    select {
+    case sig := <-stop:
+        logger.GetGlobal().WithField("signal", sig).InfoCtx(context.Background(), "[auth] shutting down")
+        done := make(chan struct{})
+        go func() {
+            s.GracefulStop()
+            close(done)
+        }()
+        select {
+        case <-done:
+        case <-time.After(10 * time.Second):
+            logger.GetGlobal().WarnCtx(context.Background(), "[auth] graceful stop timeout, forcing stop")
+            s.Stop()
+        }
+    case err := <-serveErr:
         logger.GetGlobal().FatalCtx(context.Background(), "failed to serve", err)
     }
+
+    wg.Wait()
+    logger.GetGlobal().InfoCtx(context.Background(), "[auth] stopped")
 }

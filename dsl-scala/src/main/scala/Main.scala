@@ -10,6 +10,7 @@ import io.grpc.protobuf.services.ProtoReflectionService
 import java.io.{FileWriter, FileInputStream}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.Map as JMap
 import org.yaml.snakeyaml.Yaml
 
@@ -148,7 +149,20 @@ object Main extends IOApp {
           logger.info("=== DSL SERVER STOPPING ===") *>    
           IO(server.shutdown().awaitTermination()).void
         )
-      }.use(_ => IO.never)
+      }.use { server =>
+        val hookInstalled = new AtomicBoolean(false)
+        for {
+          _ <- IO {
+            if (hookInstalled.compareAndSet(false, true)) {
+              Runtime.getRuntime.addShutdownHook(new Thread(() => {
+                server.shutdown()
+                server.awaitTermination()
+              }))
+            }
+          }
+          _ <- IO.blocking(server.awaitTermination()).void
+        } yield ()
+      }
     } yield ()
 
     program.as(ExitCode.Success)

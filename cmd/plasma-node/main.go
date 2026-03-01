@@ -6,6 +6,9 @@ import (
     "net"
     "net/http"
     "os"
+    "os/signal"
+    "sync"
+    "syscall"
     "time"
 
     libraryv1 "ebusta/api/proto/v1"
@@ -27,16 +30,17 @@ func main() {
 
     logger.InitFromConfig(config.Get().Logger, "plasma")
 
+    var debugSrv *http.Server
     if cfg.DebugAddr != "" {
+        debugSrv = &http.Server{
+            Addr:              cfg.DebugAddr,
+            Handler:           http.DefaultServeMux,
+            ReadHeaderTimeout: 3 * time.Second,
+        }
         go func() {
-            srv := &http.Server{
-                Addr:              cfg.DebugAddr,
-                Handler:           http.DefaultServeMux,
-                ReadHeaderTimeout: 3 * time.Second,
-            }
             l := logger.GetGlobal().WithField("addr", cfg.DebugAddr)
             l.InfoCtx(context.Background(), "[plasma] debug http listening on /debug/vars")
-            if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+            if err := debugSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
                 l.ErrorCtx(context.Background(), "[plasma] debug http error", err)
             }
         }()
@@ -68,8 +72,44 @@ func main() {
         WithField("max_items", cfg.MaxItems)
     l.InfoCtx(context.Background(), "[plasma] grpc listening")
 
-    if err := s.Serve(lis); err != nil {
+    serveErr := make(chan error, 1)
+    var wg sync.WaitGroup
+    wg.Add(1)
+    go func() {
+        defer wg.Done()
+        if err := s.Serve(lis); err != nil {
+            serveErr <- err
+        }
+    }()
+
+    stop := make(chan os.Signal, 1)
+    signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+    select {
+    case sig := <-stop:
+        l.WithField("signal", sig).InfoCtx(context.Background(), "[plasma] shutting down")
+        done := make(chan struct{})
+        go func() {
+            s.GracefulStop()
+            close(done)
+        }()
+        select {
+        case <-done:
+        case <-time.After(10 * time.Second):
+            l.WarnCtx(context.Background(), "[plasma] graceful stop timeout, forcing stop")
+            s.Stop()
+        }
+
+        if debugSrv != nil {
+            dctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+            _ = debugSrv.Shutdown(dctx)
+            cancel()
+        }
+    case err := <-serveErr:
         fmt.Fprintf(os.Stderr, "serve failed: %v\n", err)
         os.Exit(1)
     }
+
+    wg.Wait()
+    l.InfoCtx(context.Background(), "[plasma] stopped")
 }

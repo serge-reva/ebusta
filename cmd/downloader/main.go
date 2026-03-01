@@ -6,7 +6,10 @@ import (
     "fmt"
     "io"
     "net/http"
+    "os"
+    "os/signal"
     "strings"
+    "syscall"
     "time"
 
     libraryv1 "ebusta/api/proto/v1"
@@ -166,10 +169,35 @@ func main() {
     })
 
     addr := dcfg.ListenAddr()
-    logger.GetGlobal().WithField("addr", addr).WithField("plasma", dcfg.PlasmaAddr).InfoCtx(context.Background(), "[downloader] listening")
-    if err := http.ListenAndServe(addr, mux); err != nil {
+    server := &http.Server{
+        Addr:    addr,
+        Handler: mux,
+    }
+
+    serveErr := make(chan error, 1)
+    go func() {
+        logger.GetGlobal().WithField("addr", addr).WithField("plasma", dcfg.PlasmaAddr).InfoCtx(context.Background(), "[downloader] listening")
+        if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+            serveErr <- err
+        }
+    }()
+
+    stop := make(chan os.Signal, 1)
+    signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+    select {
+    case sig := <-stop:
+        logger.GetGlobal().WithField("signal", sig).InfoCtx(context.Background(), "[downloader] shutting down")
+        ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+        defer cancel()
+        if err := server.Shutdown(ctx); err != nil {
+            logger.GetGlobal().ErrorCtx(context.Background(), "[downloader] shutdown error", err)
+        }
+    case err := <-serveErr:
         logger.GetGlobal().FatalCtx(context.Background(), "[downloader] serve error", err)
     }
+
+    logger.GetGlobal().InfoCtx(context.Background(), "[downloader] stopped")
 }
 
 func isValidSHA1(s string) bool {

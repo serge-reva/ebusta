@@ -14,6 +14,7 @@ import io.circe.parser.*
 import java.io.{FileWriter, FileInputStream}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.Map as JMap
 import org.yaml.snakeyaml.Yaml
 
@@ -189,7 +190,20 @@ object Main extends IOApp {
         )(s => logger.info("=== STOPPING ===") *> IO(s.shutdown().awaitTermination()).void)
       } yield server
 
-      serverResource.use(_ => IO.never).as(ExitCode.Success)
+      serverResource.use { server =>
+        val hookInstalled = new AtomicBoolean(false)
+        for {
+          _ <- IO {
+            if (hookInstalled.compareAndSet(false, true)) {
+              Runtime.getRuntime.addShutdownHook(new Thread(() => {
+                server.shutdown()
+                server.awaitTermination()
+              }))
+            }
+          }
+          _ <- IO.blocking(server.awaitTermination()).void
+        } yield ()
+      }.as(ExitCode.Success)
     }
   }
 }
