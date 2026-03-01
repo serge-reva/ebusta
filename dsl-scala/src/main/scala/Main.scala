@@ -15,6 +15,8 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.Map as JMap
 import org.yaml.snakeyaml.Yaml
+import io.prometheus.client.exporter.HTTPServer
+import io.prometheus.client.hotspot.DefaultExports
 
 import ebusta.dsl.v1.dsl.*
 import ebusta.library.v1.common.*
@@ -112,17 +114,22 @@ class DslImpl(logger: SimpleLogger) extends DslTransformerFs2Grpc[IO, Metadata] 
 }
 
 object Main extends IOApp {
+  case class RuntimeConfig(host: String, port: Int, metricsPort: Int)
+
   def getConfigPath(): String = sys.env.getOrElse("EBUSTA_CONFIG", "ebusta.yaml")
 
-  def loadConfig(path: String): (String, Int) = {
+  def loadConfig(path: String): RuntimeConfig = {
     val input = new FileInputStream(path)
     val yaml = new Yaml()
     val data = yaml.load(input).asInstanceOf[JMap[String, Any]]
     val dslSection = data.get("dsl_scala").asInstanceOf[JMap[String, Any]]
     val host = dslSection.get("host").toString
-    val port = dslSection.get("port").toString.toDouble.toInt    
+    val port = dslSection.get("port").toString.toDouble.toInt
+    val metricsSection = Option(data.get("metrics")).map(_.asInstanceOf[JMap[String, Any]])
+    val metricsServices = metricsSection.flatMap(m => Option(m.get("services")).map(_.asInstanceOf[JMap[String, Any]]))
+    val metricsPort = metricsServices.flatMap(s => Option(s.get("dsl_scala")).map(_.toString.toDouble.toInt)).getOrElse(59052)
     input.close()
-    (host, port)
+    RuntimeConfig(host, port, metricsPort)
   }
 
   override def run(args: List[String]): IO[ExitCode] = {
@@ -132,18 +139,21 @@ object Main extends IOApp {
 
     val program = for {
       _ <- logger.info(s"=== DSL SERVER STARTING ===")
-      configTuple <- IO(loadConfig(configPath)).handleErrorWith { e =>
+      cfg <- IO(loadConfig(configPath)).handleErrorWith { e =>
         logger.error(s"Config Error: ${e.getMessage}") *> IO.raiseError(e)
       }
-      (host, port) = configTuple
-
-      _ <- logger.info(s"Listening on $host:$port")
+      _ <- logger.info(s"Listening on ${cfg.host}:${cfg.port}")
+      _ <- IO {
+        DefaultExports.initialize()
+        new HTTPServer(cfg.metricsPort)
+      }
+      _ <- logger.info(s"Metrics listening on :${cfg.metricsPort}")
       _ <- DslTransformerFs2Grpc.bindServiceResource[IO](new DslImpl(logger)).flatMap { service =>
         val health = new HealthStatusManager()
         health.setStatus("", ServingStatus.SERVING)
         Resource.make(
           IO(
-            NettyServerBuilder.forPort(port)
+            NettyServerBuilder.forPort(cfg.port)
               .addService(service)
               .addService(health.getHealthService)
               .addService(ProtoReflectionService.newInstance())

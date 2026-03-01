@@ -18,6 +18,8 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.Map as JMap
 import org.yaml.snakeyaml.Yaml
+import io.prometheus.client.exporter.HTTPServer
+import io.prometheus.client.hotspot.DefaultExports
 
 import ebusta.qb.v1.query_builder.*
 import ebusta.library.v1.common.*
@@ -184,7 +186,8 @@ object Main extends IOApp {
     host: String,
     port: Int,
     cacheMaxSize: Long,
-    cacheTtlSeconds: Long
+    cacheTtlSeconds: Long,
+    metricsPort: Int
   )
 
   def getConfigPath(): String = sys.env.getOrElse("EBUSTA_CONFIG", "ebusta.yaml")
@@ -210,7 +213,11 @@ object Main extends IOApp {
       .map(_.toString.toDouble.toLong)
       .getOrElse(60L)
 
-    RuntimeConfig(host, port, cacheMaxSize, cacheTtlSeconds)
+    val metricsSection = Option(data.get("metrics")).map(_.asInstanceOf[JMap[String, Any]])
+    val metricsServices = metricsSection.flatMap(m => Option(m.get("services")).map(_.asInstanceOf[JMap[String, Any]]))
+    val metricsPort = metricsServices.flatMap(s => Option(s.get("query_builder")).map(_.toString.toDouble.toInt)).getOrElse(59053)
+
+    RuntimeConfig(host, port, cacheMaxSize, cacheTtlSeconds, metricsPort)
   }
 
   override def run(args: List[String]): IO[ExitCode] = {
@@ -230,6 +237,11 @@ object Main extends IOApp {
         _ <- Resource.eval(logger.info(s"Listening on ${cfg.host}:${cfg.port}"))
         _ <- Resource.eval(IO(QueryCache.configure(cfg.cacheMaxSize, cfg.cacheTtlSeconds)))
         _ <- Resource.eval(logger.info(s"Cache configured: max_size=${cfg.cacheMaxSize} ttl_seconds=${cfg.cacheTtlSeconds}"))
+        _ <- Resource.eval(IO {
+          DefaultExports.initialize()
+          new HTTPServer(cfg.metricsPort)
+        })
+        _ <- Resource.eval(logger.info(s"Metrics listening on :${cfg.metricsPort}"))
         service <- QueryBuilderFs2Grpc.bindServiceResource[IO](new QueryBuilderImpl(logger))
         health = new HealthStatusManager()
         _ <- Resource.eval(IO(health.setStatus("", ServingStatus.SERVING)))

@@ -13,6 +13,7 @@ import (
 	"ebusta/internal/config"
 	"ebusta/internal/edge"
 	"ebusta/internal/logger"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -40,6 +41,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handler.handleHealth)
 	mux.HandleFunc("/update", handler.handleUpdate)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	srv := &http.Server{
 		Addr:         tgCfg.Address(),

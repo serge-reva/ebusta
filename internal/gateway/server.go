@@ -13,6 +13,7 @@ import (
 	"ebusta/internal/gateway/middleware"
 	"ebusta/internal/gateway/validation"
 	"ebusta/internal/logger"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Server struct {
@@ -82,6 +83,7 @@ func (s *Server) setupRoutes() http.Handler {
 	mux.HandleFunc("/download/", s.handleDownload)
 	mux.HandleFunc("/download/token/", s.handleDownloadToken)
 	mux.HandleFunc("/debug/mapper", s.handleDebug)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	handler := s.recover.Middleware(mux)
 	handler = s.security.Middleware(handler)

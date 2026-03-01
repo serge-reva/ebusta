@@ -33,7 +33,24 @@ type OpenSearchConfig struct {
 }
 
 type MetricsConfig struct {
-	Port int `yaml:"port"`
+	Port     int                 `yaml:"port"`
+	Services MetricsServicePorts `yaml:"services"`
+}
+
+type MetricsServicePorts struct {
+	Gateway      int `yaml:"gateway"`
+	Orchestrator int `yaml:"orchestrator"`
+	Datamanager  int `yaml:"datamanager"`
+	Downloader   int `yaml:"downloader"`
+	ArchiveNode  int `yaml:"archive_node"`
+	TierNode     int `yaml:"tier_node"`
+	PlasmaNode   int `yaml:"plasma_node"`
+	AuthManager  int `yaml:"auth_manager"`
+	IRCAdapter   int `yaml:"irc_adapter"`
+	Telegram     int `yaml:"telegram_adapter"`
+	WebFrontend  int `yaml:"web_frontend"`
+	DslScala     int `yaml:"dsl_scala"`
+	QueryBuilder int `yaml:"query_builder"`
 }
 
 type EdgeActionConfig struct {

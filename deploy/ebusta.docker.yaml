@@ -41,6 +41,20 @@ web_frontend:
 
 metrics:
   port: 50090
+  services:
+    gateway: 59001
+    orchestrator: 59054
+    datamanager: 59051
+    downloader: 59081
+    archive_node: 59110
+    tier_node: 59111
+    plasma_node: 59112
+    auth_manager: 59055
+    irc_adapter: 59667
+    telegram_adapter: 59087
+    web_frontend: 59300
+    dsl_scala: 59052
+    query_builder: 59053
 
 downloads:
   archive_node:

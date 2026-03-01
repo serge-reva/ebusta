@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net"
@@ -13,6 +14,7 @@ import (
 	libraryv1 "ebusta/api/proto/v1"
 	"ebusta/internal/config"
 	"ebusta/internal/downloads/archive"
+	"ebusta/internal/metrics"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -28,6 +30,7 @@ func main() {
 	flag.Parse()
 
 	cfg := config.Get()
+	metricsSrv := metrics.Start("archive-node", cfg.Metrics.Services.ArchiveNode)
 	arch := cfg.Downloads.ArchiveNode
 
 	// overrides
@@ -81,6 +84,9 @@ func main() {
 	select {
 	case sig := <-stop:
 		fmt.Fprintf(os.Stderr, "archive-node received %s, shutting down\n", sig)
+		mctx, mcancel := context.WithTimeout(context.Background(), 5*time.Second)
+		metrics.Shutdown(mctx, metricsSrv)
+		mcancel()
 		done := make(chan struct{})
 		go func() {
 			s.GracefulStop()

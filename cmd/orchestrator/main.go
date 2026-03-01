@@ -13,6 +13,7 @@ import (
 	"ebusta/internal/config"
 	"ebusta/internal/errutil"
 	"ebusta/internal/logger"
+	"ebusta/internal/metrics"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -100,6 +101,7 @@ func (s *orchestratorServer) Search(ctx context.Context, req *libraryv1.SearchRe
 func main() {
 	cfg := config.Get()
 	logger.InitFromConfig(cfg.Logger, "orchestrator")
+	metricsSrv := metrics.Start("orchestrator", cfg.Metrics.Services.Orchestrator)
 
 	dslConn, _ := grpc.Dial(cfg.DslScala.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	qbConn, _ := grpc.Dial(cfg.QueryBuilder.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -139,6 +141,9 @@ func main() {
 	select {
 	case sig := <-stop:
 		logger.GetGlobal().WithField("signal", sig).InfoCtx(context.Background(), "[orchestrator] shutting down")
+		mctx, mcancel := context.WithTimeout(context.Background(), 5*time.Second)
+		metrics.Shutdown(mctx, metricsSrv)
+		mcancel()
 		done := make(chan struct{})
 		go func() {
 			s.GracefulStop()

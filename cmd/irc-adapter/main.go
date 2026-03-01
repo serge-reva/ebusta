@@ -15,6 +15,7 @@ import (
 	"ebusta/internal/config"
 	"ebusta/internal/edge"
 	"ebusta/internal/logger"
+	"ebusta/internal/metrics"
 )
 
 func main() {
@@ -27,6 +28,12 @@ func main() {
 
 	os.Setenv("EBUSTA_CONFIG", configPath)
 	cfg := config.Get()
+	metricsSrv := metrics.Start("irc-adapter", cfg.Metrics.Services.IRCAdapter)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		metrics.Shutdown(ctx, metricsSrv)
+	}()
 	ircCfg := loadIRCConfig(cfg, verbose)
 
 	logCfg := cfg.Logger

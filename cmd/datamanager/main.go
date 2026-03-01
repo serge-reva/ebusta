@@ -19,6 +19,7 @@ import (
 	"ebusta/internal/config"
 	"ebusta/internal/errutil"
 	"ebusta/internal/logger"
+	"ebusta/internal/metrics"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -181,6 +182,7 @@ func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRe
 func main() {
 	cfg := config.Get()
 	logger.InitFromConfig(cfg.Logger, "datamanager")
+	metricsSrv := metrics.Start("datamanager", cfg.Metrics.Services.Datamanager)
 
 	lis, err := net.Listen("tcp", cfg.Datamanager.Address())
 	if err != nil {
@@ -210,6 +212,9 @@ func main() {
 	select {
 	case sig := <-stop:
 		logger.GetGlobal().WithField("signal", sig).InfoCtx(context.Background(), "[datamanager] shutting down")
+		mctx, mcancel := context.WithTimeout(context.Background(), 5*time.Second)
+		metrics.Shutdown(mctx, metricsSrv)
+		mcancel()
 		done := make(chan struct{})
 		go func() {
 			s.GracefulStop()

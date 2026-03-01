@@ -8,6 +8,7 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50052:50052"
+      - "59052:59052"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
     healthcheck:
@@ -27,6 +28,7 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50053:50053"
+      - "59053:59053"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
     healthcheck:
@@ -46,6 +48,7 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50051:50051"
+      - "59051:59051"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
     healthcheck:
@@ -65,6 +68,7 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50054:50054"
+      - "59054:59054"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
     depends_on:
@@ -91,6 +95,7 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50110:50110"
+      - "59110:59110"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
@@ -111,6 +116,7 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50111:50111"
+      - "59111:59111"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
@@ -134,6 +140,7 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50112:50112"
+      - "59112:59112"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
@@ -157,6 +164,7 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50081:50081"
+      - "59081:59081"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
@@ -181,6 +189,7 @@ services:
       EBUSTA_WHITELIST: /app/whitelist.yaml
     ports:
       - "50055:50055"
+      - "59055:59055"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./cmd/auth-manager/whitelist.yaml:/app/whitelist.yaml:ro
@@ -201,6 +210,7 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "8443:8443"
+      - "59001:59001"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
@@ -228,6 +238,7 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "3000:3000"
+      - "59300:59300"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
     depends_on:
@@ -253,6 +264,7 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "8087:8087"
+      - "59087:59087"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
     depends_on:
