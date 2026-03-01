@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT_DIR"
+
 CLI="./bin/ebusta-cli"
 test -x "$CLI" || { echo "FAIL: $CLI not found/executable (run make build-cli or make test-stack)"; exit 1; }
 

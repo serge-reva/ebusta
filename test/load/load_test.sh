@@ -1,4 +1,9 @@
 #!/bin/bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT_DIR"
+
 # Запуск нагрузки: 200 запросов в секунду в течение 30 секунд
 ./lisp-converter/ghz \
     --insecure \

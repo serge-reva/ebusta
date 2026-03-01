@@ -27,7 +27,7 @@ DOWNLOADER_PORT := $(shell sed -n '/downloader:/,/listen_port:/p'      $(CONFIG_
 WEB_FRONTEND_PORT := $(shell sed -n '/web_frontend:/,/listen_port:/p'  $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 GATEWAY_PORT    := $(shell sed -n '/gateway:/,/port:/p'                $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
 
-.PHONY: all build proto proto-generate proto-verify build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean architecture-check docs-check proto-lint proto-breaking test-go ci-check docker-build docker-up docker-down docker-logs docker-status
+.PHONY: all build proto proto-generate proto-verify build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean architecture-check docs-check proto-lint proto-breaking test-go test-scala test-unit test-integration test-e2e test-load ci-check docker-build docker-up docker-down docker-logs docker-status
 
 all: build
 
@@ -222,8 +222,39 @@ proto-breaking:
 test-go:
 	go test ./...
 
+.PHONY: test-scala
+test-scala:
+	@command -v sbt >/dev/null 2>&1 || (echo "❌ sbt not installed"; exit 1)
+	cd dsl-scala && sbt test
+	cd query-builder && sbt test
+
+.PHONY: test-unit
+test-unit:
+	go test -short $$(go list ./... | grep -v '^ebusta/tests')
+
+.PHONY: test-integration
+test-integration:
+	go test ./internal/gateway/... ./internal/logger/... ./cmd/irc-adapter ./cmd/telegram-adapter ./tests/errutil ./tests/gateway
+
+.PHONY: test-e2e
+test-e2e:
+	@set -e; \
+	$(MAKE) docker-up; \
+	ec=0; \
+	for t in ./test/e2e/datamanager.sh ./test/e2e/orchestrator.sh ./test/e2e/cli_results.sh ./test/e2e/errutil.sh ./test/e2e/dsl_multiword.sh; do \
+		echo "▶ Running $$t"; \
+		if ! $$t; then ec=$$?; break; fi; \
+	done; \
+	$(MAKE) docker-down; \
+	exit $$ec
+
+.PHONY: test-load
+test-load:
+	./test/load/load_test.sh
+	./test/load/stress_test.sh
+
 .PHONY: ci-check
-ci-check: test-go proto-verify architecture-check docs-check
+ci-check: test-unit test-integration test-scala proto-verify architecture-check docs-check
 	@echo "✅ ci-check passed"
 
 .PHONY: docker-build

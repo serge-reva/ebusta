@@ -48,7 +48,7 @@ func main() {
 		case "datamanager":
 			*addr = "localhost:50051"
 		case "orchestrator":
-			*addr = "localhost:50053"
+			*addr = "localhost:50054"
 		default:
 			fail("unknown target: %s", *target)
 		}

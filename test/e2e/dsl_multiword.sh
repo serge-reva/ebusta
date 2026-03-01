@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 echo "[1/3] Running DSL parser self-tests"
 (
   cd dsl-scala
-  sbt --batch "runMain ebusta.dsl.ParserSelfTest"
+  sbt "runMain ebusta.dsl.ParserSelfTest"
 )
 
 echo "[2/3] Building dsl-scala and query-builder jars"

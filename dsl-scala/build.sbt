@@ -6,7 +6,8 @@ libraryDependencies ++= Seq(
   "io.grpc" % "grpc-netty-shaded" % "1.58.0",
   "io.grpc" % "grpc-services" % "1.58.0",
   "org.typelevel" %% "cats-effect" % "3.5.2",
-  "org.yaml" % "snakeyaml" % "2.2"
+  "org.yaml" % "snakeyaml" % "2.2",
+  "org.scalatest" %% "scalatest" % "3.2.19" % Test
 )
 
 // ПУТЬ ИСПРАВЛЕН: один уровень вверх (../)

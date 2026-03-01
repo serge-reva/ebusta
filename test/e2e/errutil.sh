@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT_DIR"
+
 # Integration tests for errutil module
 # Tests: TraceID propagation, JSON error format, HTTP headers
 
 BASE_URL="${BASE_URL:-http://localhost:3000}"
-WEB_ADAPTER_URL="${WEB_ADAPTER_URL:-http://localhost:50080}"
+GATEWAY_URL="${GATEWAY_URL:-http://localhost:8443}"
 DOWNLOADER_URL="${DOWNLOADER_URL:-http://localhost:50081}"
 
 echo "=== errutil E2E Tests ==="
 echo "web-frontend: $BASE_URL"
-echo "web-adapter:  $WEB_ADAPTER_URL"
+echo "gateway:      $GATEWAY_URL"
 echo "downloader:   $DOWNLOADER_URL"
 echo ""
 
@@ -68,14 +71,15 @@ test_web_frontend_trace_header() {
 }
 
 # ============================================
-# Test 3: web-adapter returns JSON with TraceID
+# Test 3: gateway returns JSON with TraceID
 # ============================================
-test_web_adapter_trace_id() {
+test_gateway_trace_id() {
     local resp
-    resp=$(curl -sS "$WEB_ADAPTER_URL/search?q=test" 2>&1) || true
+    resp=$(curl -sS -X POST "$GATEWAY_URL/search" \
+      -H 'Content-Type: application/json' \
+      -d '{"query":"test","page":1,"limit":1}' 2>&1) || true
     
-    # Check for TraceId (can be trace_id or TraceId)
-    echo "$resp" | grep -qE '"[Tt]race[_-]?[Ii]d"' || return 1
+    echo "$resp" | grep -q '"trace_id"' || return 1
     
     return 0
 }
@@ -165,7 +169,7 @@ test_invalid_argument_http_code() {
 # ============================================
 run_test "web-frontend error format" test_web_frontend_error_format
 run_test "web-frontend X-Trace-Id header" test_web_frontend_trace_header
-run_test "web-adapter TraceID" test_web_adapter_trace_id
+run_test "gateway TraceID" test_gateway_trace_id
 run_test "downloader error format" test_downloader_error_format
 run_test "downloader X-Trace-Id header" test_downloader_trace_header
 run_test "TraceID format" test_trace_id_format

@@ -34,25 +34,25 @@ Legend:
 | tests/errutil/http_test.go | integration-local | medium | integration | P1 | Useful but duplicated placement. |
 | tests/errutil/trace_test.go | integration-local | medium | integration | P1 | Useful but duplicated placement. |
 | tests/gateway/integration_test.go | pseudo-integration | bad | integration | P1 | Named integration, mostly partial local checks. |
-| tests/test_component_datamanager.sh | e2e-script | medium | e2e | P2 | Depends on running gRPC service. |
-| tests/test_component_orchestrator.sh | e2e-script | medium | e2e | P1 | Updated to current orchestrator port (`50054`), kept as live gRPC check. |
+| test/e2e/datamanager.sh | e2e-script | medium | e2e | P2 | Depends on running gRPC service. |
+| test/e2e/orchestrator.sh | e2e-script | medium | e2e | P1 | Updated to current orchestrator port (`50054`), kept as live gRPC check. |
 | tests/test_component_web_adapter.sh | removed | n/a | drop | done | Removed as legacy web-adapter-only contract test. |
 | tests/test_functional_ast_web_adapter.sh | removed | n/a | drop | done | Removed (legacy `/input` + log-grepping). |
 | tests/test_functional_results_web_adapter.sh | removed | n/a | drop | done | Removed as web-adapter legacy suite. |
 | tests/test_functional_ast_cli.sh | e2e-script | medium | e2e | P1 | Rewritten to API/CLI output assertions (no log-file checks). |
-| tests/test_functional_results_cli.sh | e2e-script | medium | e2e | P2 | Useful contract check, stack-dependent. |
+| test/e2e/cli_results.sh | e2e-script | medium | e2e | P2 | Useful contract check, stack-dependent. |
 | tests/test_e2e_chain_neighbors.sh | removed | n/a | drop | done | Removed as legacy web-adapter/metrics-coupled test. |
-| tests/test_errutil_e2e.sh | e2e-script | medium | e2e | P1 | Valuable contracts, depends on local stack/ports. |
+| test/e2e/errutil.sh | e2e-script | medium | e2e | P1 | Valuable contracts, depends on local stack/ports. |
 | tests/test_logger_e2e.sh | mixed script | medium | integration | P1 | Mixes build/grep checks, should be split. |
-| tests/test_dsl_multiword.sh | integration/e2e script | medium | e2e | P2 | Heavy, but useful end-to-end DSL smoke. |
+| test/e2e/dsl_multiword.sh | integration/e2e script | medium | e2e | P2 | Heavy, but useful end-to-end DSL smoke. |
 | tests/opensearch_test.sh | removed | n/a | drop | done | Removed due to external dependency on `cloud-1`. |
-| tests/opensearch_templates_test.sh | external integration | bad | load | P2 | Diagnostic inspector, not CI-suitable. |
-| tests/load_test.sh | load | bad | load | P2 | Throughput benchmark, not regression test. |
-| tests/stress_test.sh | load | bad | load | P2 | Stress utility, not deterministic CI test. |
+| test/diagnose/opensearch_templates.sh | external integration | bad | load | P2 | Diagnostic inspector, not CI-suitable. |
+| test/load/load_test.sh | load | bad | load | P2 | Throughput benchmark, not regression test. |
+| test/load/stress_test.sh | load | bad | load | P2 | Stress utility, not deterministic CI test. |
 | tests/test_compliance.sh | removed | n/a | drop | done | Removed as legacy compliance script. |
 | tests/compliance_runner.go | removed | n/a | drop | done | Removed as legacy ignored diagnostic utility. |
-| tests/grpc_check/main.go | diagnostic utility | medium | e2e | P2 | Useful helper for smoke checks. |
+| test/utils/grpc_check.go | diagnostic utility | medium | e2e | P2 | Useful helper for smoke checks. |
 | tests/diagnose/main.go | removed | n/a | drop | done | Removed as legacy diagnostics tool with outdated ports/endpoints. |
 | smoke.sh | removed | n/a | drop | done | Removed (referenced non-existent Make targets). |
-| dsl-scala/src/test (missing) | n/a | bad | integration | P1 | No Scala tests for DSL service. |
-| query-builder/src/test (missing) | n/a | bad | integration | P1 | No Scala tests for query-builder service. |
+| dsl-scala/src/test/scala/BookQueryParserSpec.scala | scala-unit | good | unit | P2 | Basic parser coverage in Scala test suite. |
+| query-builder/src/test/scala/OsDslBuilderSpec.scala | scala-unit | good | unit | P2 | Basic JSON generation checks for AST mapping. |

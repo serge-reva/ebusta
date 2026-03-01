@@ -4,6 +4,9 @@
 
 set -e
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT_DIR"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -238,4 +241,3 @@ echo ""
 echo -e "${BLUE}======================================${NC}"
 echo "Test completed at $(date)"
 echo -e "${BLUE}======================================${NC}"
-

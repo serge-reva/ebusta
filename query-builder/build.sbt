@@ -8,7 +8,8 @@ libraryDependencies ++= Seq(
   "org.yaml" % "snakeyaml" % "2.2",
   "io.circe" %% "circe-core" % "0.14.6",
   "io.circe" %% "circe-generic" % "0.14.6",
-  "io.circe" %% "circe-parser" % "0.14.6"
+  "io.circe" %% "circe-parser" % "0.14.6",
+  "org.scalatest" %% "scalatest" % "3.2.19" % Test
 )
 
 // ПУТЬ ИСПРАВЛЕН: один уровень вверх (../)

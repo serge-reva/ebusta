@@ -52,3 +52,11 @@ Test taxonomy and migration baseline are documented here:
 - `test/classification/README.md`
 - `test/classification/inventory.md`
 - `test/classification/ci-matrix.md`
+
+Quick test commands:
+
+- `make test-unit`
+- `make test-integration`
+- `make test-scala`
+- `make test-e2e`
+- `make test-load`

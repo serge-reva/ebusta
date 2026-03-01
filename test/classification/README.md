@@ -1,6 +1,6 @@
 # Test Classification
 
-This directory defines the target test taxonomy for `ebusta` and the migration baseline.
+This directory defines the target test taxonomy for `ebusta`, migration baseline, and execution split.
 
 ## Target Taxonomy
 - `unit`: isolated Go tests, no real network, no external services.
@@ -8,10 +8,13 @@ This directory defines the target test taxonomy for `ebusta` and the migration b
 - `e2e`: end-to-end checks against a running stack (preferably Docker-based).
 - `load/diagnostics`: load tests, stress checks, ad-hoc diagnostics. Not part of PR CI.
 
-## Scope
-- This stage is documentation-only.
-- No test code changes are done here.
-- Classification and migration priorities are tracked in `inventory.md`.
+## Current Layout
+- `test/e2e/`: docker-stack end-to-end scripts.
+- `test/load/`: load and stress scripts (non-CI).
+- `test/diagnose/`: operational diagnostics (non-CI).
+- `test/utils/`: shared test helpers/utilities.
+- `dsl-scala/src/test/scala/`: Scala parser tests.
+- `query-builder/src/test/scala/`: Scala query-builder tests.
 
 ## Priority Levels
 - `P0`: broken or outdated tests that currently block reliable CI (wrong ports, legacy endpoints, log-grepping assertions).
@@ -22,5 +25,12 @@ This directory defines the target test taxonomy for `ebusta` and the migration b
 - PR: `unit + integration` only.
 - Nightly: `e2e`.
 - Manual/on-demand: `load/diagnostics`.
+
+## Make Targets
+- `make test-unit`
+- `make test-integration`
+- `make test-scala`
+- `make test-e2e`
+- `make test-load`
 
 See also: `ci-matrix.md` and `inventory.md`.
