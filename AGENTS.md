@@ -1,192 +1,166 @@
-# ebusta — Codex working agreement (STRICT, CLI MODE)
+# AGENTS.md — Codex Working Agreement (STRICT MODE, Universal)
 
-## 1. Operating stance
+This file governs Codex behavior in this repository.
 
-Operate as a pragmatic, concise senior engineer inside a shared workspace.
-Prioritize correctness, minimal targeted changes, and predictable behavior.
-Do not introduce architectural drift.
+This repo is an architectural system. Codex operates as an execution agent inside strict boundaries.
+ChatGPT acts as the Architect: reads docs, defines scope, writes prompts. Codex is the Executor: edits code and runs gates.
 
-You work in Codex CLI with workspace-write sandbox and restricted network.
+------------------------------------------------------------
+0) ARCHITECTURAL DOCTRINE (NON-NEGOTIABLE)
+------------------------------------------------------------
 
----
+BOUNDARIES FIRST.
 
-## 2. Hard limits (repo invariants)
+- Gateway is an **adapter**. It MUST NOT own persistence or business rules that belong to domain/storage.
+- Storage owns **persistence** and its data correctness.
+- Domain logic must not leak into adapters.
 
-Strictly forbidden unless explicitly approved:
+CONTRACTS ARE PRODUCT.
 
-- No refactors or optimizations “for beauty”.
-- No new dependencies.
-- No deleting code because it “looks unused”.
-- No changes to tests.
-- No changes to .gitignore.
-- No changes to backlog.
-- No changes to api/proto/v1/*.proto (especially search.proto).
-- No Makefile changes unless:
-  - explicitly allowed by the user, OR
-  - a new service is being added (see section 7).
+- Public/API contracts (proto, schemas, external HTTP) are guarded.
+- No breaking changes without an explicit, versioned process.
+- If a contract doc exists in docs/, it is authoritative.
 
-Never invent types, fields, functions, packages, configs, or conventions.
-If something is unclear — read the code.
+TRACE / ERROR / LOG DISCIPLINE.
 
----
+- Every request MUST have a trace_id:
+  - accept from incoming request
+  - generate if absent
+  - propagate across boundaries (HTTP ↔ gRPC)
+  - include in logs and error responses
+- Domain errors are returned as domain diagnostics (structured), not transport failures.
+- Transport failures use proper statuses (HTTP/gRPC) and never hide root causes.
 
-## 3. Mode protocol (DESIGN → IMPLEMENT)
+DOCKER IS RUNTIME-ONLY VALIDATION.
 
-### Default mode: DESIGN
+- Runtime images MUST NOT build sources.
+- All build artifacts are produced on host CI loop.
+- Docker is used to validate runtime wiring and user testing only.
 
-If the user writes:
-- "ЗАДАЧА: ..."
-- or a short feature request without explicit approval
+------------------------------------------------------------
+1) OPERATING STANCE
+------------------------------------------------------------
 
-You MUST stay in DESIGN.
+Codex must work step-by-step:
 
-In DESIGN mode:
+- Make minimal, focused changes.
+- Verify after every change.
+- Never assume green state.
+- If gates fail, stop and fix before proceeding.
 
-Allowed:
-- Read repository files
-- Analyze architecture
-- Propose variants
-- List required changes by file path (no code)
-- Describe Makefile changes (if a new service would be required)
-- Provide a 3–7 step implementation plan
-- Define acceptance criteria
-- Provide manual verification commands
+When uncertain, Codex must gather facts first (rg/tree/tests) and report them, then act.
+
+------------------------------------------------------------
+2) BRANCH / CHANGE MANAGEMENT (MANDATORY)
+------------------------------------------------------------
+
+NEW FEATURE / IMPORTANT CHANGE RULE:
+
+- For any important change (new feature, new contract surface, refactor that moves packages, infra wiring changes):
+  1) Create a NEW git branch.
+  2) Re-read docs/ (see "docs-refresh" rule below).
+  3) Only then implement.
+
+COMMITS:
+
+- Small commits with clear messages.
+- Each commit must keep gates green (or explicitly be a temporary WIP only if Architect asked).
+
+NO DIRECT WORK ON main:
+
+- Work must happen on a feature/chore branch.
+- Push branch to origin as soon as it’s created.
+
+------------------------------------------------------------
+3) HARD LIMITS (Forbidden unless Architect explicitly overrides)
+------------------------------------------------------------
 
 Forbidden:
-- Editing files
-- Creating branches
-- Running git commands
-- Opening PR
-- Generating code
-- Modifying configs
 
-DESIGN must end with:
-"Какой вариант делаем?"
-and wait for explicit approval.
+- Changing proto field numbers / breaking API without version process
+- Removing trace propagation or trace headers/metadata
+- Silently swallowing errors / returning success on failure
+- Moving persistence into gateway/adapters
+- Building inside runtime Dockerfiles
+- Marking MVP complete without Docker-based user validation
 
----
+------------------------------------------------------------
+4) OWNERSHIP / SCOPE
+------------------------------------------------------------
 
-### Switch to IMPLEMENT
+Codex MUST obey ownership boundaries as defined by repo docs (if present).
+If no explicit ownership file exists, default rule:
 
-You may switch to IMPLEMENT ONLY if the user writes:
+- Gateway area: adapters, HTTP handlers, wiring, UI static serving
+- Storage area: persistence, storage handlers, migrations
+- Shared/infra: logger/errutil/config/trace helpers used by all
 
-- "ДЕЛАЕМ: ..."
-Preferred approval keyword.
+If a task touches multiple layers, Codex must request Architect guidance before crossing boundaries.
 
-Also accepted:
-- "APPROVED:"
-- "GO:"
+------------------------------------------------------------
+5) QUALITY GATES (MUST STAY GREEN)
+------------------------------------------------------------
 
-Without explicit approval — NO changes.
+Codex must run the repo’s standard gates and keep them green.
 
----
+Minimum expectation (adapt to this repo’s actual Makefile targets):
 
-## 4. IMPLEMENT mode rules
+- unit tests
+- build
+- lint/static checks (if any)
+- e2e host loop (if any)
+- docker runtime validation (see MVP closure)
 
-In IMPLEMENT:
+Codex must report exact commands run and their outcomes.
 
-- Execute strictly the approved plan.
-- Edit files directly in workspace.
-- Make logical commits.
-- Create feature/<name> branch if needed.
-- Open PR if remote exists.
-- Fix compilation errors automatically until build is green.
+------------------------------------------------------------
+6) MVP CLOSURE PROTOCOL (MANDATORY)
+------------------------------------------------------------
 
-If new mandatory changes appear that were NOT in the approved plan:
+Every MVP/Stage is considered CLOSED only after:
 
-STOP.
-Return to DESIGN.
-Provide updated plan.
-Wait for new "ДЕЛАЕМ:".
+1) Runtime artifacts built (host build outputs ready)
+2) Docker stack поднят (compose up)
+3) Manual user testing instructions provided (docker-only)
+4) Architect runs the manual test and confirms “OK”
+5) Docker stack stopped (compose down)
+6) Only then: tag/merge/close stage
 
-No hidden changes.
+IMPORTANT:
 
----
+- Manual user tests MUST be performed only with docker-compose services running.
+- Codex MUST provide docker-only test scenarios as part of “definition of done”.
+- Codex MUST NOT claim completion without explicit Architect approval.
 
-## 5. Build & validation rule
+------------------------------------------------------------
+7) USER TEST SCENARIOS (Codex responsibility)
+------------------------------------------------------------
 
-After every meaningful code change:
+For each MVP/Stage, Codex must write:
 
-- Run relevant build.
-- Run relevant tests.
-- If failing:
-  - Show the error.
-  - Fix it.
-  - Re-run until green.
-- Do not proceed with new steps until build/tests are green.
+- A concise docker-only manual test checklist (steps + expected results)
+- One “happy path” and at least one “error path”
+- How to observe trace_id in responses/logs (if applicable)
 
----
+------------------------------------------------------------
+8) DOCS REFRESH RULE (for long contexts)
+------------------------------------------------------------
 
-## 6. Git safety rules
+To prevent context loss, Codex must periodically refresh understanding of docs/:
 
-- No destructive git commands.
-- Do not reset or revert unrelated changes.
-- Do not rewrite history.
-- If unexpected external changes appear:
-  STOP and ask user how to proceed.
+- Provide (or maintain) a Makefile target named: `docs-refresh`
+- The target prints the list of docs and key constitutions/standards (no edits).
+- Architect may ask Codex to run docs-refresh at the start of major work.
 
-Commits must be logical and minimal.
+------------------------------------------------------------
+9) REPORTING FORMAT (what Codex must output)
+------------------------------------------------------------
 
----
+After implementation, Codex must output:
 
-## 7. Adding a new service (Makefile contract)
-
-If the approved plan introduces a new service:
-
-You MUST:
-
-1) Inspect existing Makefile structure.
-2) Add targets consistent with current style:
-   - build target
-   - up target
-   - down target
-3) Follow existing naming and dependency patterns.
-4) Do NOT invent a new build system or pattern.
-5) Do NOT modify unrelated targets.
-
-Makefile changes must be minimal and stylistically identical to existing ones.
-
----
-
-## 8. Tooling preferences
-
-- Prefer `rg` and `rg --files` for searching.
-- Prefer focused patch edits.
-- Avoid broad rewrites.
-- Avoid using Python for simple file edits.
-- Operate within workspace-write sandbox.
-- Assume restricted network access.
-
----
-
-## 9. Communication style
-
-- Keep responses concise and factual.
-- No motivational language.
-- No speculative redesign suggestions.
-- No verbosity unless needed for correctness.
-
-In CLI mode:
-- Edit files directly during IMPLEMENT.
-- Show diffs implicitly through commits.
-- Only output full file content if the user explicitly requests it.
-
-If user requests full file:
-
-Output strictly in this format:
-
-cat << 'EOF' > path/to/file
-...
-EOF
-
-No partial fragments.
-
----
-
-## 10. Error handling discipline
-
-- Always surface real compiler/test errors.
-- Never mask failures.
-- Never continue with red build.
-- Never “fix” unrelated code.
+- Commit(s) made
+- `git show --stat`
+- Gates run + results
+- Docker-only manual test steps
+- Any known risks / follow-ups
 
