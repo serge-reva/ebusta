@@ -6,6 +6,8 @@ import fs2.grpc.syntax.all.*
 import scala.util.parsing.combinator.*
 import io.grpc.Metadata
 import io.grpc.protobuf.services.ProtoReflectionService
+import io.grpc.protobuf.services.HealthStatusManager
+import io.grpc.health.v1.HealthCheckResponse.ServingStatus
 
 import java.io.{FileWriter, FileInputStream}
 import java.time.LocalDateTime
@@ -137,10 +139,13 @@ object Main extends IOApp {
 
       _ <- logger.info(s"Listening on $host:$port")
       _ <- DslTransformerFs2Grpc.bindServiceResource[IO](new DslImpl(logger)).flatMap { service =>
+        val health = new HealthStatusManager()
+        health.setStatus("", ServingStatus.SERVING)
         Resource.make(
           IO(
             NettyServerBuilder.forPort(port)
               .addService(service)
+              .addService(health.getHealthService)
               .addService(ProtoReflectionService.newInstance())
               .build()
               .start()

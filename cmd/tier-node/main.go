@@ -15,6 +15,8 @@ import (
 	"ebusta/internal/downloads/tier"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 func main() {
@@ -67,6 +69,9 @@ func main() {
 	}
 
 	s := grpc.NewServer()
+	hs := health.NewServer()
+	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	healthpb.RegisterHealthServer(s, hs)
 	libraryv1.RegisterStorageNodeServer(s, node)
 
 	serveErr := make(chan error, 1)

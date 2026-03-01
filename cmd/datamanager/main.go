@@ -21,6 +21,8 @@ import (
 	"ebusta/internal/logger"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type storageServer struct {
@@ -186,6 +188,9 @@ func main() {
 	}
 
 	s := grpc.NewServer()
+	hs := health.NewServer()
+	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	healthpb.RegisterHealthServer(s, hs)
 	libraryv1.RegisterStorageServiceServer(s, &storageServer{cfg: cfg})
 
 	logger.GetGlobal().WithField("addr", cfg.Datamanager.Address()).InfoCtx(context.Background(), "[datamanager] started")

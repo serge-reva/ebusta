@@ -6,6 +6,8 @@ import fs2.grpc.syntax.all.*
 import io.grpc.Metadata
 // ВАЖНО: Импорт Reflection
 import io.grpc.protobuf.services.ProtoReflectionService
+import io.grpc.protobuf.services.HealthStatusManager
+import io.grpc.health.v1.HealthCheckResponse.ServingStatus
 
 import io.circe.*
 import io.circe.syntax.*
@@ -179,10 +181,13 @@ object Main extends IOApp {
       val serverResource = for {
         _ <- Resource.eval(logger.info(s"Listening on $host:$port"))
         service <- QueryBuilderFs2Grpc.bindServiceResource[IO](new QueryBuilderImpl(logger))
+        health = new HealthStatusManager()
+        _ <- Resource.eval(IO(health.setStatus("", ServingStatus.SERVING)))
         server <- Resource.make(
           IO(
             NettyServerBuilder.forPort(port)
               .addService(service)
+              .addService(health.getHealthService)
               .addService(ProtoReflectionService.newInstance()) // <--- ВКЛЮЧАЕМ REFLECTION
               .build()
               .start()

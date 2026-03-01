@@ -15,6 +15,8 @@ import (
     "ebusta/internal/logger"
 
     "google.golang.org/grpc"
+    "google.golang.org/grpc/health"
+    healthpb "google.golang.org/grpc/health/grpc_health_v1"
     "gopkg.in/yaml.v3"
 )
 
@@ -73,7 +75,17 @@ func (s *authServer) CheckAccess(ctx context.Context, req *libraryv1.AccessReque
 func main() {
     logger.InitFromConfig(config.Get().Logger, "auth")
 
-    data, err := os.ReadFile("cmd/auth-manager/whitelist.yaml")
+    whitelistPath := os.Getenv("EBUSTA_WHITELIST")
+    if whitelistPath == "" {
+        whitelistPath = "cmd/auth-manager/whitelist.yaml"
+    }
+
+    data, err := os.ReadFile(whitelistPath)
+    if err != nil && whitelistPath == "cmd/auth-manager/whitelist.yaml" {
+        // Docker/runtime fallback path.
+        whitelistPath = "/app/whitelist.yaml"
+        data, err = os.ReadFile(whitelistPath)
+    }
     if err != nil {
         logger.GetGlobal().FatalCtx(context.Background(), "failed to read whitelist", err)
     }
@@ -89,6 +101,9 @@ func main() {
     }
 
     s := grpc.NewServer()
+    hs := health.NewServer()
+    hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+    healthpb.RegisterHealthServer(s, hs)
     libraryv1.RegisterAuthServiceServer(s, &authServer{whitelist: wl})
 
     logger.GetGlobal().WithField("addr", ":50055").InfoCtx(context.Background(), "[auth] started")

@@ -11,10 +11,10 @@ services:
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 50052 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50052"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 20s
     restart: unless-stopped
 
@@ -30,10 +30,10 @@ services:
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 50053 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50053"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 20s
     restart: unless-stopped
 
@@ -49,10 +49,10 @@ services:
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
     healthcheck:
-      test: ["CMD-SHELL", "nc -z datamanager 50051 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50051"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 10s
     restart: unless-stopped
 
@@ -75,10 +75,10 @@ services:
       datamanager:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "nc -z orchestrator 50054 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50054"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 10s
     restart: unless-stopped
 
@@ -95,10 +95,10 @@ services:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 50110 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50110"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 10s
     restart: unless-stopped
 
@@ -118,10 +118,10 @@ services:
       archive-node:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 50111 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50111"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 10s
     restart: unless-stopped
 
@@ -141,10 +141,10 @@ services:
       tier-node:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 50112 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50112"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 10s
     restart: unless-stopped
 
@@ -164,10 +164,31 @@ services:
       plasma-node:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:50081/books/invalid >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:50081/health >/dev/null || exit 1"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  auth-manager:
+    image: ebusta-auth-manager:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.auth-manager
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+      EBUSTA_WHITELIST: /app/whitelist.yaml
+    ports:
+      - "50055:50055"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./cmd/auth-manager/whitelist.yaml:/app/whitelist.yaml:ro
+    healthcheck:
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50055"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
       start_period: 10s
     restart: unless-stopped
 
@@ -188,10 +209,59 @@ services:
         condition: service_healthy
       downloader:
         condition: service_healthy
+      auth-manager:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8443/health >/dev/null || exit 1"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  web-frontend:
+    image: ebusta-web-frontend:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web-frontend
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+      downloader:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  telegram-adapter:
+    profiles: ["adapters"]
+    image: ebusta-telegram-adapter:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.telegram-adapter
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    ports:
+      - "8087:8087"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+    depends_on:
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8087/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
       start_period: 10s
     restart: unless-stopped

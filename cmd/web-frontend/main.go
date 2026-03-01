@@ -35,6 +35,7 @@ func main() {
     mux.HandleFunc("/", h.handleIndex)
     mux.HandleFunc("/search", h.handleSearch)
     mux.HandleFunc("/download/", h.handleDownload)
+    mux.HandleFunc("/health", h.handleHealth)
     mux.HandleFunc("/healthz", h.handleHealth)
 
     addr := wfCfg.ListenAddr()

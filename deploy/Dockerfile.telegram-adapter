@@ -1,0 +1,15 @@
+FROM debian:stable-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /app /var/log/ebusta
+
+WORKDIR /app
+
+COPY ./bin/telegram-adapter /app/telegram-adapter
+COPY ./deploy/ebusta.docker.yaml /app/ebusta.yaml
+
+EXPOSE 8087
+
+ENTRYPOINT ["/app/telegram-adapter"]

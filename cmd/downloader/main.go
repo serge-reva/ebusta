@@ -39,6 +39,11 @@ func main() {
     client := libraryv1.NewStorageNodeClient(conn)
 
     mux := http.NewServeMux()
+    mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusOK)
+        _, _ = w.Write([]byte(`{"status":"ok"}`))
+    })
 
     mux.HandleFunc("/books/", func(w http.ResponseWriter, r *http.Request) {
         start := time.Now()

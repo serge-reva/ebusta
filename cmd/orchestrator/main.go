@@ -16,6 +16,8 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type orchestratorServer struct {
@@ -109,6 +111,9 @@ func main() {
 	}
 
 	s := grpc.NewServer()
+	hs := health.NewServer()
+	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	healthpb.RegisterHealthServer(s, hs)
 	libraryv1.RegisterOrchestratorServiceServer(s, &orchestratorServer{
 		dslClient: libraryv1.NewDslTransformerClient(dslConn),
 		qbClient:  libraryv1.NewQueryBuilderClient(qbConn),
