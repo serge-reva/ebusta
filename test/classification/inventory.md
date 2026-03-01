@@ -35,24 +35,24 @@ Legend:
 | tests/errutil/trace_test.go | integration-local | medium | integration | P1 | Useful but duplicated placement. |
 | tests/gateway/integration_test.go | pseudo-integration | bad | integration | P1 | Named integration, mostly partial local checks. |
 | tests/test_component_datamanager.sh | e2e-script | medium | e2e | P2 | Depends on running gRPC service. |
-| tests/test_component_orchestrator.sh | e2e-script | bad | e2e | P0 | Uses outdated orchestrator port (`50053`). |
-| tests/test_component_web_adapter.sh | e2e-script | bad | drop | P0 | Legacy endpoint `/input`, outdated behavior. |
-| tests/test_functional_ast_web_adapter.sh | e2e-script | bad | drop | P0 | Legacy `/input` + log-grepping (`orch.log`). |
-| tests/test_functional_results_web_adapter.sh | e2e-script | bad | drop | P0 | Legacy `/input` endpoint. |
-| tests/test_functional_ast_cli.sh | e2e-script | bad | e2e | P0 | Asserts via log file patterns; flaky by design. |
+| tests/test_component_orchestrator.sh | e2e-script | medium | e2e | P1 | Updated to current orchestrator port (`50054`), kept as live gRPC check. |
+| tests/test_component_web_adapter.sh | removed | n/a | drop | done | Removed as legacy web-adapter-only contract test. |
+| tests/test_functional_ast_web_adapter.sh | removed | n/a | drop | done | Removed (legacy `/input` + log-grepping). |
+| tests/test_functional_results_web_adapter.sh | removed | n/a | drop | done | Removed as web-adapter legacy suite. |
+| tests/test_functional_ast_cli.sh | e2e-script | medium | e2e | P1 | Rewritten to API/CLI output assertions (no log-file checks). |
 | tests/test_functional_results_cli.sh | e2e-script | medium | e2e | P2 | Useful contract check, stack-dependent. |
-| tests/test_e2e_chain_neighbors.sh | e2e-script | bad | drop | P0 | Legacy web-adapter `/input` and metric coupling. |
+| tests/test_e2e_chain_neighbors.sh | removed | n/a | drop | done | Removed as legacy web-adapter/metrics-coupled test. |
 | tests/test_errutil_e2e.sh | e2e-script | medium | e2e | P1 | Valuable contracts, depends on local stack/ports. |
 | tests/test_logger_e2e.sh | mixed script | medium | integration | P1 | Mixes build/grep checks, should be split. |
 | tests/test_dsl_multiword.sh | integration/e2e script | medium | e2e | P2 | Heavy, but useful end-to-end DSL smoke. |
-| tests/opensearch_test.sh | external integration | bad | drop | P0 | Depends on external OpenSearch (`cloud-1`). |
+| tests/opensearch_test.sh | removed | n/a | drop | done | Removed due to external dependency on `cloud-1`. |
 | tests/opensearch_templates_test.sh | external integration | bad | load | P2 | Diagnostic inspector, not CI-suitable. |
 | tests/load_test.sh | load | bad | load | P2 | Throughput benchmark, not regression test. |
 | tests/stress_test.sh | load | bad | load | P2 | Stress utility, not deterministic CI test. |
-| tests/test_compliance.sh | legacy integration script | bad | drop | P0 | Legacy converter path and brittle shell assertions. |
-| tests/compliance_runner.go | diagnostic utility | bad | drop | P0 | `//go:build ignore`, legacy import path. |
+| tests/test_compliance.sh | removed | n/a | drop | done | Removed as legacy compliance script. |
+| tests/compliance_runner.go | removed | n/a | drop | done | Removed as legacy ignored diagnostic utility. |
 | tests/grpc_check/main.go | diagnostic utility | medium | e2e | P2 | Useful helper for smoke checks. |
-| tests/diagnose/main.go | diagnostic utility | bad | drop | P0 | Legacy ports and legacy web-adapter endpoint. |
-| smoke.sh | script wrapper | bad | drop | P0 | Calls missing Makefile targets (`run/smoke-test/stop`). |
+| tests/diagnose/main.go | removed | n/a | drop | done | Removed as legacy diagnostics tool with outdated ports/endpoints. |
+| smoke.sh | removed | n/a | drop | done | Removed (referenced non-existent Make targets). |
 | dsl-scala/src/test (missing) | n/a | bad | integration | P1 | No Scala tests for DSL service. |
 | query-builder/src/test (missing) | n/a | bad | integration | P1 | No Scala tests for query-builder service. |
