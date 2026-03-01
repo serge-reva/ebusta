@@ -11,7 +11,6 @@ import io.grpc.health.v1.HealthCheckResponse.ServingStatus
 
 import io.circe.*
 import io.circe.syntax.*
-import io.circe.parser.*
 
 import java.io.{FileWriter, FileInputStream}
 import java.time.LocalDateTime
@@ -108,22 +107,48 @@ object OsDslBuilder {
 object OsStrategy {
   private def isExactField(field: String): Boolean = field == "author_exact" || field == "title_exact" || field == "_all_exact"
 
-  def build(ast: SearchQuery, size: Int, from: Int): (Json, QueryType) = {
+  private def cacheKey(ast: SearchQuery): String = ast.toProtoString
+
+  private def addPagination(base: Json, qType: QueryType, size: Int, from: Int): Json = {
+    qType match {
+      case QueryType.TEMPLATE =>
+        val paramsObj = base.hcursor.downField("params").focus.flatMap(_.asObject).getOrElse(JsonObject.empty)
+        base.deepMerge(
+          Json.obj(
+            "params" -> Json.fromJsonObject(
+              paramsObj
+                .add("size", size.toString.asJson)
+                .add("from", from.toString.asJson)
+            )
+          )
+        )
+      case _ =>
+        Json.obj("size" -> size.asJson, "from" -> from.asJson).deepMerge(base)
+    }
+  }
+
+  private def buildBase(ast: SearchQuery): (Json, QueryType) = {
     ast.query match {
       case SearchQuery.Query.Filter(filter) =>
         if (isExactField(filter.field)) {
           val dslQuery = OsDslBuilder.toDsl(ast)
-          (Json.obj("size" -> size.asJson, "from" -> from.asJson, "query" -> dslQuery), QueryType.DSL)
+          (Json.obj("query" -> dslQuery), QueryType.DSL)
         } else {
           val (tplId, params) = mapToTemplate(filter.field, filter.value)
-          val fullParams = params ++ Map("size" -> size.toString, "from" -> from.toString)
-          (Json.obj("id" -> tplId.asJson, "params" -> fullParams.asJson), QueryType.TEMPLATE)
+          (Json.obj("id" -> tplId.asJson, "params" -> params.asJson), QueryType.TEMPLATE)
         }
       case SearchQuery.Query.Logical(_) =>
         val dslQuery = OsDslBuilder.toDsl(ast)
-        (Json.obj("size" -> size.asJson, "from" -> from.asJson, "query" -> dslQuery), QueryType.DSL)
+        (Json.obj("query" -> dslQuery), QueryType.DSL)
       case _ => (Json.obj(), QueryType.DSL)
     }
+  }
+
+  def build(ast: SearchQuery, size: Int, from: Int): (Json, QueryType) = {
+    val (base, qType) = QueryCache.getOrCompute(cacheKey(ast)) {
+      buildBase(ast)
+    }
+    (addPagination(base, qType, size, from), qType)
   }
 
   private def mapToTemplate(field: String, value: String): (String, Map[String, String]) = field match {
@@ -155,14 +180,37 @@ class QueryBuilderImpl(logger: SimpleLogger) extends QueryBuilderFs2Grpc[IO, Met
 }
 
 object Main extends IOApp {
+  case class RuntimeConfig(
+    host: String,
+    port: Int,
+    cacheMaxSize: Long,
+    cacheTtlSeconds: Long
+  )
+
   def getConfigPath(): String = sys.env.getOrElse("EBUSTA_CONFIG", "ebusta.yaml")
    
-  def loadConfig(path: String): (String, Int) = {
+  def loadConfig(path: String): RuntimeConfig = {
     val input = new FileInputStream(path)
     val yaml = new Yaml()
     val data = yaml.load(input).asInstanceOf[JMap[String, Any]]
     val section = data.get("query_builder").asInstanceOf[JMap[String, Any]]
-    (section.get("host").toString, section.get("port").toString.toDouble.toInt)
+    val host = section.get("host").toString
+    val port = section.get("port").toString.toDouble.toInt
+
+    val cacheSection = Option(section.get("cache")).map(_.asInstanceOf[JMap[String, Any]])
+    val cacheMaxSize = cacheSection
+      .flatMap(s => Option(s.get("max_size")))
+      .orElse(Option(section.get("cache_max_size")))
+      .map(_.toString.toDouble.toLong)
+      .getOrElse(1000L)
+
+    val cacheTtlSeconds = cacheSection
+      .flatMap(s => Option(s.get("ttl_seconds")))
+      .orElse(Option(section.get("cache_ttl_seconds")))
+      .map(_.toString.toDouble.toLong)
+      .getOrElse(60L)
+
+    RuntimeConfig(host, port, cacheMaxSize, cacheTtlSeconds)
   }
 
   override def run(args: List[String]): IO[ExitCode] = {
@@ -177,15 +225,17 @@ object Main extends IOApp {
       }
     } yield config
 
-    initStep.flatMap { case (host, port) =>
+    initStep.flatMap { cfg =>
       val serverResource = for {
-        _ <- Resource.eval(logger.info(s"Listening on $host:$port"))
+        _ <- Resource.eval(logger.info(s"Listening on ${cfg.host}:${cfg.port}"))
+        _ <- Resource.eval(IO(QueryCache.configure(cfg.cacheMaxSize, cfg.cacheTtlSeconds)))
+        _ <- Resource.eval(logger.info(s"Cache configured: max_size=${cfg.cacheMaxSize} ttl_seconds=${cfg.cacheTtlSeconds}"))
         service <- QueryBuilderFs2Grpc.bindServiceResource[IO](new QueryBuilderImpl(logger))
         health = new HealthStatusManager()
         _ <- Resource.eval(IO(health.setStatus("", ServingStatus.SERVING)))
         server <- Resource.make(
           IO(
-            NettyServerBuilder.forPort(port)
+            NettyServerBuilder.forPort(cfg.port)
               .addService(service)
               .addService(health.getHealthService)
               .addService(ProtoReflectionService.newInstance()) // <--- ВКЛЮЧАЕМ REFLECTION

@@ -6,6 +6,7 @@ libraryDependencies ++= Seq(
   "io.grpc" % "grpc-netty-shaded" % "1.58.0",
   "io.grpc" % "grpc-services" % "1.58.0",
   "org.yaml" % "snakeyaml" % "2.2",
+  "com.github.ben-manes.caffeine" % "caffeine" % "3.1.8",
   "io.circe" %% "circe-core" % "0.14.6",
   "io.circe" %% "circe-generic" % "0.14.6",
   "io.circe" %% "circe-parser" % "0.14.6",
