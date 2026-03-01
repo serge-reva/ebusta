@@ -105,15 +105,27 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    logger.GetGlobal().WithField("sha1", sha1).
-        WithField("trace_id", traceID).
-        InfoCtx(r.Context(), "[web-frontend] download request")
+	logger.GetGlobal().WithField("sha1", sha1).
+		WithField("trace_id", traceID).
+		InfoCtx(r.Context(), "[web-frontend] download request")
 
-    downloadURL := fmt.Sprintf("http://%s/books/%s", h.downloaderAddr, sha1)
-    dlResp, err := http.Get(downloadURL)
-    if err != nil {
-        logger.GetGlobal().WithField("downloader", h.downloaderAddr).
-            ErrorCtx(r.Context(), "[web-frontend] downloader unavailable", err)
+	downloadURL := fmt.Sprintf("http://%s/books/%s", h.downloaderAddr, sha1)
+	dlReq, err := http.NewRequest(http.MethodGet, downloadURL, nil)
+	if err != nil {
+		logger.GetGlobal().WithField("downloader", h.downloaderAddr).
+			ErrorCtx(r.Context(), "[web-frontend] downloader request build failed", err)
+		errutil.WriteJSONError(w, errutil.New(
+			errutil.CodeInternal,
+			"ошибка подготовки запроса скачивания",
+		).WithTrace(traceID).WithDetails(err.Error()))
+		return
+	}
+	dlReq.Header.Set("X-Trace-Id", traceID)
+
+	dlResp, err := http.DefaultClient.Do(dlReq)
+	if err != nil {
+		logger.GetGlobal().WithField("downloader", h.downloaderAddr).
+			ErrorCtx(r.Context(), "[web-frontend] downloader unavailable", err)
         errutil.WriteJSONError(w, errutil.New(
             errutil.CodeUnavailable,
             "сервис скачивания недоступен",

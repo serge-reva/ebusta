@@ -5,6 +5,7 @@ import (
 
 	libraryv1 "ebusta/api/proto/v1"
 	"ebusta/internal/config"
+	"ebusta/internal/errutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -65,8 +66,9 @@ func (c *OrchestratorClient) Search(ctx context.Context, req *SearchRequest) (*S
 	}
 
 	offset := (req.Page - 1) * limit
+	outCtx := errutil.ContextWithTraceID(ctx, req.TraceID)
 
-	resp, err := c.client.Search(ctx, &libraryv1.SearchRequest{
+	resp, err := c.client.Search(outCtx, &libraryv1.SearchRequest{
 		Query:   req.Query,
 		Limit:   int32(limit),
 		Offset:  int32(offset),

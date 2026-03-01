@@ -43,7 +43,13 @@ func (c *DownloaderClient) GetMetaWithTrace(sha1, traceID string) (*BookMeta, er
 func (c *DownloaderClient) getMeta(sha1, traceID string) (*BookMeta, error) {
 	url := fmt.Sprintf("%s/books/%s?meta=1", c.baseURL, sha1)
 
-	resp, err := c.httpClient.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Trace-Id", traceID)
+
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +81,13 @@ func (c *DownloaderClient) StreamBookWithTrace(sha1 string, w io.Writer, traceID
 func (c *DownloaderClient) streamBook(sha1 string, w io.Writer, traceID string) error {
 	url := fmt.Sprintf("%s/books/%s", c.baseURL, sha1)
 
-	resp, err := c.httpClient.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-Trace-Id", traceID)
+
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
 	}

@@ -361,7 +361,8 @@ func (n *Node) ensureLocal(ctx context.Context, sha1, traceID string) error {
 }
 
 func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error {
-    metaResp, err := n.parent.GetMeta(ctx, &libraryv1.GetMetaRequest{Id: &libraryv1.BookId{Sha1: sha1}})
+    outCtx := errutil.ContextWithTraceID(ctx, traceID)
+    metaResp, err := n.parent.GetMeta(outCtx, &libraryv1.GetMetaRequest{Id: &libraryv1.BookId{Sha1: sha1}})
     if err != nil {
         appErr := errutil.FromGRPCError(err, traceID)
         logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[tier] fetchFromParent: GetMeta error", err)
@@ -401,7 +402,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
         ).WithTrace(traceID).WithDetails(err.Error()))
     }
 
-    st, err := n.parent.GetStream(ctx, &libraryv1.GetStreamRequest{Id: &libraryv1.BookId{Sha1: sha1}})
+    st, err := n.parent.GetStream(outCtx, &libraryv1.GetStreamRequest{Id: &libraryv1.BookId{Sha1: sha1}})
     if err != nil {
         _ = tf.Close()
         _ = os.Remove(tmpPath)

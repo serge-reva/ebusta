@@ -30,7 +30,8 @@ func (s *orchestratorServer) Search(ctx context.Context, req *libraryv1.SearchRe
 		WithField("trace_id", traceID).
 		InfoCtx(ctx, "[orchestrator] search request")
 
-	dslResp, err := s.dslClient.Transform(ctx, &libraryv1.DslRequest{
+	outCtx := errutil.ContextWithTraceID(ctx, traceID)
+	dslResp, err := s.dslClient.Transform(outCtx, &libraryv1.DslRequest{
 		Query: req.GetQuery(),
 	})
 	if err != nil {
@@ -47,7 +48,7 @@ func (s *orchestratorServer) Search(ctx context.Context, req *libraryv1.SearchRe
 		return nil, errutil.ToGRPCError(appErr)
 	}
 
-	qbResp, err := s.qbClient.Build(ctx, &libraryv1.BuildRequest{
+	qbResp, err := s.qbClient.Build(outCtx, &libraryv1.BuildRequest{
 		Ast:  dslResp.GetAst(),
 		Size: req.GetLimit(),
 		From: req.GetOffset(),
@@ -69,7 +70,7 @@ func (s *orchestratorServer) Search(ctx context.Context, req *libraryv1.SearchRe
 		execType = "TEMPLATE"
 	}
 
-	resp, err := s.dmClient.SearchBooks(ctx, &libraryv1.SearchRequest{
+	resp, err := s.dmClient.SearchBooks(outCtx, &libraryv1.SearchRequest{
 		Query:               req.GetQuery(),
 		Ast:                 dslResp.GetAst(),
 		Limit:               req.GetLimit(),

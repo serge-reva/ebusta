@@ -257,7 +257,8 @@ func (n *Node) Put(stream libraryv1.StorageNode_PutServer) error {
     l := logger.GetGlobal().WithField("sha1", meta.GetSha1()).WithField("size", len(buf)).WithField("title", meta.GetTitle())
     l.InfoCtx(ctx, "[plasma] PUT stored")
 
-    ps, perr := n.parent.Put(ctx)
+    outCtx := errutil.ContextWithTraceID(ctx, traceID)
+    ps, perr := n.parent.Put(outCtx)
     if perr != nil {
         logger.GetGlobal().ErrorCtx(ctx, "[plasma] PUT proxy error", perr)
         return stream.SendAndClose(&libraryv1.PutResponse{Stored: true, Meta: meta})
@@ -295,7 +296,8 @@ func (n *Node) ensureLocal(ctx context.Context, sha1, traceID string) error {
 }
 
 func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error {
-    metaResp, err := n.parent.GetMeta(ctx, &libraryv1.GetMetaRequest{Id: &libraryv1.BookId{Sha1: sha1}})
+    outCtx := errutil.ContextWithTraceID(ctx, traceID)
+    metaResp, err := n.parent.GetMeta(outCtx, &libraryv1.GetMetaRequest{Id: &libraryv1.BookId{Sha1: sha1}})
     if err != nil {
         appErr := errutil.FromGRPCError(err, traceID)
         logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[plasma] fetchFromParent GetMeta error", err)
@@ -324,7 +326,7 @@ func (n *Node) fetchFromParent(ctx context.Context, sha1, traceID string) error 
         ).WithTrace(traceID))
     }
 
-    st, err := n.parent.GetStream(ctx, &libraryv1.GetStreamRequest{Id: &libraryv1.BookId{Sha1: sha1}})
+    st, err := n.parent.GetStream(outCtx, &libraryv1.GetStreamRequest{Id: &libraryv1.BookId{Sha1: sha1}})
     if err != nil {
         appErr := errutil.FromGRPCError(err, traceID)
         logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "[plasma] fetchFromParent GetStream error", err)

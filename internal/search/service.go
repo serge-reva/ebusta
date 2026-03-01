@@ -66,7 +66,8 @@ func (s *Service) Search(ctx context.Context, query string, limit int, offset in
         return nil, errutil.New(errutil.CodeInvalidArgument, err.Error()).WithTrace(traceID)
     }
 
-    resp, err := s.client.Search(ctx, &libraryv1.SearchRequest{
+    outCtx := errutil.ContextWithTraceID(ctx, traceID)
+    resp, err := s.client.Search(outCtx, &libraryv1.SearchRequest{
         Query:   q,
         Limit:   int32(limit),
         Offset:  int32(offset),
