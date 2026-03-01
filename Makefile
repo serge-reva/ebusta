@@ -27,18 +27,28 @@ DOWNLOADER_PORT := $(shell sed -n '/downloader:/,/listen_port:/p'      $(CONFIG_
 WEB_FRONTEND_PORT := $(shell sed -n '/web_frontend:/,/listen_port:/p'  $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 GATEWAY_PORT    := $(shell sed -n '/gateway:/,/port:/p'                $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
 
-.PHONY: all build proto build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean architecture-check docs-check proto-lint proto-breaking test-go ci-check docker-build docker-up docker-down docker-logs docker-status
+.PHONY: all build proto proto-generate proto-verify build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean architecture-check docs-check proto-lint proto-breaking test-go ci-check docker-build docker-up docker-down docker-logs docker-status
 
 all: build
 
-proto:
+proto: proto-generate
+
+proto-generate:
 	@echo "🛠 Generating protobuf..."
+	@command -v protoc >/dev/null 2>&1 || (echo "❌ protoc not installed. Install protobuf compiler."; exit 1)
+	@command -v protoc-gen-go >/dev/null 2>&1 || (echo "❌ protoc-gen-go not installed. Run: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest"; exit 1)
+	@command -v protoc-gen-go-grpc >/dev/null 2>&1 || (echo "❌ protoc-gen-go-grpc not installed. Run: go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest"; exit 1)
 	@mkdir -p $(BIN_DIR)
 	protoc --proto_path=$(API_PROTO_DIR) \
 		--go_out=paths=import:. --go_opt=module=ebusta \
 		--go-grpc_out=paths=import:. --go-grpc_opt=module=ebusta \
 		$(API_PROTO_DIR)/*.proto
 	@go mod tidy
+
+.PHONY: proto-verify
+proto-verify: proto-generate proto-lint proto-breaking
+	@git diff --quiet -- $(API_PROTO_DIR)/*.pb.go $(API_PROTO_DIR)/*_grpc.pb.go || (echo "❌ Generated proto files are out of date. Run 'make proto-generate' and commit changes."; exit 1)
+	@echo "✅ proto-verify passed"
 
 build-scala: $(DSL_JAR) $(QB_JAR)
 	@echo "✅ Scala build up-to-date."
@@ -213,7 +223,7 @@ test-go:
 	go test ./...
 
 .PHONY: ci-check
-ci-check: test-go proto-lint proto-breaking architecture-check docs-check
+ci-check: test-go proto-verify architecture-check docs-check
 	@echo "✅ ci-check passed"
 
 .PHONY: docker-build
