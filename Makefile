@@ -220,7 +220,7 @@ proto-breaking:
 
 .PHONY: test-go
 test-go:
-	go test ./...
+	go test $$(go list ./... | grep -v -e '^ebusta/old_do_not_use')
 
 .PHONY: test-scala
 test-scala:
@@ -230,11 +230,11 @@ test-scala:
 
 .PHONY: test-unit
 test-unit:
-	go test -short $$(go list ./... | grep -v '^ebusta/tests')
+	go test -short $$(go list ./... | grep -v -e '^ebusta/tests' -e '^ebusta/old_do_not_use')
 
 .PHONY: test-integration
 test-integration:
-	go test ./internal/gateway/... ./internal/logger/... ./cmd/irc-adapter ./cmd/telegram-adapter ./tests/errutil ./tests/gateway
+	go test $$(go list ./internal/gateway/... ./internal/logger/... ./cmd/irc-adapter ./cmd/telegram-adapter ./tests/errutil ./tests/gateway | grep -v -e '^ebusta/old_do_not_use')
 
 .PHONY: test-e2e
 test-e2e:
