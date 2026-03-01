@@ -1,0 +1,19 @@
+services:
+  gateway:
+    image: ebusta-gateway:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.gateway
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./ebusta.yaml:/app/ebusta.yaml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8443/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped

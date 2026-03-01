@@ -27,7 +27,7 @@ DOWNLOADER_PORT := $(shell sed -n '/downloader:/,/listen_port:/p'      $(CONFIG_
 WEB_FRONTEND_PORT := $(shell sed -n '/web_frontend:/,/listen_port:/p'  $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 GATEWAY_PORT    := $(shell sed -n '/gateway:/,/port:/p'                $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
 
-.PHONY: all build proto build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean architecture-check docs-check proto-lint proto-breaking test-go ci-check
+.PHONY: all build proto build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean architecture-check docs-check proto-lint proto-breaking test-go ci-check docker-build docker-up docker-down docker-logs docker-status
 
 all: build
 
@@ -215,3 +215,23 @@ test-go:
 .PHONY: ci-check
 ci-check: test-go proto-lint proto-breaking architecture-check docs-check
 	@echo "✅ ci-check passed"
+
+.PHONY: docker-build
+docker-build:
+	docker compose build gateway
+
+.PHONY: docker-up
+docker-up:
+	docker compose up -d gateway
+
+.PHONY: docker-down
+docker-down:
+	docker compose down
+
+.PHONY: docker-logs
+docker-logs:
+	docker compose logs -f gateway
+
+.PHONY: docker-status
+docker-status:
+	docker compose ps
