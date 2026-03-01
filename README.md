@@ -36,6 +36,7 @@
 ```bash
 make build   # Генерация Proto и компиляция всех сервисов
 make run     # Запуск всей системы в фоновом режиме
+```
 
 ## Ops: Prometheus metrics (orchestrator)
 - Metrics endpoint: `http://localhost:50090/metrics`
@@ -44,3 +45,10 @@ make run     # Запуск всей системы в фоновом режим
   - `./scripts/ebusta_metrics.sh check`
   - `./scripts/ebusta_metrics.sh inc 5`
 
+## Testing Classification
+
+Test taxonomy and migration baseline are documented here:
+
+- `test/classification/README.md`
+- `test/classification/inventory.md`
+- `test/classification/ci-matrix.md`
