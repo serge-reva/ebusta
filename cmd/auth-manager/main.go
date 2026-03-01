@@ -7,6 +7,7 @@ import (
 
     "ebusta/api/proto/v1"
     "ebusta/internal/config"
+    "ebusta/internal/errutil"
     "ebusta/internal/logger"
 
     "google.golang.org/grpc"
@@ -29,15 +30,24 @@ type authServer struct {
 }
 
 func (s *authServer) CheckAccess(ctx context.Context, req *libraryv1.AccessRequest) (*libraryv1.AccessResponse, error) {
+    traceID := errutil.TraceIDFromContext(ctx)
+    if traceID == "" {
+        traceID = req.TraceId
+    }
+    if traceID == "" {
+        traceID = errutil.GenerateTraceID("auth")
+    }
+
     logger.GetGlobal().WithField("user", req.UserId).
         WithField("platform", req.Platform).
-        WithField("trace_id", req.TraceId).
+        WithField("trace_id", traceID).
         InfoCtx(ctx, "[auth] checking access")
 
     for _, u := range s.whitelist.Users {
         if u.ID == req.UserId && u.Platform == req.Platform {
             logger.GetGlobal().WithField("user", req.UserId).
                 WithField("role", u.Role).
+                WithField("trace_id", traceID).
                 InfoCtx(ctx, "[auth] access granted")
             return &libraryv1.AccessResponse{
                 Allowed:  true,
@@ -48,6 +58,7 @@ func (s *authServer) CheckAccess(ctx context.Context, req *libraryv1.AccessReque
 
     logger.GetGlobal().WithField("user", req.UserId).
         WithField("platform", req.Platform).
+        WithField("trace_id", traceID).
         WarnCtx(ctx, "[auth] access denied")
     return &libraryv1.AccessResponse{
         Allowed: false,

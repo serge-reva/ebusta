@@ -12,6 +12,7 @@ import (
 
 	libraryv1 "ebusta/api/proto/v1"
 	"ebusta/internal/config"
+	"ebusta/internal/errutil"
 	"ebusta/internal/logger"
 
 	"google.golang.org/grpc"
@@ -106,6 +107,11 @@ func applyPagination(searchJSON string, limit, offset int32) (string, error) {
 }
 
 func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRequest) (*libraryv1.SearchResponse, error) {
+	traceID := errutil.TraceIDFromContext(ctx)
+	if traceID == "" {
+		traceID = errutil.GenerateTraceID("dm")
+	}
+
 	searchJSON := req.GetDebugOpenSearchJson()
 	if searchJSON == "" {
 		return nil, fmt.Errorf("datamanager: debug_open_search_json is empty")
@@ -123,7 +129,7 @@ func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRe
 		url = fmt.Sprintf("%s/%s/_search/template", s.cfg.OpenSearch.URL, s.cfg.OpenSearch.IndexName)
 	}
 
-	l := logger.GetGlobal().WithField("url", url).WithField("execution_type", req.GetExecutionType())
+	l := logger.GetGlobal().WithField("trace_id", traceID).WithField("url", url).WithField("execution_type", req.GetExecutionType())
 	l.InfoCtx(ctx, "[datamanager] forwarding to OpenSearch")
 
 	resp, err := http.Post(url, "application/json", bytes.NewBufferString(searchJSON))

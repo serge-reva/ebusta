@@ -41,7 +41,10 @@ type DownloadResponse struct {
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	traceID := logger.GenerateTraceID("gw")
+	traceID := errutil.TraceIDFromRequest(r)
+	if traceID == "" {
+		traceID = logger.GenerateTraceID("gw")
+	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -140,7 +143,10 @@ func parseSearchDiagnostics(status string) (string, string) {
 
 func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	traceID := logger.GenerateTraceID("gw-dl")
+	traceID := errutil.TraceIDFromRequest(r)
+	if traceID == "" {
+		traceID = logger.GenerateTraceID("gw-dl")
+	}
 
 	token := strings.TrimPrefix(r.URL.Path, "/download/")
 	token = strings.TrimSpace(token)
@@ -228,7 +234,10 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDownloadToken(w http.ResponseWriter, r *http.Request) {
-	traceID := logger.GenerateTraceID("gw-token")
+	traceID := errutil.TraceIDFromRequest(r)
+	if traceID == "" {
+		traceID = logger.GenerateTraceID("gw-token")
+	}
 
 	token := strings.TrimPrefix(r.URL.Path, "/download/token/")
 
