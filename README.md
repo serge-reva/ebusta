@@ -45,6 +45,25 @@ make run     # Запуск всей системы в фоновом режим
   - `./scripts/ebusta_metrics.sh check`
   - `./scripts/ebusta_metrics.sh inc 5`
 
+## Centralized Logging (Loki)
+
+Docker stack now includes Loki + Grafana.
+
+- Loki API: `http://localhost:3100`
+- Grafana UI: `http://localhost:3300`
+
+Before `make docker-up`, install Loki Docker logging plugin on host:
+
+```bash
+docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
+```
+
+Then verify:
+
+```bash
+docker plugin ls
+```
+
 ## Testing Classification
 
 Test taxonomy and migration baseline are documented here:
@@ -70,3 +89,4 @@ Core architecture and operations docs:
 - `docs/TRACE.md`
 - `docs/ENGINEERING_STANDARD.md`
 - `docs/PROTO_IMMUTABILITY.md`
+- `docs/LOGGING_LOKI.md`

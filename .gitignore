@@ -48,6 +48,8 @@ f2bulker/data/warn/*
 *.fb2
 *.sqlite
 tmp/
+loki-data/
+grafana-data/
 .DS_Store
 
 # === Контексты и Дампы ===

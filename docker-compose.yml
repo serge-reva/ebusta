@@ -1,4 +1,45 @@
+x-loki-logging: &loki-logging
+  driver: loki
+  options:
+    loki-url: "http://localhost:3100/loki/api/v1/push"
+    loki-retries: "5"
+    loki-batch-size: "400"
+
 services:
+  loki:
+    image: grafana/loki:latest
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./deploy/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - ./loki-data:/loki
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3300:3000"
+    volumes:
+      - ./deploy/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana-data:/var/lib/grafana
+    depends_on:
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
   dsl-scala:
     image: ebusta-dsl-scala:local
     build:
@@ -18,6 +59,7 @@ services:
       retries: 3
       start_period: 20s
     restart: unless-stopped
+    logging: *loki-logging
 
   query-builder:
     image: ebusta-query-builder:local
@@ -38,6 +80,7 @@ services:
       retries: 3
       start_period: 20s
     restart: unless-stopped
+    logging: *loki-logging
 
   datamanager:
     image: ebusta-datamanager:local
@@ -58,6 +101,7 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   orchestrator:
     image: ebusta-orchestrator:local
@@ -85,6 +129,7 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   archive-node:
     image: ebusta-archive-node:local
@@ -106,6 +151,7 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   tier-node:
     image: ebusta-tier-node:local
@@ -130,6 +176,7 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   plasma-node:
     image: ebusta-plasma-node:local
@@ -154,6 +201,7 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   downloader:
     image: ebusta-downloader:local
@@ -178,6 +226,7 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   auth-manager:
     image: ebusta-auth-manager:local
@@ -200,6 +249,7 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   gateway:
     image: ebusta-gateway:local
@@ -228,6 +278,7 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   web-frontend:
     image: ebusta-web-frontend:local
@@ -253,6 +304,7 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   telegram-adapter:
     profiles: ["adapters"]
@@ -277,3 +329,4 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
