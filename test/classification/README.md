@@ -10,6 +10,7 @@ This directory defines the target test taxonomy for `ebusta`, migration baseline
 
 ## Current Layout
 - `test/e2e/`: docker-stack end-to-end scripts.
+  Includes resilience scenarios (`test/e2e/test_failures.sh`) that stop/start critical services and validate recovery through gateway API.
 - `test/load/`: load and stress scripts (non-CI).
 - `test/diagnose/`: operational diagnostics (non-CI).
 - `test/utils/`: shared test helpers/utilities.

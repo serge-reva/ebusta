@@ -10,6 +10,7 @@ This document defines where each test level should run.
 ## Nightly Pipeline
 - Run: `make test-e2e`
 - Goal: validate full-service wiring and contract compatibility on a real stack.
+- Includes resilience checks (service stop/start and recovery assertions via gateway).
 - Environment: Docker Compose stack with runtime artifacts built on host.
 
 ## Manual / On-Demand

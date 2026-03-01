@@ -241,7 +241,7 @@ test-e2e:
 	@set -e; \
 	$(MAKE) docker-up; \
 	ec=0; \
-	for t in ./test/e2e/datamanager.sh ./test/e2e/orchestrator.sh ./test/e2e/cli_results.sh ./test/e2e/errutil.sh ./test/e2e/dsl_multiword.sh; do \
+	for t in ./test/e2e/datamanager.sh ./test/e2e/orchestrator.sh ./test/e2e/cli_results.sh ./test/e2e/errutil.sh ./test/e2e/dsl_multiword.sh ./test/e2e/test_failures.sh; do \
 		echo "▶ Running $$t"; \
 		if ! $$t; then ec=$$?; break; fi; \
 	done; \
