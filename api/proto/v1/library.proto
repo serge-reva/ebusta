@@ -20,10 +20,6 @@ service StorageService {
   rpc SearchBooks (SearchRequest) returns (SearchResponse);
 }
 
-service MessageConverterService {
-  rpc Convert (RawInput) returns (UnmarshaledMessage);
-}
-
 // Legacy
 service LibraryService {
   rpc SearchBooks (SearchRequest) returns (SearchResponse);
@@ -67,37 +63,4 @@ message ListRequest {
 
 message ListResponse {
   repeated string items = 1;
-}
-
-// ==========================================
-// 3. CONVERTER & META
-// ==========================================
-
-message RawInput {
-  string data = 1;
-  string trace_id = 2;
-}
-
-message MessageMeta {
-  string trace_id = 1;
-  string canonical_form = 2;
-  string platform = 3;
-  string user_id = 4;
-  string ast_plan = 5;
-}
-
-message UnmarshaledMessage {
-  MessageMeta meta = 1;
-  .ebusta.library.v1.SearchQuery query = 2;
-}
-
-message Response {
-  string status = 1;
-  repeated Book books = 2;
-  ResponseMeta meta = 3;
-}
-
-message ResponseMeta {
-  string trace_id = 1;
-  string canonical_form = 2;
 }

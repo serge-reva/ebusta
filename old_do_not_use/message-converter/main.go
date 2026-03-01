@@ -1,3 +1,8 @@
+//go:build ignore
+// +build ignore
+
+// Legacy archived service. MessageConverterService was removed from api/proto/v1/library.proto.
+// This file is kept only for historical reference and must not be built.
 package main
 
 import (

@@ -6,11 +6,11 @@ option go_package = "ebusta/api/proto/v1;libraryv1";
 import "common.proto";
 
 service DslTransformer {
-  // ИСПРАВЛЕНИЕ: Используем DslRequest вместо RawInput
+  // Dedicated DSL input request for transformer API.
   rpc Transform (DslRequest) returns (SQuery) {}
 }
 
-// ИСПРАВЛЕНИЕ: Переименовали сообщение, чтобы не конфликтовать с library.proto
+// Dedicated message for DSL transformer input.
 message DslRequest {
   string query = 1;
 }
