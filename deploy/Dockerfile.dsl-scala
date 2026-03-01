@@ -1,0 +1,15 @@
+FROM eclipse-temurin:17-jre
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl netcat-openbsd && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /app
+
+WORKDIR /app
+
+COPY ./dsl-server.jar /app/dsl-server.jar
+COPY ./deploy/ebusta.docker.yaml /app/ebusta.yaml
+
+EXPOSE 50052
+
+ENTRYPOINT ["java", "-jar", "/app/dsl-server.jar"]

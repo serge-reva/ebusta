@@ -218,11 +218,11 @@ ci-check: test-go proto-lint proto-breaking architecture-check docs-check
 
 .PHONY: docker-build
 docker-build:
-	docker compose build gateway
+	docker compose build
 
 .PHONY: docker-up
 docker-up:
-	docker compose up -d gateway
+	docker compose up -d
 
 .PHONY: docker-down
 docker-down:
@@ -230,7 +230,7 @@ docker-down:
 
 .PHONY: docker-logs
 docker-logs:
-	docker compose logs -f gateway
+	docker compose logs -f
 
 .PHONY: docker-status
 docker-status:

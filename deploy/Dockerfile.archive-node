@@ -1,0 +1,15 @@
+FROM debian:stable-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl netcat-openbsd && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /app /var/log/ebusta /data
+
+WORKDIR /app
+
+COPY ./bin/archive-node /app/archive-node
+COPY ./deploy/ebusta.docker.yaml /app/ebusta.yaml
+
+EXPOSE 50110
+
+ENTRYPOINT ["/app/archive-node"]

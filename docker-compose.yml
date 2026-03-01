@@ -1,4 +1,176 @@
 services:
+  dsl-scala:
+    image: ebusta-dsl-scala:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.dsl-scala
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    ports:
+      - "50052:50052"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 50052 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  query-builder:
+    image: ebusta-query-builder:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.query-builder
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    ports:
+      - "50053:50053"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 50053 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  datamanager:
+    image: ebusta-datamanager:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.datamanager
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    ports:
+      - "50051:50051"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z datamanager 50051 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  orchestrator:
+    image: ebusta-orchestrator:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.orchestrator
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    ports:
+      - "50054:50054"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+    depends_on:
+      dsl-scala:
+        condition: service_healthy
+      query-builder:
+        condition: service_healthy
+      datamanager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z orchestrator 50054 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  archive-node:
+    image: ebusta-archive-node:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.archive-node
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    ports:
+      - "50110:50110"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 50110 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  tier-node:
+    image: ebusta-tier-node:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.tier-node
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    ports:
+      - "50111:50111"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./data:/data
+    depends_on:
+      archive-node:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 50111 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  plasma-node:
+    image: ebusta-plasma-node:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.plasma-node
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    ports:
+      - "50112:50112"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./data:/data
+    depends_on:
+      tier-node:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 50112 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  downloader:
+    image: ebusta-downloader:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.downloader
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    ports:
+      - "50081:50081"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./data:/data
+    depends_on:
+      plasma-node:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:50081/books/invalid >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
   gateway:
     image: ebusta-gateway:local
     build:
@@ -9,11 +181,17 @@ services:
     ports:
       - "8443:8443"
     volumes:
-      - ./ebusta.yaml:/app/ebusta.yaml:ro
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./data:/data
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+      downloader:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8443/health >/dev/null || exit 1"]
       interval: 10s
       timeout: 3s
-      retries: 5
-      start_period: 5s
+      retries: 10
+      start_period: 10s
     restart: unless-stopped

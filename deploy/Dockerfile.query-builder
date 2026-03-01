@@ -1,0 +1,15 @@
+FROM eclipse-temurin:17-jre
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl netcat-openbsd && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /app
+
+WORKDIR /app
+
+COPY ./query-builder.jar /app/query-builder.jar
+COPY ./deploy/ebusta.docker.yaml /app/ebusta.yaml
+
+EXPOSE 50053
+
+ENTRYPOINT ["java", "-jar", "/app/query-builder.jar"]
