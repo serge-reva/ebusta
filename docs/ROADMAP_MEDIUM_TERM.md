@@ -1,117 +1,92 @@
 # Ebusta Medium-Term Roadmap
-Version: 1.0  
-Last Updated: 2026-03-01
+Version: 1.1  
+Last Updated: 2026-03-02
 
-## Scope
-This roadmap captures medium-term and long-term work deferred after completion of priority items 1–5.
+## Purpose
+This document captures improvements that were intentionally deferred after completion of the current priority stages (config validation baseline, OpenAPI baseline, web-frontend unification through gateway, internal mTLS).
 
-## Priority Matrix
-| ID | Task | Priority | Horizon | Complexity | Status |
-|---|---|---|---|---|---|
-| P6-1 | Startup config validation hardening | P6 | Next 1-2 months | Medium | Planned |
-| P7-1 | Unify client access: web-frontend -> gateway | P7 | Next 1-3 months | Medium | Planned |
-| P6-2 | SSRF protection in datamanager | P6 | Next 1-2 months | Medium | Planned |
-| P6-3 | OpenAPI generation for gateway/downloader | P6 | Next 1-3 months | Medium | Planned |
-| P9-1 | Gateway authentication (JWT/API keys) | P9 | Mid-term (2-4+ months) | High | Planned |
-| P9-2 | mTLS for internal gRPC | P9 | Mid-term (2-4+ months) | High | Planned |
-| LT-1 | Async download via object storage | Long-term | 4+ months | High | Optional |
-| LT-2 | Simplify download hierarchy | Long-term | 4+ months | High | Optional |
-| LT-3 | Distributed tracing with Jaeger | Long-term | 3+ months | Medium | Optional |
+## Planning Window
+Target horizon: next **3-6 months** (tentative, resource-dependent).
 
-## Detailed Backlog
+## Priority Overview
+| ID | Name | Priority | Target Window | Status |
+|---|---|---|---|---|
+| SSRF-01 | SSRF protection in datamanager | P6 | 1-2 months | Planned |
+| AUTH-01 | Gateway authentication | P7 | 2-4 months | Planned |
+| CFG-02 | Extended config validation hardening | P8 | 1-3 months | Planned |
+| PERF-01 | Query-builder cache tuning & controls | P9 | 3-6 months | Planned |
+| REL-01 | Graceful-shutdown/runtime resilience audit | P9 | 3-6 months | Planned |
+| RL-01 | Rate-limiting hardening and metrics expansion | P9 | 3-6 months | Planned |
 
-### P6: Improve startup config validation
-**Motivation:** prevent startup with invalid config and reduce debugging time.
+## Tasks
 
-**Planned steps:**
-- Define required config fields per service.
-- Add `Validate()` methods to config structs where missing.
-- Call validation in each `main()` right after loading config.
-- Return actionable startup errors (field name + expected format).
+### SSRF-01 — SSRF Protection in Datamanager
+- Priority: `P6`
+- Description: Prevent unsafe OpenSearch targets (loopback/private/link-local/reserved ranges) from being used by configuration.
+- Implementation steps:
+  - Introduce `IsSafeURL` helper in `internal/security` (or `internal/config`).
+  - Resolve host and validate all resolved IPs against deny-list ranges.
+  - Integrate check at datamanager startup (`cmd/datamanager/main.go`) and fail-fast on unsafe target.
+  - Add unit tests for safe/unsafe cases (localhost, RFC1918, link-local, public).
+- Expected result: Datamanager starts only with trusted OpenSearch endpoints.
+- Related docs: `docs/ARCHITECTURAL_CONSTITUTION.md`, `docs/TRACE.md`.
 
-**Expected outcome:** service fails fast with clear diagnostics if critical config is missing/invalid.
+### AUTH-01 — Authentication for Gateway
+- Priority: `P7`
+- Description: Add authentication/authorization controls for public gateway APIs.
+- Implementation steps:
+  - Select model: JWT or API keys.
+  - Implement gateway middleware for auth verification.
+  - Define token/key lifecycle (issue, rotate, revoke) and error mapping.
+  - Add configuration examples and request/response docs.
+- Expected result: Gateway endpoints are accessible only to authorized clients.
+- Related docs: `docs/API_ERROR_MAPPING.md`, `docs/ARCHITECTURAL_CONSTITUTION.md`, `docs/ENGINEERING_STANDARD.md`.
 
-### P7: Unify client access (web-frontend via gateway)
-**Motivation:** centralize policy enforcement (rate limiting, validation, metrics, auth), reduce duplicated access paths.
+### CFG-02 — Extended Config Validation Hardening
+- Priority: `P8`
+- Description: Extend existing validation to stricter semantic checks.
+- Implementation steps:
+  - Add URL scheme checks where currently only non-empty validation exists.
+  - Add stronger port/address constraints and cross-field validation.
+  - Add validation for filesystem paths and file readability where required.
+  - Add negative tests for startup validation paths.
+- Expected result: More misconfigurations are rejected before runtime.
+- Related docs: `docs/ENGINEERING_STANDARD.md`, `docs/RUNBOOK.md`.
 
-**Planned steps:**
-- Replace direct orchestrator gRPC calls in `web-frontend` with HTTP requests to gateway search endpoint.
-- Rework `web-frontend` handler flow to use gateway response contract.
-- Remove (or narrow) `internal/search` usage where no longer needed.
-- Update config: explicit gateway URL for web-frontend.
+### PERF-01 — Query-Builder Cache Tuning & Controls
+- Priority: `P9`
+- Description: Improve operational control of query cache behavior for production load profiles.
+- Implementation steps:
+  - Add cache observability (hit/miss/eviction counters exported and documented).
+  - Validate/tune TTL and max-size defaults for production traffic.
+  - Add guardrails for cache key cardinality and memory growth.
+  - Add repeatable load-profile benchmark scenario.
+- Expected result: Stable and measurable cache efficiency without memory risk.
+- Related docs: `docs/ENGINEERING_STANDARD.md`, `docs/TRACE.md`.
 
-**Expected outcome:** all external traffic (except CLI) goes through gateway.
+### REL-01 — Graceful Shutdown / Runtime Resilience Audit
+- Priority: `P9`
+- Description: Audit current shutdown behavior under container orchestration and dependency failures.
+- Implementation steps:
+  - Verify signal handling and shutdown timeouts under real docker-compose conditions.
+  - Validate in-flight request behavior during termination.
+  - Standardize shutdown logs and add checklist to runbook.
+  - Add regression scenario to resilience/e2e suite.
+- Expected result: Predictable and test-backed termination behavior across services.
+- Related docs: `docs/RUNBOOK.md`, `docs/ARCHITECTURAL_CONSTITUTION.md`.
 
-### P6: Add SSRF protection in datamanager
-**Motivation:** avoid internal network access via malformed/malicious OpenSearch URL config.
+### RL-01 — Rate Limiting Hardening and Metrics Expansion
+- Priority: `P9`
+- Description: Improve abuse protection and observability of gateway rate-limiting decisions.
+- Implementation steps:
+  - Refine per-action policies and defaults.
+  - Add explicit metrics for allow/deny decisions by source/action.
+  - Validate edge cases (burst traffic, tokenized users, adapter clients).
+  - Add dashboard/alerts for rejection spikes.
+- Expected result: Better protection against overload and better operational visibility.
+- Related docs: `docs/ARCHITECTURAL_CONSTITUTION.md`, `docs/API_ERROR_MAPPING.md`, `docs/MTLS_INTERNAL.md`.
 
-**Planned steps:**
-- Validate configured OpenSearch URL at startup.
-- Add allowlist for trusted hosts/domains.
-- Reject private/link-local/loopback target IP ranges unless explicitly allowed.
-- Fail startup if target is outside trust policy.
-
-**Expected outcome:** datamanager refuses untrusted OpenSearch targets.
-
-### P6: Generate OpenAPI spec for gateway/downloader
-**Motivation:** improve external integration and client generation workflow.
-
-**Planned steps:**
-- Add OpenAPI generation toolchain (`protoc-gen-openapi` or equivalent).
-- Add `make openapi-generate` target.
-- Generate and publish spec under `docs/api/`.
-- Include in CI verification (spec freshness check).
-
-**Expected outcome:** maintained `openapi.yaml` documenting public HTTP APIs.
-
-### P9: Add gateway authentication
-**Motivation:** protect public API from unauthorized use.
-
-**Planned steps:**
-- Select auth model (JWT or API key).
-- Add auth middleware in gateway.
-- Define token/key lifecycle (issue, revoke, rotate).
-- Add auth-related error mapping and docs.
-
-**Expected outcome:** only authorized clients can access gateway APIs.
-
-### P9: Introduce mTLS for internal gRPC
-**Motivation:** secure service-to-service communication against interception/spoofing.
-
-**Planned steps:**
-- Introduce CA and per-service certificates.
-- Configure gRPC clients/servers for mutual TLS.
-- Add certificate distribution strategy for Docker runtime.
-- Add startup validation for certificate presence/validity.
-
-**Expected outcome:** all internal gRPC links are mTLS-protected.
-
-## Optional / Long-Term Items
-
-### Asynchronous downloads via object storage
-- Shift from synchronous chain retrieval to async jobs and object storage URLs.
-- Best suited for heavy-scale traffic and large file workloads.
-
-### Simplify download hierarchy
-- Evaluate replacing multi-node chain with unified storage + HTTP Range support.
-- Goal: reduce operational complexity and improve debuggability.
-
-### Distributed tracing (Jaeger/OpenTelemetry)
-- Add trace spans across gateway/orchestrator/datamanager/downloader and adapters.
-- Enable cross-service latency and error-root-cause analysis.
-
-## Completed in Prioritized Wave (for context)
-- Proto immutability checks (buf).
-- Graceful shutdown.
-- Health checks.
-- Metrics export.
-- Centralized logs (Loki stack).
-- E2E resilience/failure-recovery tests.
-
-## Related Documents
-- `docs/ARCHITECTURAL_CONSTITUTION.md`
-- `docs/ENGINEERING_STANDARD.md`
-- `docs/TRACE.md`
-- `docs/API_ERROR_MAPPING.md`
-- `docs/PROTO_IMMUTABILITY.md`
-- `docs/LOGGING_LOKI.md`
+## Notes
+- This roadmap contains **deferred** items only.
+- Execution order may change based on incidents, product priorities, and team capacity.
+- Work starts after current active tracks are closed and resources are available.
