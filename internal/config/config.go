@@ -241,10 +241,10 @@ func (c TelegramAdapterConfig) Address() string {
 /* ---------- WEB FRONTEND ---------- */
 
 type WebFrontendConfig struct {
-	Port           int    `yaml:"port"`
-	PageSize       int    `yaml:"page_size"`
-	DownloaderAddr string `yaml:"downloader_addr"`
-	Debug          bool   `yaml:"debug"`
+	Port       int    `yaml:"port"`
+	PageSize   int    `yaml:"page_size"`
+	GatewayURL string `yaml:"gateway_url"`
+	Debug      bool   `yaml:"debug"`
 }
 
 func (c WebFrontendConfig) Validate() error {
@@ -254,8 +254,11 @@ func (c WebFrontendConfig) Validate() error {
 	if c.PageSize <= 0 {
 		return fmt.Errorf("web_frontend.page_size must be > 0")
 	}
-	if strings.TrimSpace(c.DownloaderAddr) == "" {
-		return fmt.Errorf("web_frontend.downloader_addr is required")
+	if strings.TrimSpace(c.GatewayURL) == "" {
+		return fmt.Errorf("web_frontend.gateway_url is required")
+	}
+	if err := validateURL("web_frontend.gateway_url", c.GatewayURL); err != nil {
+		return err
 	}
 	return nil
 }

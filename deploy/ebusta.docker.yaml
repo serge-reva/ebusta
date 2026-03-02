@@ -36,7 +36,7 @@ web_adapter:
 web_frontend:
   port: 3000
   page_size: 20
-  downloader_addr: "downloader:50081"
+  gateway_url: "http://gateway:8443"
   debug: false
 
 metrics:

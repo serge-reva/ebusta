@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"ebusta/internal/config"
 	"ebusta/internal/logger"
-	"ebusta/internal/search"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -20,25 +20,16 @@ func main() {
 	if err := cfg.WebFrontend.Validate(); err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "web-frontend config validation failed", err)
 	}
-	if err := cfg.Orchestrator.Validate(); err != nil {
-		logger.GetGlobal().FatalCtx(context.Background(), "orchestrator config validation failed", err)
-	}
 	if err := cfg.Metrics.Validate(); err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "metrics config validation failed", err)
 	}
 
 	wfCfg := cfg.WebFrontend
 
-	svc, err := search.New()
-	if err != nil {
-		logger.GetGlobal().FatalCtx(context.Background(), "failed to connect to orchestrator", err)
-	}
-	defer svc.Close()
-
 	h := &Handler{
-		searchSvc:      svc,
-		downloaderAddr: wfCfg.DownloaderAddr,
-		pageSize:       wfCfg.PageSize,
+		gatewayURL: strings.TrimRight(wfCfg.GatewayURL, "/"),
+		httpClient: newGatewayClient(),
+		pageSize:   wfCfg.PageSize,
 	}
 
 	mux := http.NewServeMux()
