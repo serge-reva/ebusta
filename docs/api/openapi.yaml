@@ -1,0 +1,475 @@
+openapi: 3.0.3
+info:
+  title: Ebusta Public HTTP API
+  version: 1.0.0
+  description: |
+    Public HTTP contracts for Gateway and Downloader services.
+    Error envelope follows errutil mapping in docs/API_ERROR_MAPPING.md.
+
+paths:
+  /health:
+    get:
+      tags: [Gateway, Downloader]
+      summary: Health check
+      operationId: healthCheck
+      servers:
+        - url: http://localhost:8443
+          description: Gateway
+        - url: http://localhost:50081
+          description: Downloader
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /search:
+    post:
+      tags: [Gateway]
+      summary: Search books
+      description: Executes full search pipeline (DSL -> query-builder -> datamanager).
+      operationId: searchBooks
+      servers:
+        - url: http://localhost:8443
+          description: Gateway
+      parameters:
+        - $ref: '#/components/parameters/TraceIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Search completed
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/InvalidArgumentError'
+        '502':
+          $ref: '#/components/responses/BadGatewayError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /download/{token}:
+    parameters:
+      - $ref: '#/components/parameters/DownloadTokenPath'
+      - $ref: '#/components/parameters/TraceIdHeader'
+    get:
+      tags: [Gateway]
+      summary: Download book by one-time token
+      operationId: downloadByToken
+      servers:
+        - url: http://localhost:8443
+          description: Gateway
+      parameters:
+        - name: single_use
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ['1']
+          description: Revoke token immediately after download.
+      responses:
+        '200':
+          description: File stream
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceIdHeader'
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Length:
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/InvalidArgumentError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '502':
+          $ref: '#/components/responses/BadGatewayError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    head:
+      tags: [Gateway]
+      summary: Resolve download token and return metadata headers
+      operationId: headDownloadByToken
+      servers:
+        - url: http://localhost:8443
+          description: Gateway
+      responses:
+        '200':
+          description: Metadata headers only
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceIdHeader'
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Length:
+              schema:
+                type: string
+            Content-Type:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/InvalidArgumentError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '502':
+          $ref: '#/components/responses/BadGatewayError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /download/token/{token}:
+    get:
+      tags: [Gateway]
+      summary: Resolve token to metadata payload
+      operationId: getTokenInfo
+      servers:
+        - url: http://localhost:8443
+          description: Gateway
+      parameters:
+        - $ref: '#/components/parameters/DownloadTokenPath'
+        - $ref: '#/components/parameters/TraceIdHeader'
+      responses:
+        '200':
+          description: Token metadata
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DownloadTokenResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '502':
+          $ref: '#/components/responses/BadGatewayError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /debug/mapper:
+    get:
+      tags: [Gateway]
+      summary: Mapper runtime statistics (debug)
+      operationId: mapperStats
+      servers:
+        - url: http://localhost:8443
+          description: Gateway
+      responses:
+        '200':
+          description: Mapper stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MapperStats'
+
+  /books/{sha1}:
+    parameters:
+      - $ref: '#/components/parameters/Sha1Path'
+      - $ref: '#/components/parameters/TraceIdHeader'
+    get:
+      tags: [Downloader]
+      summary: Get book content or metadata
+      description: Returns metadata when `meta=1`, otherwise returns binary stream.
+      operationId: getBook
+      servers:
+        - url: http://localhost:50081
+          description: Downloader
+      parameters:
+        - name: meta
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ['1']
+          description: Return metadata payload instead of file bytes.
+      responses:
+        '200':
+          description: Metadata JSON or file stream
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DownloaderMeta'
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/InvalidArgumentError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '502':
+          $ref: '#/components/responses/BadGatewayError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    head:
+      tags: [Downloader]
+      summary: Get file metadata via headers
+      operationId: headBook
+      servers:
+        - url: http://localhost:50081
+          description: Downloader
+      responses:
+        '200':
+          description: Metadata headers only
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceIdHeader'
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Length:
+              schema:
+                type: string
+            Content-Type:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/InvalidArgumentError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '502':
+          $ref: '#/components/responses/BadGatewayError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    TraceIdHeader:
+      name: X-Trace-Id
+      in: header
+      required: false
+      description: Client-provided trace id; server generates if omitted.
+      schema:
+        type: string
+    DownloadTokenPath:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+    Sha1Path:
+      name: sha1
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[a-f0-9]{40}$'
+
+  headers:
+    TraceIdHeader:
+      description: Trace identifier for request correlation.
+      schema:
+        type: string
+
+  responses:
+    InvalidArgumentError:
+      description: Invalid input
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceIdHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFoundError:
+      description: Resource not found
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceIdHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ServiceUnavailableError:
+      description: Service unavailable / timeout
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceIdHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    BadGatewayError:
+      description: Upstream/downstream failure
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceIdHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    InternalError:
+      description: Internal server error
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceIdHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        time:
+          type: string
+          format: date-time
+      required: [status]
+
+    SearchRequest:
+      type: object
+      properties:
+        query:
+          type: string
+        page:
+          type: integer
+          minimum: 1
+          default: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      required: [query]
+
+    SearchResponse:
+      type: object
+      properties:
+        trace_id:
+          type: string
+        total:
+          type: integer
+        books:
+          type: array
+          items:
+            $ref: '#/components/schemas/Book'
+        page:
+          type: integer
+        pages:
+          type: integer
+        exec_mode:
+          type: string
+        match_mode:
+          type: string
+      required: [trace_id, total, books, page, pages]
+
+    Book:
+      type: object
+      properties:
+        title:
+          type: string
+        authors:
+          type: array
+          items:
+            type: string
+        full_authors:
+          type: string
+        download_url:
+          type: string
+      required: [title, authors, full_authors, download_url]
+
+    DownloadTokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        expires_in:
+          type: integer
+          format: int64
+        size:
+          type: integer
+          format: int64
+        filename:
+          type: string
+      required: [token, expires_in, size, filename]
+
+    DownloaderMeta:
+      type: object
+      properties:
+        sha1:
+          type: string
+        container:
+          type: string
+        filename:
+          type: string
+        size:
+          type: integer
+          format: int64
+        title:
+          type: string
+      required: [sha1, container, filename, size, title]
+
+    MapperStats:
+      type: object
+      properties:
+        total_tokens:
+          type: integer
+        accessed:
+          type: integer
+        max_tokens:
+          type: integer
+        usage_percent:
+          type: number
+          format: double
+
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          $ref: '#/components/schemas/AppError'
+      required: [error]
+
+    AppError:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_ARGUMENT
+            - NOT_FOUND
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - REQUEST_TOO_LARGE
+            - INTERNAL_ERROR
+            - SERVICE_UNAVAILABLE
+            - TIMEOUT
+            - UPSTREAM_ERROR
+            - BAD_GATEWAY
+            - DOWNLOADER_ERROR
+            - SEARCH_ERROR
+            - ZIP_ERROR
+        message:
+          type: string
+        trace_id:
+          type: string
+        details:
+          type: string
+      required: [code, message, trace_id]

@@ -90,3 +90,4 @@ Core architecture and operations docs:
 - `docs/ENGINEERING_STANDARD.md`
 - `docs/PROTO_IMMUTABILITY.md`
 - `docs/LOGGING_LOKI.md`
+- `docs/api/openapi.yaml`

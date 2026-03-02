@@ -27,7 +27,7 @@ DOWNLOADER_PORT := $(shell sed -n '/downloader:/,/listen_port:/p'      $(CONFIG_
 WEB_FRONTEND_PORT := $(shell sed -n '/web_frontend:/,/listen_port:/p'  $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 GATEWAY_PORT    := $(shell sed -n '/gateway:/,/port:/p'                $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
 
-.PHONY: all build proto proto-generate proto-verify build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean architecture-check docs-check proto-lint proto-breaking test-go test-scala test-unit test-integration test-e2e test-load ci-check docker-build docker-up docker-down docker-logs docker-status
+.PHONY: all build proto proto-generate proto-verify openapi-generate build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean architecture-check docs-check proto-lint proto-breaking test-go test-scala test-unit test-integration test-e2e test-load ci-check docker-build docker-up docker-down docker-logs docker-status
 
 all: build
 
@@ -49,6 +49,13 @@ proto-generate:
 proto-verify: proto-generate proto-lint proto-breaking
 	@git diff --quiet -- $(API_PROTO_DIR)/*.pb.go $(API_PROTO_DIR)/*_grpc.pb.go || (echo "❌ Generated proto files are out of date. Run 'make proto-generate' and commit changes."; exit 1)
 	@echo "✅ proto-verify passed"
+
+openapi-generate:
+	@mkdir -p docs/api
+	@test -f docs/api/openapi.yaml || (echo "❌ docs/api/openapi.yaml is missing"; exit 1)
+	@echo "🔎 Validating docs/api/openapi.yaml ..."
+	@docker run --rm -v "$$(pwd):/work" -w /work node:20-alpine sh -lc "npm -s i -g @apidevtools/swagger-cli >/dev/null && swagger-cli validate docs/api/openapi.yaml"
+	@echo "✅ openapi-generate passed"
 
 build-scala: $(DSL_JAR) $(QB_JAR)
 	@echo "✅ Scala build up-to-date."
