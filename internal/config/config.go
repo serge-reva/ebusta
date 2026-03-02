@@ -3,7 +3,9 @@ package config
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 
 	"ebusta/internal/logger"
@@ -32,9 +34,71 @@ type OpenSearchConfig struct {
 	Debug     bool   `yaml:"debug"`
 }
 
+func (c OpenSearchConfig) Validate() error {
+	if strings.TrimSpace(c.URL) == "" {
+		return fmt.Errorf("opensearch.url is required")
+	}
+	parsed, err := url.ParseRequestURI(c.URL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("opensearch.url must be a valid URL")
+	}
+	if strings.TrimSpace(c.IndexName) == "" {
+		return fmt.Errorf("opensearch.index_name is required")
+	}
+	return nil
+}
+
 type MetricsConfig struct {
 	Port     int                 `yaml:"port"`
 	Services MetricsServicePorts `yaml:"services"`
+}
+
+func (c MetricsConfig) Validate() error {
+	if c.Port != 0 {
+		if err := validatePort("metrics.port", c.Port); err != nil {
+			return err
+		}
+	}
+	if err := validatePort("metrics.services.gateway", c.Services.Gateway); err != nil {
+		return err
+	}
+	if err := validatePort("metrics.services.orchestrator", c.Services.Orchestrator); err != nil {
+		return err
+	}
+	if err := validatePort("metrics.services.datamanager", c.Services.Datamanager); err != nil {
+		return err
+	}
+	if err := validatePort("metrics.services.downloader", c.Services.Downloader); err != nil {
+		return err
+	}
+	if err := validatePort("metrics.services.archive_node", c.Services.ArchiveNode); err != nil {
+		return err
+	}
+	if err := validatePort("metrics.services.tier_node", c.Services.TierNode); err != nil {
+		return err
+	}
+	if err := validatePort("metrics.services.plasma_node", c.Services.PlasmaNode); err != nil {
+		return err
+	}
+	if err := validatePort("metrics.services.auth_manager", c.Services.AuthManager); err != nil {
+		return err
+	}
+	if err := validatePort("metrics.services.irc_adapter", c.Services.IRCAdapter); err != nil {
+		return err
+	}
+	if err := validatePort("metrics.services.telegram_adapter", c.Services.Telegram); err != nil {
+		return err
+	}
+	if err := validatePort("metrics.services.web_frontend", c.Services.WebFrontend); err != nil {
+		return err
+	}
+	if err := validatePort("metrics.services.dsl_scala", c.Services.DslScala); err != nil {
+		return err
+	}
+	if err := validatePort("metrics.services.query_builder", c.Services.QueryBuilder); err != nil {
+		return err
+	}
+	return nil
 }
 
 type MetricsServicePorts struct {
@@ -100,6 +164,37 @@ type IRCAdapterConfig struct {
 	DCCTimeoutSec int    `yaml:"dcc_timeout_sec"`
 }
 
+func (c IRCAdapterConfig) Validate() error {
+	mode := strings.ToLower(strings.TrimSpace(c.Mode))
+	if mode != "server" && mode != "bot" {
+		return fmt.Errorf("irc_adapter.mode must be either 'server' or 'bot'")
+	}
+	if strings.TrimSpace(c.ServerHost) == "" {
+		return fmt.Errorf("irc_adapter.server_host is required")
+	}
+	if err := validatePort("irc_adapter.server_port", c.ServerPort); err != nil {
+		return err
+	}
+	if strings.TrimSpace(c.GatewayURL) == "" {
+		return fmt.Errorf("irc_adapter.gateway_url is required")
+	}
+	if err := validateURL("irc_adapter.gateway_url", c.GatewayURL); err != nil {
+		return err
+	}
+	if c.PageSize <= 0 {
+		return fmt.Errorf("irc_adapter.page_size must be > 0")
+	}
+	if mode == "bot" {
+		if strings.TrimSpace(c.BotServerHost) == "" {
+			return fmt.Errorf("irc_adapter.bot_server_host is required in bot mode")
+		}
+		if err := validatePort("irc_adapter.bot_server_port", c.BotServerPort); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (c IRCAdapterConfig) Address() string {
 	return fmt.Sprintf("%s:%d", c.ServerHost, c.ServerPort)
 }
@@ -120,6 +215,25 @@ type TelegramAdapterConfig struct {
 	Debug      bool   `yaml:"debug"`
 }
 
+func (c TelegramAdapterConfig) Validate() error {
+	if strings.TrimSpace(c.Host) == "" {
+		return fmt.Errorf("telegram_adapter.host is required")
+	}
+	if err := validatePort("telegram_adapter.port", c.Port); err != nil {
+		return err
+	}
+	if strings.TrimSpace(c.GatewayURL) == "" {
+		return fmt.Errorf("telegram_adapter.gateway_url is required")
+	}
+	if err := validateURL("telegram_adapter.gateway_url", c.GatewayURL); err != nil {
+		return err
+	}
+	if c.PageSize <= 0 {
+		return fmt.Errorf("telegram_adapter.page_size must be > 0")
+	}
+	return nil
+}
+
 func (c TelegramAdapterConfig) Address() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }
@@ -131,6 +245,19 @@ type WebFrontendConfig struct {
 	PageSize       int    `yaml:"page_size"`
 	DownloaderAddr string `yaml:"downloader_addr"`
 	Debug          bool   `yaml:"debug"`
+}
+
+func (c WebFrontendConfig) Validate() error {
+	if err := validatePort("web_frontend.port", c.Port); err != nil {
+		return err
+	}
+	if c.PageSize <= 0 {
+		return fmt.Errorf("web_frontend.page_size must be > 0")
+	}
+	if strings.TrimSpace(c.DownloaderAddr) == "" {
+		return fmt.Errorf("web_frontend.downloader_addr is required")
+	}
+	return nil
 }
 
 func (c WebFrontendConfig) ListenAddr() string {
@@ -161,8 +288,8 @@ type DownloaderConfig struct {
 }
 
 func (c DownloaderConfig) Validate() error {
-	if c.ListenPort == 0 {
-		return fmt.Errorf("downloads.downloader.listen_port is required")
+	if err := validatePort("downloads.downloader.listen_port", c.ListenPort); err != nil {
+		return err
 	}
 	if c.PlasmaAddr == "" {
 		return fmt.Errorf("downloads.downloader.plasma is required")
@@ -183,8 +310,8 @@ type ArchiveNodeConfig struct {
 }
 
 func (c ArchiveNodeConfig) Validate() error {
-	if c.ListenPort == 0 {
-		return fmt.Errorf("downloads.archive_node.listen_port is required")
+	if err := validatePort("downloads.archive_node.listen_port", c.ListenPort); err != nil {
+		return err
 	}
 	if c.ZipRoot == "" {
 		return fmt.Errorf("downloads.archive_node.zip_root is required")
@@ -209,8 +336,8 @@ type TierNodeConfig struct {
 }
 
 func (c TierNodeConfig) Validate() error {
-	if c.ListenPort == 0 {
-		return fmt.Errorf("downloads.tier_node.listen_port is required")
+	if err := validatePort("downloads.tier_node.listen_port", c.ListenPort); err != nil {
+		return err
 	}
 	if c.RootPath == "" {
 		return fmt.Errorf("downloads.tier_node.root_path is required")
@@ -239,8 +366,8 @@ type PlasmaNodeConfig struct {
 }
 
 func (c PlasmaNodeConfig) Validate() error {
-	if c.ListenPort == 0 {
-		return fmt.Errorf("downloads.plasma_node.listen_port is required")
+	if err := validatePort("downloads.plasma_node.listen_port", c.ListenPort); err != nil {
+		return err
 	}
 	if c.ParentAddr == "" {
 		return fmt.Errorf("downloads.plasma_node.parent is required")
@@ -270,6 +397,48 @@ type GatewayConfig struct {
 	Validation ValidationConfig      `yaml:"validation"`
 	CORS       CORSConfig            `yaml:"cors"`
 	Services   GatewayServicesConfig `yaml:"services"`
+}
+
+func (c GatewayConfig) Validate() error {
+	if err := validatePort("gateway.port", c.Port); err != nil {
+		return err
+	}
+	if (strings.TrimSpace(c.TLSCert) == "") != (strings.TrimSpace(c.TLSKey) == "") {
+		return fmt.Errorf("gateway.tls_cert and gateway.tls_key must be set together")
+	}
+	if c.Mapper.TTL <= 0 {
+		return fmt.Errorf("gateway.mapper.ttl must be > 0")
+	}
+	if c.Mapper.MaxTokens <= 0 {
+		return fmt.Errorf("gateway.mapper.max_tokens must be > 0")
+	}
+	if c.Mapper.CleanupInterval <= 0 {
+		return fmt.Errorf("gateway.mapper.cleanup_interval must be > 0")
+	}
+	if c.Validation.MaxBodyBytes <= 0 {
+		return fmt.Errorf("gateway.validation.max_body_bytes must be > 0")
+	}
+	if c.Validation.MaxFileBytes <= 0 {
+		return fmt.Errorf("gateway.validation.max_file_bytes must be > 0")
+	}
+	if c.Validation.MaxQueryLength <= 0 {
+		return fmt.Errorf("gateway.validation.max_query_length must be > 0")
+	}
+	if c.Validation.MaxArrayItems <= 0 {
+		return fmt.Errorf("gateway.validation.max_array_items must be > 0")
+	}
+	if c.Validation.MaxJSONDepth <= 0 {
+		return fmt.Errorf("gateway.validation.max_json_depth must be > 0")
+	}
+	if err := c.Services.Validate(); err != nil {
+		return err
+	}
+	if c.MTLS.Enabled {
+		if strings.TrimSpace(c.MTLS.CAFile) == "" || strings.TrimSpace(c.MTLS.CertFile) == "" || strings.TrimSpace(c.MTLS.KeyFile) == "" {
+			return fmt.Errorf("gateway.mtls requires ca_file, cert_file and key_file")
+		}
+	}
+	return nil
 }
 
 type RateLimitConfig struct {
@@ -313,6 +482,19 @@ type GatewayServicesConfig struct {
 	Orchestrator string `yaml:"orchestrator"`
 	Downloader   string `yaml:"downloader"`
 	Auth         string `yaml:"auth"`
+}
+
+func (c GatewayServicesConfig) Validate() error {
+	if strings.TrimSpace(c.Orchestrator) == "" {
+		return fmt.Errorf("gateway.services.orchestrator is required")
+	}
+	if strings.TrimSpace(c.Downloader) == "" {
+		return fmt.Errorf("gateway.services.downloader is required")
+	}
+	if strings.TrimSpace(c.Auth) == "" {
+		return fmt.Errorf("gateway.services.auth is required")
+	}
+	return nil
 }
 
 /* ---------- ROOT ---------- */
@@ -367,6 +549,19 @@ func (c ComponentConfig) Address() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }
 
+func (c ComponentConfig) Validate() error {
+	if strings.TrimSpace(c.Protocol) == "" {
+		return fmt.Errorf("component protocol is required")
+	}
+	if strings.TrimSpace(c.Host) == "" {
+		return fmt.Errorf("component host is required")
+	}
+	if err := validatePort("component.port", c.Port); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c ComponentConfig) FullURL() string {
 	return fmt.Sprintf("%s://%s:%d", c.Protocol, c.Host, c.Port)
 }
@@ -398,4 +593,19 @@ func (c *Config) EdgePolicyForSource(source string) EdgePolicyConfig {
 		}
 	}
 	return p
+}
+
+func validatePort(field string, port int) error {
+	if port <= 0 || port > 65535 {
+		return fmt.Errorf("%s must be in range 1..65535", field)
+	}
+	return nil
+}
+
+func validateURL(field, raw string) error {
+	parsed, err := url.ParseRequestURI(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("%s must be a valid URL", field)
+	}
+	return nil
 }

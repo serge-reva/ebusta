@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -26,6 +27,9 @@ import (
 
 func main() {
 	rootCfg := config.Get()
+	if err := rootCfg.Metrics.Validate(); err != nil {
+		log.Fatalf("plasma-node metrics config validation failed: %v", err)
+	}
 	cfg := rootCfg.Downloads.PlasmaNode
 	if err := cfg.Validate(); err != nil {
 		fmt.Fprintf(os.Stderr, "plasma-node config error: %v\n", err)

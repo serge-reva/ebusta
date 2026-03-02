@@ -22,6 +22,12 @@ func main() {
 	cfg := config.Get()
 
 	logger.InitFromConfig(cfg.Logger, "gateway")
+	if err := cfg.Gateway.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "gateway config validation failed", err)
+	}
+	if err := cfg.Metrics.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "metrics config validation failed", err)
+	}
 
 	gatewayCfg := config.LoadGatewayRuntimeConfig(cfg)
 

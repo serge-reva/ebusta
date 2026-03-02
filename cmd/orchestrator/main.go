@@ -101,6 +101,21 @@ func (s *orchestratorServer) Search(ctx context.Context, req *libraryv1.SearchRe
 func main() {
 	cfg := config.Get()
 	logger.InitFromConfig(cfg.Logger, "orchestrator")
+	if err := cfg.Orchestrator.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "orchestrator config validation failed", err)
+	}
+	if err := cfg.DslScala.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "dsl_scala config validation failed", err)
+	}
+	if err := cfg.QueryBuilder.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "query_builder config validation failed", err)
+	}
+	if err := cfg.Datamanager.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "datamanager config validation failed", err)
+	}
+	if err := cfg.Metrics.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "metrics config validation failed", err)
+	}
 	metricsSrv := metrics.Start("orchestrator", cfg.Metrics.Services.Orchestrator)
 
 	dslConn, _ := grpc.Dial(cfg.DslScala.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))

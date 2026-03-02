@@ -17,6 +17,15 @@ import (
 func main() {
 	cfg := config.Get()
 	logger.InitFromConfig(cfg.Logger, "web-frontend")
+	if err := cfg.WebFrontend.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "web-frontend config validation failed", err)
+	}
+	if err := cfg.Orchestrator.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "orchestrator config validation failed", err)
+	}
+	if err := cfg.Metrics.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "metrics config validation failed", err)
+	}
 
 	wfCfg := cfg.WebFrontend
 

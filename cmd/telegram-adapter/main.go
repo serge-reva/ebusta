@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -26,6 +27,9 @@ func main() {
 
 	os.Setenv("EBUSTA_CONFIG", configPath)
 	cfg := config.Get()
+	if err := cfg.Metrics.Validate(); err != nil {
+		log.Fatalf("telegram-adapter metrics config validation failed: %v", err)
+	}
 	tgCfg := loadTelegramConfig(cfg, verbose)
 
 	logCfg := cfg.Logger
@@ -33,6 +37,9 @@ func main() {
 		logCfg.Level = "DEBUG"
 	}
 	logger.InitFromConfig(logCfg, "telegram-adapter")
+	if err := tgCfg.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "telegram-adapter config validation failed", err)
+	}
 
 	labelHook := edge.NewLabelCounterHook()
 	policy := edge.PolicyFromConfig(cfg, "telegram")

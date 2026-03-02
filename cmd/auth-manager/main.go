@@ -76,6 +76,9 @@ func (s *authServer) CheckAccess(ctx context.Context, req *libraryv1.AccessReque
 func main() {
 	cfg := config.Get()
 	logger.InitFromConfig(cfg.Logger, "auth")
+	if err := cfg.Metrics.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "metrics config validation failed", err)
+	}
 	metricsSrv := metrics.Start("auth-manager", cfg.Metrics.Services.AuthManager)
 
 	whitelistPath := os.Getenv("EBUSTA_WHITELIST")

@@ -182,6 +182,15 @@ func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRe
 func main() {
 	cfg := config.Get()
 	logger.InitFromConfig(cfg.Logger, "datamanager")
+	if err := cfg.Datamanager.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "datamanager config validation failed", err)
+	}
+	if err := cfg.OpenSearch.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "opensearch config validation failed", err)
+	}
+	if err := cfg.Metrics.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "metrics config validation failed", err)
+	}
 	metricsSrv := metrics.Start("datamanager", cfg.Metrics.Services.Datamanager)
 
 	lis, err := net.Listen("tcp", cfg.Datamanager.Address())

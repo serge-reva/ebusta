@@ -25,6 +25,9 @@ import (
 func main() {
 	cfg := config.Get()
 	logger.InitFromConfig(cfg.Logger, "downloader")
+	if err := cfg.Metrics.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "[downloader] metrics config validation failed", err)
+	}
 
 	dcfg := cfg.Downloads.Downloader
 	if err := dcfg.Validate(); err != nil {

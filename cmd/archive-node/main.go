@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -30,6 +31,9 @@ func main() {
 	flag.Parse()
 
 	cfg := config.Get()
+	if err := cfg.Metrics.Validate(); err != nil {
+		log.Fatalf("archive-node metrics config validation failed: %v", err)
+	}
 	metricsSrv := metrics.Start("archive-node", cfg.Metrics.Services.ArchiveNode)
 	arch := cfg.Downloads.ArchiveNode
 
