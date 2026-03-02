@@ -13,13 +13,13 @@ services:
       - "3100:3100"
     volumes:
       - ./deploy/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
-      - ./loki-data:/loki
+      - loki-data:/loki
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:3100/ready || exit 1"]
+      test: ["CMD", "/usr/bin/loki", "-version"]
       interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     restart: unless-stopped
 
   grafana:
@@ -52,8 +52,9 @@ services:
       - "59052:59052"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./certs:/certs:ro
     healthcheck:
-      test: ["CMD", "/app/grpc_health_probe", "-addr=:50052"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50052", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/dsl-scala/dsl-scala.crt", "-tls-client-key=/certs/dsl-scala/dsl-scala.key"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -73,8 +74,9 @@ services:
       - "59053:59053"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./certs:/certs:ro
     healthcheck:
-      test: ["CMD", "/app/grpc_health_probe", "-addr=:50053"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50053", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/query-builder/query-builder.crt", "-tls-client-key=/certs/query-builder/query-builder.key"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -94,8 +96,9 @@ services:
       - "59051:59051"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./certs:/certs:ro
     healthcheck:
-      test: ["CMD", "/app/grpc_health_probe", "-addr=:50051"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=datamanager:50051", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/datamanager/datamanager.crt", "-tls-client-key=/certs/datamanager/datamanager.key"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -115,6 +118,7 @@ services:
       - "59054:59054"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./certs:/certs:ro
     depends_on:
       dsl-scala:
         condition: service_healthy
@@ -123,7 +127,7 @@ services:
       datamanager:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "/app/grpc_health_probe", "-addr=:50054"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=orchestrator:50054", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/orchestrator/orchestrator.crt", "-tls-client-key=/certs/orchestrator/orchestrator.key"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -144,8 +148,9 @@ services:
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
+      - ./certs:/certs:ro
     healthcheck:
-      test: ["CMD", "/app/grpc_health_probe", "-addr=:50110"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50110", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/archive-node/archive-node.crt", "-tls-client-key=/certs/archive-node/archive-node.key"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -166,11 +171,12 @@ services:
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
+      - ./certs:/certs:ro
     depends_on:
       archive-node:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "/app/grpc_health_probe", "-addr=:50111"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50111", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/tier-node/tier-node.crt", "-tls-client-key=/certs/tier-node/tier-node.key"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -191,11 +197,12 @@ services:
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
+      - ./certs:/certs:ro
     depends_on:
       tier-node:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "/app/grpc_health_probe", "-addr=:50112"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50112", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/plasma-node/plasma-node.crt", "-tls-client-key=/certs/plasma-node/plasma-node.key"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -216,6 +223,7 @@ services:
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
+      - ./certs:/certs:ro
     depends_on:
       plasma-node:
         condition: service_healthy
@@ -242,8 +250,9 @@ services:
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./cmd/auth-manager/whitelist.yaml:/app/whitelist.yaml:ro
+      - ./certs:/certs:ro
     healthcheck:
-      test: ["CMD", "/app/grpc_health_probe", "-addr=:50055"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=auth-manager:50055", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/auth-manager/auth-manager.crt", "-tls-client-key=/certs/auth-manager/auth-manager.key"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -264,6 +273,7 @@ services:
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
+      - ./certs:/certs:ro
     depends_on:
       orchestrator:
         condition: service_healthy
@@ -330,3 +340,6 @@ services:
       start_period: 10s
     restart: unless-stopped
     logging: *loki-logging
+
+volumes:
+  loki-data:

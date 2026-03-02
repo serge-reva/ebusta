@@ -198,7 +198,15 @@ func main() {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to listen", err)
 	}
 
-	s := grpc.NewServer()
+	grpcOpts := []grpc.ServerOption{}
+	if cfg.Datamanager.MTLS.Enabled {
+		creds, tlsErr := cfg.Datamanager.MTLS.ServerTransportCredentials()
+		if tlsErr != nil {
+			logger.GetGlobal().FatalCtx(context.Background(), "failed to configure datamanager mTLS", tlsErr)
+		}
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+	}
+	s := grpc.NewServer(grpcOpts...)
 	hs := health.NewServer()
 	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 	healthpb.RegisterHealthServer(s, hs)

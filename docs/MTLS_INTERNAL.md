@@ -1,122 +1,61 @@
-# Внедрение mTLS для внутренних gRPC-соединений
+# Internal gRPC mTLS
 
-## Цель
-Обеспечить взаимную TLS-аутентификацию (mTLS) для всех внутренних gRPC-вызовов между микросервисами Ebusta. Это повысит безопасность, защитит от несанкционированного доступа внутри сети и обеспечит конфиденциальность данных.
+Version: 1.0  
+Last Updated: 2026-03-02  
+Status: Implemented
 
-## Текущая архитектура
-- Все внутренние коммуникации между Go-сервисами и Scala-сервисами выполняются по gRPC без шифрования (plaintext).
-- Используются следующие порты (согласно `ebusta.yaml`):
-  - datamanager: 50051
-  - dsl-scala: 50052
-  - query-builder: 50053
-  - orchestrator: 50054
-  - auth-manager: 50055
-  - archive-node: 50110
-  - tier-node: 50111
-  - plasma-node: 50112
-  - (другие gRPC-сервисы, если есть)
-- В Docker Compose сервисы общаются по именам контейнеров, без TLS.
+## Scope
+Internal gRPC connections in Ebusta are protected with mutual TLS (mTLS):
 
-## Целевая архитектура
-- Все gRPC-соединения будут защищены mTLS.
-- Каждый сервис будет иметь собственную пару ключей и сертификат, подписанный общим Certificate Authority (CA).
-- Клиенты будут проверять сертификат сервера, серверы – сертификат клиента.
-- Для упрощения можно использовать один CA и отдельные сертификаты для каждого сервиса.
+- `datamanager` (`50051`)
+- `dsl-scala` (`50052`)
+- `query-builder` (`50053`)
+- `orchestrator` (`50054`)
+- `auth-manager` (`50055`)
+- `archive-node` (`50110`)
+- `tier-node` (`50111`)
+- `plasma-node` (`50112`)
+- gRPC clients in `gateway`, `orchestrator`, `downloader`, `tier-node`, `plasma-node`
 
-## Компоненты, требующие изменений
-1. **Генерация сертификатов**:
-   - Создать корневой CA (самоподписанный).
-   - Для каждого сервиса сгенерировать закрытый ключ и запрос на сертификат (CSR), подписать его CA.
-   - Распространить сертификаты и ключи на каждый сервис (через volumes в Docker или встроив в образ, но лучше volumes).
+## Certificate Layout
+Certificates are generated into `certs/`:
 
-2. **Go-сервисы (gRPC-серверы)**:
-   - В каждом `main.go` при создании gRPC-сервера использовать `credentials.NewTLS` с конфигурацией, требующей клиентские сертификаты (`ClientAuth = tls.RequireAndVerifyClientCert`).
-   - Загружать сертификат сервера и ключ, а также CA-сертификат для проверки клиентов.
+- `certs/ca.crt`
+- `certs/ca.key`
+- `certs/<service>/<service>.crt`
+- `certs/<service>/<service>.key`
 
-3. **Go-сервисы (gRPC-клиенты)**:
-   - При создании gRPC-клиента (например, в `internal/gateway/clients`, `internal/downloads/plasma`, `internal/search` и т.д.) использовать `credentials.NewTLS` с конфигурацией, включающей клиентский сертификат для аутентификации и доверенный CA для проверки сервера.
+Service names used by generator:
 
-4. **Scala-сервисы (dsl-scala, query-builder)**:
-   - Настроить Netty gRPC-сервер на использование TLS с взаимной аутентификацией.
-   - Для клиентов (в Scala-сервисах, если они вызывают другие gRPC) аналогично настроить mTLS.
+- `datamanager`, `dsl-scala`, `query-builder`, `orchestrator`, `auth-manager`
+- `archive-node`, `tier-node`, `plasma-node`, `downloader`, `gateway`
 
-5. **Docker-инфраструктура**:
-   - Добавить в `docker-compose.yml` volumes для монтирования сертификатов (например, `./certs:/certs:ro`).
-   - Обновить health checks: `grpc_health_probe` должна использовать сертификаты (флаги `-tls`, `-tls-ca`, `-tls-cert`, `-tls-key`).
+## Generation
+Use:
 
-6. **Конфигурация**:
-   - Добавить в каждый сервис параметры для указания путей к сертификатам: `tls_cert_file`, `tls_key_file`, `tls_ca_file`.
-   - Обновить `ebusta.yaml` и парсинг в `internal/config`.
+```bash
+make certs-generate
+```
 
-7. **Тестирование**:
-   - Убедиться, что все внутренние вызовы работают через mTLS.
-   - Проверить, что без валидного сертификата соединение отклоняется.
-   - Обновить e2e-тесты для работы в mTLS-окружении (передавать сертификаты).
+or directly:
 
-## Преимущества внедрения
-- Повышение безопасности: перехват трафика внутри сети становится бесполезным.
-- Контроль доступа: только сервисы с доверенными сертификатами могут общаться.
-- Соответствие лучшим практикам для production-окружений.
+```bash
+./scripts/gen-certs.sh
+```
 
-## Возможные риски и сложности
-- **Усложнение конфигурации**: необходимо управлять сертификатами, их ротацией.
-- **Влияние на производительность**: TLS добавляет накладные расходы (но обычно незначительные).
-- **Совместимость с инструментами**: например, `grpcurl` для отладки потребует передачи сертификатов.
-- **Scala-часть**: настройка mTLS в Netty может потребовать дополнительных библиотек (например, `grpc-netty` с поддержкой TLS).
+## Runtime Wiring
+- Docker compose mounts certs as read-only volume: `./certs:/certs:ro`.
+- `deploy/ebusta.docker.yaml` enables mTLS for internal gRPC services and points to `/certs/...`.
+- gRPC health checks use TLS flags (`grpc_health_probe -tls ...`) so health status reflects real mTLS connectivity.
 
-## План поэтапного внедрения
-1. **Подготовительный этап**:
-   - Написать скрипт для генерации CA и сертификатов (например, `scripts/gen-certs.sh`).
-   - Создать тестовый набор сертификатов для локальной разработки.
+## Validation
+1. Generate certificates: `make certs-generate`.
+2. Build artifacts/images: `make build && make docker-build`.
+3. Start stack: `make docker-up`.
+4. Check status: `make docker-status` (gRPC services should become `healthy`).
+5. Verify API path through gateway (example):
+   - `curl -i http://localhost:8443/health`
+6. Stop stack: `make docker-down`.
 
-2. **Изменение конфигурации и кода**:
-   - Добавить поля для TLS в конфигурацию всех сервисов.
-   - Реализовать создание TLS-креденшелов в каждом сервисе (сервер и клиент).
-   - Протестировать в изоляции (например, запустить два сервиса с mTLS).
-
-3. **Интеграция в Docker**:
-   - Обновить `docker-compose.yml`, добавить volumes с сертификатами.
-   - Настроить health checks с поддержкой TLS.
-
-4. **Полное развёртывание**:
-   - Переключить все сервисы на использование mTLS одновременно (чтобы избежать ситуации, когда часть сервисов не может общаться).
-   - Запустить e2e-тесты, убедиться в работоспособности.
-
-5. **Документирование**:
-   - Обновить `RUNBOOK.md` с инструкциями по работе с сертификатами.
-   - Добавить описание в `ARCHITECTURAL_CONSTITUTION.md`.
-
-## Пример конфигурации (для Go)
-```go
-// Загрузка сертификатов
-cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-if err != nil { ... }
-caCert, err := os.ReadFile(caFile)
-if err != nil { ... }
-caPool := x509.NewCertPool()
-caPool.AppendCertsFromPEM(caCert)
-
-// Настройка TLS
-tlsConfig := &tls.Config{
-    Certificates: []tls.Certificate{cert},
-    ClientAuth:   tls.RequireAndVerifyClientCert,
-    ClientCAs:    caPool,
-    // Для клиента можно ClientAuth не указывать
-}
-creds := credentials.NewTLS(tlsConfig)
-
-// Сервер
-grpc.NewServer(grpc.Creds(creds))
-
-// Клиент
-conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(creds))
-
-
-
-Связанные документы
-
-    ARCHITECTURAL_CONSTITUTION.md
-    RUNBOOK.md
-    TRACE.md
-    ROADMAP_MEDIUM_TERM.md – после завершения текущих задач эта задача будет добавлена в план.
-
+## Failure Mode Check
+If cert volume is missing or invalid, internal gRPC connections and gRPC health checks fail by design.

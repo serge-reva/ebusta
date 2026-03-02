@@ -10,7 +10,6 @@ import (
     "ebusta/internal/presenter"
 
     "google.golang.org/grpc"
-    "google.golang.org/grpc/credentials/insecure"
 )
 
 // Service инкапсулирует логику поиска и общения с оркестратором
@@ -24,7 +23,11 @@ func New() (*Service, error) {
     cfg := config.Get()
     addr := cfg.Orchestrator.Address()
 
-    conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+    creds, err := cfg.Orchestrator.MTLS.ClientTransportCredentials()
+    if err != nil {
+        return nil, err
+    }
+    conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(creds))
     if err != nil {
         return nil, err
     }

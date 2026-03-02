@@ -8,24 +8,55 @@ datamanager:
   host: "localhost"
   port: 50051
   debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/datamanager/datamanager.crt"
+    key_file: "./certs/datamanager/datamanager.key"
 
 dsl_scala:
   protocol: "grpc"
   host: "localhost"
   port: 50052
   debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/dsl-scala/dsl-scala.crt"
+    key_file: "./certs/dsl-scala/dsl-scala.key"
 
 query_builder:
   protocol: "grpc"
   host: "localhost"
   port: 50053
   debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/query-builder/query-builder.crt"
+    key_file: "./certs/query-builder/query-builder.key"
 
 orchestrator:
   protocol: "grpc"
   host: "localhost"
   port: 50054
   debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/orchestrator/orchestrator.crt"
+    key_file: "./certs/orchestrator/orchestrator.key"
+
+auth_manager:
+  protocol: "grpc"
+  host: "localhost"
+  port: 50055
+  debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/auth-manager/auth-manager.crt"
+    key_file: "./certs/auth-manager/auth-manager.key"
 
 web_adapter:
   protocol: "http"
@@ -61,12 +92,22 @@ downloads:
     listen_port: 50110
     zip_root: "//mnt/fb2/fb2.Flibusta.Net/"
     sqlite: "./archive.meta.sqlite"
+    mtls:
+      enabled: false
+      ca_file: "./certs/ca.crt"
+      cert_file: "./certs/archive-node/archive-node.crt"
+      key_file: "./certs/archive-node/archive-node.key"
 
   tier_node:
     listen_port: 50111
     root_path: "./tier.data"
     sqlite: "./tier.meta.sqlite"
     parent: "localhost:50110"
+    mtls:
+      enabled: false
+      ca_file: "./certs/ca.crt"
+      cert_file: "./certs/tier-node/tier-node.crt"
+      key_file: "./certs/tier-node/tier-node.key"
 
   plasma_node:
     listen_port: 50112
@@ -74,10 +115,20 @@ downloads:
     max_bytes: 1073741824
     max_items: 1000
     debug: ":8091"
+    mtls:
+      enabled: false
+      ca_file: "./certs/ca.crt"
+      cert_file: "./certs/plasma-node/plasma-node.crt"
+      key_file: "./certs/plasma-node/plasma-node.key"
 
   downloader:
     listen_port: 50081
     plasma: "localhost:50112"
+    mtls:
+      enabled: false
+      ca_file: "./certs/ca.crt"
+      cert_file: "./certs/downloader/downloader.crt"
+      key_file: "./certs/downloader/downloader.key"
 
   cli:
     download_dir: "./downloads"

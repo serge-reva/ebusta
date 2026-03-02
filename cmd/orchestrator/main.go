@@ -16,7 +16,6 @@ import (
 	"ebusta/internal/metrics"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -118,16 +117,40 @@ func main() {
 	}
 	metricsSrv := metrics.Start("orchestrator", cfg.Metrics.Services.Orchestrator)
 
-	dslConn, _ := grpc.Dial(cfg.DslScala.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	qbConn, _ := grpc.Dial(cfg.QueryBuilder.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	dmConn, _ := grpc.Dial(cfg.Datamanager.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	clientCreds, err := cfg.Orchestrator.MTLS.ClientTransportCredentials()
+	if err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "failed to configure orchestrator mTLS client", err)
+	}
+	dslConn, err := grpc.Dial(cfg.DslScala.Address(), grpc.WithTransportCredentials(clientCreds))
+	if err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "failed to connect to dsl_scala", err)
+	}
+	qbConn, err := grpc.Dial(cfg.QueryBuilder.Address(), grpc.WithTransportCredentials(clientCreds))
+	if err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "failed to connect to query_builder", err)
+	}
+	dmConn, err := grpc.Dial(cfg.Datamanager.Address(), grpc.WithTransportCredentials(clientCreds))
+	if err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "failed to connect to datamanager", err)
+	}
+	defer dslConn.Close()
+	defer qbConn.Close()
+	defer dmConn.Close()
 
 	lis, err := net.Listen("tcp", cfg.Orchestrator.Address())
 	if err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to listen", err)
 	}
 
-	s := grpc.NewServer()
+	grpcOpts := []grpc.ServerOption{}
+	if cfg.Orchestrator.MTLS.Enabled {
+		serverCreds, tlsErr := cfg.Orchestrator.MTLS.ServerTransportCredentials()
+		if tlsErr != nil {
+			logger.GetGlobal().FatalCtx(context.Background(), "failed to configure orchestrator mTLS server", tlsErr)
+		}
+		grpcOpts = append(grpcOpts, grpc.Creds(serverCreds))
+	}
+	s := grpc.NewServer(grpcOpts...)
 	hs := health.NewServer()
 	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 	healthpb.RegisterHealthServer(s, hs)

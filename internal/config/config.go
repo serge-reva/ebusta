@@ -18,10 +18,11 @@ var (
 )
 
 type ComponentConfig struct {
-	Protocol string `yaml:"protocol"`
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	Debug    bool   `yaml:"debug"`
+	Protocol string        `yaml:"protocol"`
+	Host     string        `yaml:"host"`
+	Port     int           `yaml:"port"`
+	Debug    bool          `yaml:"debug"`
+	MTLS     GRPCTLSConfig `yaml:"mtls"`
 }
 
 type CLIConfig struct {
@@ -286,8 +287,9 @@ type DownloadsCLIConfig struct {
 /* ---------- DOWNLOADER (HTTP) ---------- */
 
 type DownloaderConfig struct {
-	ListenPort int    `yaml:"listen_port"`
-	PlasmaAddr string `yaml:"plasma"`
+	ListenPort int           `yaml:"listen_port"`
+	PlasmaAddr string        `yaml:"plasma"`
+	MTLS       GRPCTLSConfig `yaml:"mtls"`
 }
 
 func (c DownloaderConfig) Validate() error {
@@ -296,6 +298,9 @@ func (c DownloaderConfig) Validate() error {
 	}
 	if c.PlasmaAddr == "" {
 		return fmt.Errorf("downloads.downloader.plasma is required")
+	}
+	if err := c.MTLS.Validate("downloads.downloader.mtls"); err != nil {
+		return err
 	}
 	return nil
 }
@@ -307,9 +312,10 @@ func (c DownloaderConfig) ListenAddr() string {
 /* ---------- ARCHIVE ---------- */
 
 type ArchiveNodeConfig struct {
-	ListenPort int    `yaml:"listen_port"`
-	ZipRoot    string `yaml:"zip_root"`
-	Sqlite     string `yaml:"sqlite"`
+	ListenPort int           `yaml:"listen_port"`
+	ZipRoot    string        `yaml:"zip_root"`
+	Sqlite     string        `yaml:"sqlite"`
+	MTLS       GRPCTLSConfig `yaml:"mtls"`
 }
 
 func (c ArchiveNodeConfig) Validate() error {
@@ -322,6 +328,9 @@ func (c ArchiveNodeConfig) Validate() error {
 	if c.Sqlite == "" {
 		return fmt.Errorf("downloads.archive_node.sqlite is required")
 	}
+	if err := c.MTLS.Validate("downloads.archive_node.mtls"); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -332,10 +341,11 @@ func (c ArchiveNodeConfig) ListenAddr() string {
 /* ---------- TIER ---------- */
 
 type TierNodeConfig struct {
-	ListenPort int    `yaml:"listen_port"`
-	RootPath   string `yaml:"root_path"`
-	Sqlite     string `yaml:"sqlite"`
-	ParentAddr string `yaml:"parent"`
+	ListenPort int           `yaml:"listen_port"`
+	RootPath   string        `yaml:"root_path"`
+	Sqlite     string        `yaml:"sqlite"`
+	ParentAddr string        `yaml:"parent"`
+	MTLS       GRPCTLSConfig `yaml:"mtls"`
 }
 
 func (c TierNodeConfig) Validate() error {
@@ -351,6 +361,9 @@ func (c TierNodeConfig) Validate() error {
 	if c.ParentAddr == "" {
 		return fmt.Errorf("downloads.tier_node.parent is required")
 	}
+	if err := c.MTLS.Validate("downloads.tier_node.mtls"); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -361,11 +374,12 @@ func (c TierNodeConfig) ListenAddr() string {
 /* ---------- PLASMA ---------- */
 
 type PlasmaNodeConfig struct {
-	ListenPort int    `yaml:"listen_port"`
-	ParentAddr string `yaml:"parent"`
-	MaxBytes   int64  `yaml:"max_bytes"`
-	MaxItems   int    `yaml:"max_items"`
-	DebugAddr  string `yaml:"debug"`
+	ListenPort int           `yaml:"listen_port"`
+	ParentAddr string        `yaml:"parent"`
+	MaxBytes   int64         `yaml:"max_bytes"`
+	MaxItems   int           `yaml:"max_items"`
+	DebugAddr  string        `yaml:"debug"`
+	MTLS       GRPCTLSConfig `yaml:"mtls"`
 }
 
 func (c PlasmaNodeConfig) Validate() error {
@@ -380,6 +394,9 @@ func (c PlasmaNodeConfig) Validate() error {
 	}
 	if c.MaxItems <= 0 {
 		return fmt.Errorf("downloads.plasma_node.max_items must be > 0")
+	}
+	if err := c.MTLS.Validate("downloads.plasma_node.mtls"); err != nil {
+		return err
 	}
 	return nil
 }
@@ -506,6 +523,7 @@ type Config struct {
 	OpenSearch      OpenSearchConfig      `yaml:"opensearch"`
 	Datamanager     ComponentConfig       `yaml:"datamanager"`
 	Orchestrator    ComponentConfig       `yaml:"orchestrator"`
+	AuthManager     ComponentConfig       `yaml:"auth_manager"`
 	WebAdapter      ComponentConfig       `yaml:"web_adapter"`
 	IRCAdapter      IRCAdapterConfig      `yaml:"irc_adapter"`
 	TelegramAdapter TelegramAdapterConfig `yaml:"telegram_adapter"`
@@ -560,6 +578,9 @@ func (c ComponentConfig) Validate() error {
 		return fmt.Errorf("component host is required")
 	}
 	if err := validatePort("component.port", c.Port); err != nil {
+		return err
+	}
+	if err := c.MTLS.Validate("component.mtls"); err != nil {
 		return err
 	}
 	return nil

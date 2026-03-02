@@ -19,7 +19,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -34,7 +33,11 @@ func main() {
 		logger.GetGlobal().FatalCtx(context.Background(), "[downloader] config error", err)
 	}
 
-	conn, err := grpc.Dial(dcfg.PlasmaAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	clientCreds, err := dcfg.MTLS.ClientTransportCredentials()
+	if err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "[downloader] mTLS client config error", err)
+	}
+	conn, err := grpc.Dial(dcfg.PlasmaAddr, grpc.WithTransportCredentials(clientCreds))
 	if err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "[downloader] plasma connect error", err)
 	}

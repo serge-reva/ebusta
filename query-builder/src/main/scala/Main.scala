@@ -2,6 +2,8 @@ package ebusta.querybuilder
 
 import cats.effect.*
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts
+import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth
 import fs2.grpc.syntax.all.*
 import io.grpc.Metadata
 // ВАЖНО: Импорт Reflection
@@ -187,7 +189,11 @@ object Main extends IOApp {
     port: Int,
     cacheMaxSize: Long,
     cacheTtlSeconds: Long,
-    metricsPort: Int
+    metricsPort: Int,
+    tlsEnabled: Boolean,
+    tlsCaFile: String,
+    tlsCertFile: String,
+    tlsKeyFile: String
   )
 
   def getConfigPath(): String = sys.env.getOrElse("EBUSTA_CONFIG", "ebusta.yaml")
@@ -216,8 +222,14 @@ object Main extends IOApp {
     val metricsSection = Option(data.get("metrics")).map(_.asInstanceOf[JMap[String, Any]])
     val metricsServices = metricsSection.flatMap(m => Option(m.get("services")).map(_.asInstanceOf[JMap[String, Any]]))
     val metricsPort = metricsServices.flatMap(s => Option(s.get("query_builder")).map(_.toString.toDouble.toInt)).getOrElse(59053)
+    val mtlsSection = Option(section.get("mtls")).map(_.asInstanceOf[JMap[String, Any]])
+    val tlsEnabled = mtlsSection.flatMap(s => Option(s.get("enabled"))).exists(_.toString.toBoolean)
+    val tlsCaFile = mtlsSection.flatMap(s => Option(s.get("ca_file"))).map(_.toString).getOrElse("")
+    val tlsCertFile = mtlsSection.flatMap(s => Option(s.get("cert_file"))).map(_.toString).getOrElse("")
+    val tlsKeyFile = mtlsSection.flatMap(s => Option(s.get("key_file"))).map(_.toString).getOrElse("")
+    input.close()
 
-    RuntimeConfig(host, port, cacheMaxSize, cacheTtlSeconds, metricsPort)
+    RuntimeConfig(host, port, cacheMaxSize, cacheTtlSeconds, metricsPort, tlsEnabled, tlsCaFile, tlsCertFile, tlsKeyFile)
   }
 
   override def run(args: List[String]): IO[ExitCode] = {
@@ -235,6 +247,7 @@ object Main extends IOApp {
     initStep.flatMap { cfg =>
       val serverResource = for {
         _ <- Resource.eval(logger.info(s"Listening on ${cfg.host}:${cfg.port}"))
+        _ <- Resource.eval(if (cfg.tlsEnabled) logger.info("mTLS mode enabled") else logger.info("mTLS mode disabled"))
         _ <- Resource.eval(IO(QueryCache.configure(cfg.cacheMaxSize, cfg.cacheTtlSeconds)))
         _ <- Resource.eval(logger.info(s"Cache configured: max_size=${cfg.cacheMaxSize} ttl_seconds=${cfg.cacheTtlSeconds}"))
         _ <- Resource.eval(IO {
@@ -246,14 +259,24 @@ object Main extends IOApp {
         health = new HealthStatusManager()
         _ <- Resource.eval(IO(health.setStatus("", ServingStatus.SERVING)))
         server <- Resource.make(
-          IO(
-            NettyServerBuilder.forPort(cfg.port)
+          IO {
+            val baseBuilder = NettyServerBuilder.forPort(cfg.port)
               .addService(service)
               .addService(health.getHealthService)
-              .addService(ProtoReflectionService.newInstance()) // <--- ВКЛЮЧАЕМ REFLECTION
-              .build()
-              .start()
-          )
+              .addService(ProtoReflectionService.newInstance())
+            val configuredBuilder =
+              if (cfg.tlsEnabled) {
+                val sslCtx = GrpcSslContexts
+                  .forServer(new java.io.File(cfg.tlsCertFile), new java.io.File(cfg.tlsKeyFile))
+                  .trustManager(new java.io.File(cfg.tlsCaFile))
+                  .clientAuth(ClientAuth.REQUIRE)
+                  .build()
+                baseBuilder.sslContext(sslCtx)
+              } else {
+                baseBuilder
+              }
+            configuredBuilder.build().start()
+          }
         )(s => logger.info("=== STOPPING ===") *> IO(s.shutdown().awaitTermination()).void)
       } yield server
 

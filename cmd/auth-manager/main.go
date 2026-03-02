@@ -76,6 +76,9 @@ func (s *authServer) CheckAccess(ctx context.Context, req *libraryv1.AccessReque
 func main() {
 	cfg := config.Get()
 	logger.InitFromConfig(cfg.Logger, "auth")
+	if err := cfg.AuthManager.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "auth_manager config validation failed", err)
+	}
 	if err := cfg.Metrics.Validate(); err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "metrics config validation failed", err)
 	}
@@ -101,18 +104,26 @@ func main() {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to parse whitelist", err)
 	}
 
-	lis, err := net.Listen("tcp", ":50055")
+	lis, err := net.Listen("tcp", cfg.AuthManager.Address())
 	if err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to listen", err)
 	}
 
-	s := grpc.NewServer()
+	grpcOpts := []grpc.ServerOption{}
+	if cfg.AuthManager.MTLS.Enabled {
+		creds, tlsErr := cfg.AuthManager.MTLS.ServerTransportCredentials()
+		if tlsErr != nil {
+			logger.GetGlobal().FatalCtx(context.Background(), "failed to configure auth_manager mTLS", tlsErr)
+		}
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+	}
+	s := grpc.NewServer(grpcOpts...)
 	hs := health.NewServer()
 	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 	healthpb.RegisterHealthServer(s, hs)
 	libraryv1.RegisterAuthServiceServer(s, &authServer{whitelist: wl})
 
-	logger.GetGlobal().WithField("addr", ":50055").InfoCtx(context.Background(), "[auth] started")
+	logger.GetGlobal().WithField("addr", cfg.AuthManager.Address()).InfoCtx(context.Background(), "[auth] started")
 	serveErr := make(chan error, 1)
 	var wg sync.WaitGroup
 	wg.Add(1)

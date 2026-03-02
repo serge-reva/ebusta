@@ -27,7 +27,7 @@ DOWNLOADER_PORT := $(shell sed -n '/downloader:/,/listen_port:/p'      $(CONFIG_
 WEB_FRONTEND_PORT := $(shell sed -n '/web_frontend:/,/listen_port:/p'  $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 GATEWAY_PORT    := $(shell sed -n '/gateway:/,/port:/p'                $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
 
-.PHONY: all build proto proto-generate proto-verify openapi-generate build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean architecture-check docs-check proto-lint proto-breaking test-go test-scala test-unit test-integration test-e2e test-load ci-check docker-build docker-up docker-down docker-logs docker-status
+.PHONY: all build proto proto-generate proto-verify openapi-generate build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean architecture-check docs-check docs-refresh certs-generate proto-lint proto-breaking test-go test-scala test-unit test-integration test-e2e test-load ci-check docker-build docker-up docker-down docker-logs docker-status
 
 all: build
 
@@ -216,6 +216,17 @@ docs-check:
 	@test -f docs/TRACE.md || echo "⚠️  docs/TRACE.md missing"
 	@echo "✅ docs-check passed (warnings are non-fatal for now)"
 
+.PHONY: docs-refresh
+docs-refresh:
+	@echo "📚 docs/"
+	@ls -1 docs | sed 's/^/ - docs\//'
+	@echo "📚 test/classification/"
+	@ls -1 test/classification | sed 's/^/ - test\/classification\//'
+
+.PHONY: certs-generate
+certs-generate:
+	./scripts/gen-certs.sh
+
 .PHONY: proto-lint proto-breaking
 proto-lint:
 	@command -v buf >/dev/null 2>&1 || (echo "❌ buf not installed"; exit 1)
@@ -227,7 +238,7 @@ proto-breaking:
 
 .PHONY: test-go
 test-go:
-	go test $$(go list ./... | grep -v -e '^ebusta/old_do_not_use')
+	go test $$(go list ./... 2>/dev/null | grep -v -e '^ebusta/old_do_not_use')
 
 .PHONY: test-scala
 test-scala:
@@ -237,7 +248,7 @@ test-scala:
 
 .PHONY: test-unit
 test-unit:
-	go test -short $$(go list ./... | grep -v -e '^ebusta/tests' -e '^ebusta/old_do_not_use')
+	go test -short $$(go list ./... 2>/dev/null | grep -v -e '^ebusta/tests' -e '^ebusta/old_do_not_use')
 
 .PHONY: test-integration
 test-integration:
@@ -270,6 +281,7 @@ docker-build:
 
 .PHONY: docker-up
 docker-up:
+	@test -f certs/ca.crt || (echo "❌ certs not found. Run: make certs-generate"; exit 1)
 	docker compose up -d
 
 .PHONY: docker-down

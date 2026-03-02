@@ -11,6 +11,7 @@ This document defines non-negotiable architectural rules for `ebusta`.
 - `errors as data`: domain/business errors are represented as structured diagnostics, not hidden transport failures.
 - `separation of responsibilities`: adapters, orchestration, storage, and shared infra must stay isolated.
 - `append-only contract policy`: backward compatibility is mandatory for public contracts.
+- `internal gRPC mTLS`: all internal gRPC traffic must use mutual TLS in runtime environments.
 
 ## Component Boundaries
 - `gateway` (`cmd/gateway`, `internal/gateway`): HTTP adapter only.

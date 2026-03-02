@@ -50,6 +50,7 @@ f2bulker/data/warn/*
 tmp/
 loki-data/
 grafana-data/
+certs/
 .DS_Store
 
 # === Контексты и Дампы ===

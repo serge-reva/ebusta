@@ -8,24 +8,55 @@ datamanager:
   host: "datamanager"
   port: 50051
   debug: false
+  mtls:
+    enabled: true
+    ca_file: "/certs/ca.crt"
+    cert_file: "/certs/datamanager/datamanager.crt"
+    key_file: "/certs/datamanager/datamanager.key"
 
 dsl_scala:
   protocol: "grpc"
   host: "dsl-scala"
   port: 50052
   debug: false
+  mtls:
+    enabled: true
+    ca_file: "/certs/ca.crt"
+    cert_file: "/certs/dsl-scala/dsl-scala.crt"
+    key_file: "/certs/dsl-scala/dsl-scala.key"
 
 query_builder:
   protocol: "grpc"
   host: "query-builder"
   port: 50053
   debug: false
+  mtls:
+    enabled: true
+    ca_file: "/certs/ca.crt"
+    cert_file: "/certs/query-builder/query-builder.crt"
+    key_file: "/certs/query-builder/query-builder.key"
 
 orchestrator:
   protocol: "grpc"
   host: "orchestrator"
   port: 50054
   debug: false
+  mtls:
+    enabled: true
+    ca_file: "/certs/ca.crt"
+    cert_file: "/certs/orchestrator/orchestrator.crt"
+    key_file: "/certs/orchestrator/orchestrator.key"
+
+auth_manager:
+  protocol: "grpc"
+  host: "auth-manager"
+  port: 50055
+  debug: false
+  mtls:
+    enabled: true
+    ca_file: "/certs/ca.crt"
+    cert_file: "/certs/auth-manager/auth-manager.crt"
+    key_file: "/certs/auth-manager/auth-manager.key"
 
 web_adapter:
   protocol: "http"
@@ -61,12 +92,22 @@ downloads:
     listen_port: 50110
     zip_root: "/data/archive"
     sqlite: "/data/archive.meta.sqlite"
+    mtls:
+      enabled: true
+      ca_file: "/certs/ca.crt"
+      cert_file: "/certs/archive-node/archive-node.crt"
+      key_file: "/certs/archive-node/archive-node.key"
 
   tier_node:
     listen_port: 50111
     root_path: "/data/tier.data"
     sqlite: "/data/tier.meta.sqlite"
     parent: "archive-node:50110"
+    mtls:
+      enabled: true
+      ca_file: "/certs/ca.crt"
+      cert_file: "/certs/tier-node/tier-node.crt"
+      key_file: "/certs/tier-node/tier-node.key"
 
   plasma_node:
     listen_port: 50112
@@ -74,10 +115,20 @@ downloads:
     max_bytes: 1073741824
     max_items: 1000
     debug: ":8091"
+    mtls:
+      enabled: true
+      ca_file: "/certs/ca.crt"
+      cert_file: "/certs/plasma-node/plasma-node.crt"
+      key_file: "/certs/plasma-node/plasma-node.key"
 
   downloader:
     listen_port: 50081
     plasma: "plasma-node:50112"
+    mtls:
+      enabled: true
+      ca_file: "/certs/ca.crt"
+      cert_file: "/certs/downloader/downloader.crt"
+      key_file: "/certs/downloader/downloader.key"
 
   cli:
     download_dir: "/data/downloads"
@@ -114,11 +165,11 @@ gateway:
     cleanup_interval: 300
 
   mtls:
-    enabled: false
-    ca_file: "/etc/ssl/ca.pem"
-    cert_file: "/etc/ssl/gateway.pem"
-    key_file: "/etc/ssl/gateway-key.pem"
-    server_name: "ebusta.local"
+    enabled: true
+    ca_file: "/certs/ca.crt"
+    cert_file: "/certs/gateway/gateway.crt"
+    key_file: "/certs/gateway/gateway.key"
+    server_name: ""
 
   validation:
     max_body_bytes: 1048576

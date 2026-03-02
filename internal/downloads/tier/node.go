@@ -12,6 +12,7 @@ import (
     "sync"
 
     libraryv1 "ebusta/api/proto/v1"
+    "ebusta/internal/config"
     "ebusta/internal/errutil"
     "ebusta/internal/logger"
     ds "ebusta/internal/downloads/sqlite"
@@ -19,7 +20,6 @@ import (
     _ "modernc.org/sqlite"
 
     "google.golang.org/grpc"
-    "google.golang.org/grpc/credentials/insecure"
 )
 
 type Node struct {
@@ -45,6 +45,7 @@ type Config struct {
     RootPath   string
     SqlitePath string
     ParentAddr string
+    MTLS       config.GRPCTLSConfig
 }
 
 func New(cfg Config) (*Node, error) {
@@ -67,7 +68,12 @@ func New(cfg Config) (*Node, error) {
         return nil, err
     }
 
-    conn, err := grpc.Dial(cfg.ParentAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+    creds, err := cfg.MTLS.ClientTransportCredentials()
+    if err != nil {
+        _ = db.Close()
+        return nil, err
+    }
+    conn, err := grpc.Dial(cfg.ParentAddr, grpc.WithTransportCredentials(creds))
     if err != nil {
         _ = db.Close()
         return nil, err

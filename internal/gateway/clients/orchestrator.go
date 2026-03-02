@@ -7,6 +7,7 @@ import (
 	"ebusta/internal/config"
 	"ebusta/internal/errutil"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -19,10 +20,14 @@ func NewOrchestratorClient(cfg *config.GatewayRuntimeConfig) (*OrchestratorClien
 	var opts []grpc.DialOption
 
 	if cfg.MTLS.Enabled {
-		// Здесь будет mTLS, пока не реализовано
+		tlsCfg, err := cfg.GetTLSConfig()
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
+	} else {
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
-
-	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	conn, err := grpc.Dial(cfg.Services.Orchestrator, opts...)
 	if err != nil {

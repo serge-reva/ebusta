@@ -80,6 +80,16 @@ Quick test commands:
 - `make test-e2e`
 - `make test-load`
 
+## Internal mTLS
+
+For docker runtime validation with internal gRPC mTLS:
+
+- `make certs-generate`
+- `make docker-build`
+- `make docker-up`
+- `make docker-status`
+- `make docker-down`
+
 ## Documentation
 
 Core architecture and operations docs:
@@ -89,5 +99,7 @@ Core architecture and operations docs:
 - `docs/TRACE.md`
 - `docs/ENGINEERING_STANDARD.md`
 - `docs/PROTO_IMMUTABILITY.md`
+- `docs/MTLS_INTERNAL.md`
 - `docs/LOGGING_LOKI.md`
 - `docs/api/openapi.yaml`
+- `docs/RUNBOOK.md`

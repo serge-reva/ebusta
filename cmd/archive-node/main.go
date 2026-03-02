@@ -66,7 +66,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	s := grpc.NewServer()
+	grpcOpts := []grpc.ServerOption{}
+	if arch.MTLS.Enabled {
+		creds, tlsErr := arch.MTLS.ServerTransportCredentials()
+		if tlsErr != nil {
+			fmt.Fprintf(os.Stderr, "archive-node tls config error: %v\n", tlsErr)
+			os.Exit(2)
+		}
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+	}
+	s := grpc.NewServer(grpcOpts...)
 	hs := health.NewServer()
 	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 	healthpb.RegisterHealthServer(s, hs)
