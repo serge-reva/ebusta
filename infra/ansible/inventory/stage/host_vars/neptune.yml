@@ -1,0 +1,2 @@
+archive_node_zip_root: "/fb2"
+archive_node_sqlite: "/opt/ebusta/archive.meta.sqlite"

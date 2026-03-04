@@ -1,0 +1,49 @@
+---
+- name: Deploy internal stack on yuro
+  hosts: internal
+  become: true
+  tasks:
+    - name: Skip non-yuro hosts for internal stack
+      ansible.builtin.meta: end_host
+      when: inventory_hostname == 'neptune'
+
+    - name: Create directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /opt/ebusta
+        - /opt/ebusta/tier_data
+
+    - name: Render ebusta config
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../templates/ebusta.yaml.j2"
+        dest: /opt/ebusta/ebusta.yaml
+        mode: "0644"
+
+    - name: Render internal compose
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../templates/docker-compose.internal.yml.j2"
+        dest: /opt/ebusta/docker-compose.yml
+        mode: "0644"
+
+    - name: Pull internal images
+      community.docker.docker_compose_v2:
+        project_src: /opt/ebusta
+        pull: always
+
+    - name: Start internal services
+      community.docker.docker_compose_v2:
+        project_src: /opt/ebusta
+        state: present
+
+    - name: Wait for gateway health
+      ansible.builtin.command: docker compose exec -T gateway curl -fsS http://localhost:8443/health
+      args:
+        chdir: /opt/ebusta
+      register: gateway_health
+      until: gateway_health.rc == 0
+      retries: 30
+      delay: 2
+      changed_when: false

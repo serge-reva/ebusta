@@ -1,0 +1,22 @@
+docker_registry: "yuro.local:5000"
+image_tag: "latest"
+mtls_enabled: false
+
+gateway_host: "gateway.ebusta"
+web_frontend_host: "web-frontend.ebusta"
+datamanager_host: "datamanager.ebusta"
+dsl_scala_host: "dsl-scala.ebusta"
+query_builder_host: "query-builder.ebusta"
+orchestrator_host: "orchestrator.ebusta"
+downloader_host: "downloader.ebusta"
+archive_node_host: "archive-node.ebusta"
+tier_node_host: "tier-node.ebusta"
+plasma_node_host: "plasma-node.ebusta"
+
+archive_node_zip_root: "/fb2"
+archive_node_sqlite: "/opt/ebusta/archive.meta.sqlite"
+tier_node_root_path: "/opt/ebusta/tier_data"
+tier_node_sqlite: "/opt/ebusta/tier.meta.sqlite"
+
+internal_dns_server: "192.168.1.11"
+internal_dns_zone: "ebusta"

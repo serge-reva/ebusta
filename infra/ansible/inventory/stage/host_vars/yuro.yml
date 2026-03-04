@@ -1,0 +1,2 @@
+tier_node_root_path: "/opt/ebusta/tier_data"
+tier_node_sqlite: "/opt/ebusta/tier.meta.sqlite"

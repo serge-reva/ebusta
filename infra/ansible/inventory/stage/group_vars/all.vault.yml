@@ -1,0 +1,4 @@
+# ansible-vault encrypted values placeholder
+# Example:
+# docker_registry_username: ""
+# docker_registry_password: ""

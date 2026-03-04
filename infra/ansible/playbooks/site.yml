@@ -1,0 +1,3 @@
+---
+- import_playbook: deploy_archive.yml
+- import_playbook: deploy_internal.yml

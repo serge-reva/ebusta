@@ -1,0 +1,13 @@
+internal_services:
+  - datamanager
+  - dsl-scala
+  - query-builder
+  - orchestrator
+  - archive-node
+  - tier-node
+  - plasma-node
+  - downloader
+  - irc-adapter
+
+tier_node_root_path: "/opt/ebusta/tier_data"
+tier_node_sqlite: "/opt/ebusta/tier.meta.sqlite"

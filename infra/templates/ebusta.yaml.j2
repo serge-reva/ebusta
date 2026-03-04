@@ -1,0 +1,277 @@
+opensearch:
+  url: "http://cloud-1:9200"
+  index_name: "flibusta_merged_index"
+  debug: false
+
+datamanager:
+  protocol: "grpc"
+  host: "{{ datamanager_host }}"
+  port: 50051
+  debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/datamanager/datamanager.crt"
+    key_file: "./certs/datamanager/datamanager.key"
+
+dsl_scala:
+  protocol: "grpc"
+  host: "{{ dsl_scala_host }}"
+  port: 50052
+  debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/dsl-scala/dsl-scala.crt"
+    key_file: "./certs/dsl-scala/dsl-scala.key"
+
+query_builder:
+  protocol: "grpc"
+  host: "{{ query_builder_host }}"
+  port: 50053
+  debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/query-builder/query-builder.crt"
+    key_file: "./certs/query-builder/query-builder.key"
+
+orchestrator:
+  protocol: "grpc"
+  host: "{{ orchestrator_host }}"
+  port: 50054
+  debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/orchestrator/orchestrator.crt"
+    key_file: "./certs/orchestrator/orchestrator.key"
+
+auth_manager:
+  protocol: "grpc"
+  host: "auth-manager.ebusta"
+  port: 50055
+  debug: false
+  mtls:
+    enabled: false
+
+web_adapter:
+  protocol: "http"
+  host: "web-adapter.ebusta"
+  port: 50080
+  debug: false
+
+web_frontend:
+  port: 3000
+  page_size: 20
+  gateway_url: "http://{{ gateway_host }}:8443"
+  debug: false
+
+metrics:
+  port: 50090
+  services:
+    gateway: 59001
+    orchestrator: 59054
+    datamanager: 59051
+    downloader: 59081
+    archive_node: 59110
+    tier_node: 59111
+    plasma_node: 59112
+    auth_manager: 59055
+    irc_adapter: 59667
+    telegram_adapter: 59087
+    web_frontend: 59300
+    dsl_scala: 59052
+    query_builder: 59053
+
+downloads:
+  archive_node:
+    listen_port: 50110
+    zip_root: "{{ archive_node_zip_root }}"
+    sqlite: "{{ archive_node_sqlite }}"
+    mtls:
+      enabled: false
+      ca_file: "./certs/ca.crt"
+      cert_file: "./certs/archive-node/archive-node.crt"
+      key_file: "./certs/archive-node/archive-node.key"
+
+  tier_node:
+    listen_port: 50111
+    root_path: "{{ tier_node_root_path }}"
+    sqlite: "{{ tier_node_sqlite }}"
+    parent: "{{ archive_node_host }}:50110"
+    mtls:
+      enabled: false
+      ca_file: "./certs/ca.crt"
+      cert_file: "./certs/tier-node/tier-node.crt"
+      key_file: "./certs/tier-node/tier-node.key"
+
+  plasma_node:
+    listen_port: 50112
+    parent: "{{ tier_node_host }}:50111"
+    max_bytes: 1073741824
+    max_items: 1000
+    debug: ":8091"
+    mtls:
+      enabled: false
+      ca_file: "./certs/ca.crt"
+      cert_file: "./certs/plasma-node/plasma-node.crt"
+      key_file: "./certs/plasma-node/plasma-node.key"
+
+  downloader:
+    listen_port: 50081
+    plasma: "{{ plasma_node_host }}:50112"
+    mtls:
+      enabled: false
+      ca_file: "./certs/ca.crt"
+      cert_file: "./certs/downloader/downloader.crt"
+      key_file: "./certs/downloader/downloader.key"
+
+  cli:
+    download_dir: "./downloads"
+
+cli:
+  debug: false
+
+logger:
+  level: INFO
+  format: text
+  disable_colors: false
+  outputs:
+    console:
+      enabled: true
+    file:
+      enabled: true
+      path: /var/log/ebusta/app.log
+      append: true
+
+gateway:
+  port: 8443
+  tls_cert: ""
+  tls_key: ""
+
+  rate_limit:
+    ip: 60
+    authenticated: 100
+    download: 10
+    resolve: 30
+
+  mapper:
+    ttl: 3600
+    max_tokens: 10000
+    cleanup_interval: 300
+
+  mtls:
+    enabled: false
+    ca_file: "/etc/ssl/ca.pem"
+    cert_file: "/etc/ssl/gateway.pem"
+    key_file: "/etc/ssl/gateway-key.pem"
+    server_name: "ebusta.local"
+
+  validation:
+    max_body_bytes: 1048576
+    max_file_bytes: 104857600
+    max_query_length: 500
+    max_array_items: 1000
+    max_json_depth: 10
+
+  cors:
+    allowed_origins:
+      - "https://ebusta.com"
+      - "https://app.ebusta.com"
+    allowed_methods:
+      - "GET"
+      - "POST"
+      - "HEAD"
+      - "OPTIONS"
+    allowed_headers:
+      - "Origin"
+      - "Content-Type"
+      - "X-API-Token"
+      - "X-CSRF-Token"
+    allow_credentials: true
+    max_age: 300
+
+  services:
+    orchestrator: "{{ orchestrator_host }}:50054"
+    downloader: "{{ downloader_host }}:50081"
+    auth: "auth-manager.ebusta:50055"
+
+irc_adapter:
+  mode: "bot"
+  server_host: "0.0.0.0"
+  server_port: 6667
+  nick: "ebusta-bot"
+  user: "ebusta"
+  real_name: "Ebusta Book Search Bot"
+  gateway_url: "http://{{ gateway_host }}:8443"
+  page_size: 5
+  debug: true
+  bot_server_host: "localhost"
+  bot_server_port: 6667
+  bot_use_tls: false
+  bot_password: ""
+  bot_nick: "ebusta-bot"
+  bot_user: "ebusta"
+  bot_real_name: "Ebusta Book Search Bot"
+  bot_channels:
+    - "#books"
+  bot_reconnect_seconds: 5
+  dcc_enabled: false
+  dcc_public_ip: ""
+  dcc_port_min: 40000
+  dcc_port_max: 40100
+  dcc_timeout_sec: 180
+
+telegram_adapter:
+  host: "0.0.0.0"
+  port: 8087
+  gateway_url: "http://{{ gateway_host }}:8443"
+  page_size: 5
+  debug: false
+
+edge:
+  reload_mode: "restart"
+  default:
+    max_line_length: 512
+    max_body_bytes: 1048576
+    max_json_depth: 10
+    actions:
+      ip:
+        per_minute: 60
+        burst: 60
+      resolve:
+        per_minute: 30
+        burst: 30
+      command:
+        per_minute: 30
+        burst: 30
+      update:
+        per_minute: 30
+        burst: 30
+  sources:
+    gateway:
+      actions:
+        ip:
+          per_minute: 60
+          burst: 60
+        resolve:
+          per_minute: 30
+          burst: 30
+    irc:
+      max_line_length: 512
+      actions:
+        command:
+          per_minute: 30
+          burst: 30
+    telegram:
+      max_line_length: 512
+      max_body_bytes: 524288
+      max_json_depth: 10
+      actions:
+        command:
+          per_minute: 20
+          burst: 20
+        update:
+          per_minute: 60
+          burst: 60

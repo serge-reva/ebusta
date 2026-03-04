@@ -1,0 +1,167 @@
+services:
+  datamanager:
+    image: "{{ docker_registry }}/ebusta-datamanager:{{ image_tag }}"
+    ports:
+      - "50051:50051"
+    volumes:
+      - ./ebusta.yaml:/app/ebusta.yaml:ro
+    environment:
+      - EBUSTA_CONFIG=/app/ebusta.yaml
+    healthcheck:
+      test: ["CMD", "/app/grpc_health_probe", "-addr=localhost:50051"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  dsl-scala:
+    image: "{{ docker_registry }}/ebusta-dsl-scala:{{ image_tag }}"
+    ports:
+      - "50052:50052"
+    volumes:
+      - ./ebusta.yaml:/app/ebusta.yaml:ro
+    environment:
+      - EBUSTA_CONFIG=/app/ebusta.yaml
+    healthcheck:
+      test: ["CMD", "/app/grpc_health_probe", "-addr=localhost:50052"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  query-builder:
+    image: "{{ docker_registry }}/ebusta-query-builder:{{ image_tag }}"
+    ports:
+      - "50053:50053"
+    volumes:
+      - ./ebusta.yaml:/app/ebusta.yaml:ro
+    environment:
+      - EBUSTA_CONFIG=/app/ebusta.yaml
+    healthcheck:
+      test: ["CMD", "/app/grpc_health_probe", "-addr=localhost:50053"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  orchestrator:
+    image: "{{ docker_registry }}/ebusta-orchestrator:{{ image_tag }}"
+    ports:
+      - "50054:50054"
+    depends_on:
+      datamanager:
+        condition: service_healthy
+      dsl-scala:
+        condition: service_healthy
+      query-builder:
+        condition: service_healthy
+    volumes:
+      - ./ebusta.yaml:/app/ebusta.yaml:ro
+    environment:
+      - EBUSTA_CONFIG=/app/ebusta.yaml
+    healthcheck:
+      test: ["CMD", "/app/grpc_health_probe", "-addr=localhost:50054"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  tier-node:
+    image: "{{ docker_registry }}/ebusta-tier-node:{{ image_tag }}"
+    ports:
+      - "50111:50111"
+    volumes:
+      - ./ebusta.yaml:/app/ebusta.yaml:ro
+      - /opt/ebusta:/opt/ebusta
+    environment:
+      - EBUSTA_CONFIG=/app/ebusta.yaml
+    healthcheck:
+      test: ["CMD", "/app/grpc_health_probe", "-addr=localhost:50111"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  plasma-node:
+    image: "{{ docker_registry }}/ebusta-plasma-node:{{ image_tag }}"
+    ports:
+      - "50112:50112"
+    depends_on:
+      tier-node:
+        condition: service_healthy
+    volumes:
+      - ./ebusta.yaml:/app/ebusta.yaml:ro
+      - /opt/ebusta:/opt/ebusta
+    environment:
+      - EBUSTA_CONFIG=/app/ebusta.yaml
+    healthcheck:
+      test: ["CMD", "/app/grpc_health_probe", "-addr=localhost:50112"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  downloader:
+    image: "{{ docker_registry }}/ebusta-downloader:{{ image_tag }}"
+    ports:
+      - "50081:50081"
+    depends_on:
+      plasma-node:
+        condition: service_healthy
+    volumes:
+      - ./ebusta.yaml:/app/ebusta.yaml:ro
+    environment:
+      - EBUSTA_CONFIG=/app/ebusta.yaml
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:50081/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  gateway:
+    image: "{{ docker_registry }}/ebusta-gateway:{{ image_tag }}"
+    ports:
+      - "8443:8443"
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+      downloader:
+        condition: service_healthy
+    volumes:
+      - ./ebusta.yaml:/app/ebusta.yaml:ro
+    environment:
+      - EBUSTA_CONFIG=/app/ebusta.yaml
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8443/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  web-frontend:
+    image: "{{ docker_registry }}/ebusta-web-frontend:{{ image_tag }}"
+    ports:
+      - "3000:3000"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    volumes:
+      - ./ebusta.yaml:/app/ebusta.yaml:ro
+    environment:
+      - EBUSTA_CONFIG=/app/ebusta.yaml
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
