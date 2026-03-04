@@ -5,7 +5,7 @@ opensearch:
 
 datamanager:
   protocol: "grpc"
-  host: "0.0.0.0"
+  host: "{{ datamanager_host }}"
   port: 50051
   debug: false
   mtls:
@@ -16,7 +16,7 @@ datamanager:
 
 dsl_scala:
   protocol: "grpc"
-  host: "0.0.0.0"
+  host: "{{ dsl_scala_host }}"
   port: 50052
   debug: false
   mtls:
@@ -27,7 +27,7 @@ dsl_scala:
 
 query_builder:
   protocol: "grpc"
-  host: "0.0.0.0"
+  host: "{{ query_builder_host }}"
   port: 50053
   debug: false
   mtls:
@@ -38,7 +38,7 @@ query_builder:
 
 orchestrator:
   protocol: "grpc"
-  host: "0.0.0.0"
+  host: "{{ orchestrator_host }}"
   port: 50054
   debug: false
   mtls:
@@ -49,7 +49,7 @@ orchestrator:
 
 auth_manager:
   protocol: "grpc"
-  host: "0.0.0.0"
+  host: "auth-manager.ebusta"
   port: 50055
   debug: false
   mtls:

@@ -7,6 +7,8 @@ services:
       - ./ebusta.yaml:/app/ebusta.yaml:ro
     environment:
       - EBUSTA_CONFIG=/app/ebusta.yaml
+    dns:
+      - 192.168.1.11
     healthcheck:
       test: ["CMD", "/app/grpc_health_probe", "-addr=localhost:50051"]
       interval: 10s
@@ -23,6 +25,8 @@ services:
       - ./ebusta.yaml:/app/ebusta.yaml:ro
     environment:
       - EBUSTA_CONFIG=/app/ebusta.yaml
+    dns:
+      - 192.168.1.11
     healthcheck:
       test: ["CMD", "/app/grpc_health_probe", "-addr=localhost:50052"]
       interval: 10s
@@ -39,6 +43,8 @@ services:
       - ./ebusta.yaml:/app/ebusta.yaml:ro
     environment:
       - EBUSTA_CONFIG=/app/ebusta.yaml
+    dns:
+      - 192.168.1.11
     healthcheck:
       test: ["CMD", "/app/grpc_health_probe", "-addr=localhost:50053"]
       interval: 10s
@@ -62,6 +68,8 @@ services:
       - ./ebusta.yaml:/app/ebusta.yaml:ro
     environment:
       - EBUSTA_CONFIG=/app/ebusta.yaml
+    dns:
+      - 192.168.1.11
     healthcheck:
       test: ["CMD", "/app/grpc_health_probe", "-addr=localhost:50054"]
       interval: 10s
@@ -79,6 +87,8 @@ services:
       - /opt/ebusta:/opt/ebusta
     environment:
       - EBUSTA_CONFIG=/app/ebusta.yaml
+    dns:
+      - 192.168.1.11
     healthcheck:
       test: ["CMD", "/app/grpc_health_probe", "-addr=localhost:50111"]
       interval: 10s
@@ -99,6 +109,8 @@ services:
       - /opt/ebusta:/opt/ebusta
     environment:
       - EBUSTA_CONFIG=/app/ebusta.yaml
+    dns:
+      - 192.168.1.11
     healthcheck:
       test: ["CMD", "/app/grpc_health_probe", "-addr=localhost:50112"]
       interval: 10s
@@ -118,6 +130,8 @@ services:
       - ./ebusta.yaml:/app/ebusta.yaml:ro
     environment:
       - EBUSTA_CONFIG=/app/ebusta.yaml
+    dns:
+      - 192.168.1.11
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:50081/health"]
       interval: 10s
@@ -139,6 +153,8 @@ services:
       - ./ebusta.yaml:/app/ebusta.yaml:ro
     environment:
       - EBUSTA_CONFIG=/app/ebusta.yaml
+    dns:
+      - 192.168.1.11
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8443/health"]
       interval: 10s
@@ -158,6 +174,8 @@ services:
       - ./ebusta.yaml:/app/ebusta.yaml:ro
     environment:
       - EBUSTA_CONFIG=/app/ebusta.yaml
+    dns:
+      - 192.168.1.11
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 10s
