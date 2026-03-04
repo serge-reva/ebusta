@@ -13,7 +13,6 @@ archive_node_host: "archive-node.ebusta"
 tier_node_host: "tier-node.ebusta"
 plasma_node_host: "plasma-node.ebusta"
 
-archive_node_zip_root: "/fb2"
 archive_node_sqlite: "/opt/ebusta/archive.meta.sqlite"
 tier_node_root_path: "/opt/ebusta/tier_data"
 tier_node_sqlite: "/opt/ebusta/tier.meta.sqlite"
