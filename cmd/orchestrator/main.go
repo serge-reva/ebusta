@@ -121,15 +121,15 @@ func main() {
 	if err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to configure orchestrator mTLS client", err)
 	}
-	dslConn, err := grpc.Dial(cfg.DslScala.Address(), grpc.WithTransportCredentials(clientCreds))
+	dslConn, err := grpc.Dial(cfg.DslScala.DialAddress(), grpc.WithTransportCredentials(clientCreds))
 	if err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to connect to dsl_scala", err)
 	}
-	qbConn, err := grpc.Dial(cfg.QueryBuilder.Address(), grpc.WithTransportCredentials(clientCreds))
+	qbConn, err := grpc.Dial(cfg.QueryBuilder.DialAddress(), grpc.WithTransportCredentials(clientCreds))
 	if err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to connect to query_builder", err)
 	}
-	dmConn, err := grpc.Dial(cfg.Datamanager.Address(), grpc.WithTransportCredentials(clientCreds))
+	dmConn, err := grpc.Dial(cfg.Datamanager.DialAddress(), grpc.WithTransportCredentials(clientCreds))
 	if err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to connect to datamanager", err)
 	}
@@ -137,7 +137,7 @@ func main() {
 	defer qbConn.Close()
 	defer dmConn.Close()
 
-	lis, err := net.Listen("tcp", cfg.Orchestrator.Address())
+	lis, err := net.Listen("tcp", cfg.Orchestrator.ListenAddress())
 	if err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to listen", err)
 	}
@@ -160,7 +160,7 @@ func main() {
 		dmClient:  libraryv1.NewStorageServiceClient(dmConn),
 	})
 
-	logger.GetGlobal().WithField("addr", cfg.Orchestrator.Address()).
+	logger.GetGlobal().WithField("addr", cfg.Orchestrator.ListenAddress()).
 		InfoCtx(context.Background(), "[orchestrator] started")
 
 	serveErr := make(chan error, 1)

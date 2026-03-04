@@ -10,6 +10,7 @@ import io.grpc.Metadata
 import io.grpc.protobuf.services.ProtoReflectionService
 import io.grpc.protobuf.services.HealthStatusManager
 import io.grpc.health.v1.HealthCheckResponse.ServingStatus
+import java.net.InetSocketAddress
 
 import java.io.{FileWriter, FileInputStream}
 import java.time.LocalDateTime
@@ -117,7 +118,8 @@ class DslImpl(logger: SimpleLogger) extends DslTransformerFs2Grpc[IO, Metadata] 
 
 object Main extends IOApp {
   case class RuntimeConfig(
-    host: String,
+    listenHost: String,
+    advertiseHost: String,
     port: Int,
     metricsPort: Int,
     tlsEnabled: Boolean,
@@ -133,7 +135,14 @@ object Main extends IOApp {
     val yaml = new Yaml()
     val data = yaml.load(input).asInstanceOf[JMap[String, Any]]
     val dslSection = data.get("dsl_scala").asInstanceOf[JMap[String, Any]]
-    val host = dslSection.get("host").toString
+    val listenHost = Option(dslSection.get("listen_host"))
+      .orElse(Option(dslSection.get("host")))
+      .map(_.toString)
+      .getOrElse("0.0.0.0")
+    val advertiseHost = Option(dslSection.get("advertise_host"))
+      .orElse(Option(dslSection.get("host")))
+      .map(_.toString)
+      .getOrElse(listenHost)
     val port = dslSection.get("port").toString.toDouble.toInt
     val metricsSection = Option(data.get("metrics")).map(_.asInstanceOf[JMap[String, Any]])
     val metricsServices = metricsSection.flatMap(m => Option(m.get("services")).map(_.asInstanceOf[JMap[String, Any]]))
@@ -144,7 +153,7 @@ object Main extends IOApp {
     val tlsCertFile = mtlsSection.flatMap(s => Option(s.get("cert_file"))).map(_.toString).getOrElse("")
     val tlsKeyFile = mtlsSection.flatMap(s => Option(s.get("key_file"))).map(_.toString).getOrElse("")
     input.close()
-    RuntimeConfig(host, port, metricsPort, tlsEnabled, tlsCaFile, tlsCertFile, tlsKeyFile)
+    RuntimeConfig(listenHost, advertiseHost, port, metricsPort, tlsEnabled, tlsCaFile, tlsCertFile, tlsKeyFile)
   }
 
   override def run(args: List[String]): IO[ExitCode] = {
@@ -157,7 +166,7 @@ object Main extends IOApp {
       cfg <- IO(loadConfig(configPath)).handleErrorWith { e =>
         logger.error(s"Config Error: ${e.getMessage}") *> IO.raiseError(e)
       }
-      _ <- logger.info(s"Listening on ${cfg.host}:${cfg.port}")
+      _ <- logger.info(s"Listening on ${cfg.listenHost}:${cfg.port} (advertise: ${cfg.advertiseHost}:${cfg.port})")
       _ <- if (cfg.tlsEnabled) logger.info("mTLS mode enabled") else logger.info("mTLS mode disabled")
       _ <- IO {
         DefaultExports.initialize()
@@ -169,7 +178,7 @@ object Main extends IOApp {
         health.setStatus("", ServingStatus.SERVING)
         Resource.make(
           IO {
-            val baseBuilder = NettyServerBuilder.forPort(cfg.port)
+            val baseBuilder = NettyServerBuilder.forAddress(new InetSocketAddress(cfg.listenHost, cfg.port))
               .addService(service)
               .addService(health.getHealthService)
               .addService(ProtoReflectionService.newInstance())

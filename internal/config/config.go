@@ -18,11 +18,13 @@ var (
 )
 
 type ComponentConfig struct {
-	Protocol string        `yaml:"protocol"`
-	Host     string        `yaml:"host"`
-	Port     int           `yaml:"port"`
-	Debug    bool          `yaml:"debug"`
-	MTLS     GRPCTLSConfig `yaml:"mtls"`
+	Protocol      string        `yaml:"protocol"`
+	ListenHost    string        `yaml:"listen_host"`
+	AdvertiseHost string        `yaml:"advertise_host"`
+	Host          string        `yaml:"host"` // legacy fallback
+	Port          int           `yaml:"port"`
+	Debug         bool          `yaml:"debug"`
+	MTLS          GRPCTLSConfig `yaml:"mtls"`
 }
 
 type CLIConfig struct {
@@ -242,10 +244,12 @@ func (c TelegramAdapterConfig) Address() string {
 /* ---------- WEB FRONTEND ---------- */
 
 type WebFrontendConfig struct {
-	Port       int    `yaml:"port"`
-	PageSize   int    `yaml:"page_size"`
-	GatewayURL string `yaml:"gateway_url"`
-	Debug      bool   `yaml:"debug"`
+	ListenHost    string `yaml:"listen_host"`
+	AdvertiseHost string `yaml:"advertise_host"`
+	Port          int    `yaml:"port"`
+	PageSize      int    `yaml:"page_size"`
+	GatewayURL    string `yaml:"gateway_url"`
+	Debug         bool   `yaml:"debug"`
 }
 
 func (c WebFrontendConfig) Validate() error {
@@ -265,7 +269,7 @@ func (c WebFrontendConfig) Validate() error {
 }
 
 func (c WebFrontendConfig) ListenAddr() string {
-	return fmt.Sprintf(":%d", c.Port)
+	return buildAddr(normalizeListenHost(c.ListenHost), c.Port)
 }
 
 /* ---------- DOWNLOADS ROOT ---------- */
@@ -287,9 +291,11 @@ type DownloadsCLIConfig struct {
 /* ---------- DOWNLOADER (HTTP) ---------- */
 
 type DownloaderConfig struct {
-	ListenPort int           `yaml:"listen_port"`
-	PlasmaAddr string        `yaml:"plasma"`
-	MTLS       GRPCTLSConfig `yaml:"mtls"`
+	ListenHost    string        `yaml:"listen_host"`
+	AdvertiseHost string        `yaml:"advertise_host"`
+	ListenPort    int           `yaml:"listen_port"`
+	PlasmaAddr    string        `yaml:"plasma"`
+	MTLS          GRPCTLSConfig `yaml:"mtls"`
 }
 
 func (c DownloaderConfig) Validate() error {
@@ -306,16 +312,26 @@ func (c DownloaderConfig) Validate() error {
 }
 
 func (c DownloaderConfig) ListenAddr() string {
-	return fmt.Sprintf(":%d", c.ListenPort)
+	return buildAddr(normalizeListenHost(c.ListenHost), c.ListenPort)
+}
+
+func (c DownloaderConfig) AdvertiseAddr() string {
+	host := strings.TrimSpace(c.AdvertiseHost)
+	if host == "" {
+		host = "localhost"
+	}
+	return buildAddr(host, c.ListenPort)
 }
 
 /* ---------- ARCHIVE ---------- */
 
 type ArchiveNodeConfig struct {
-	ListenPort int           `yaml:"listen_port"`
-	ZipRoot    string        `yaml:"zip_root"`
-	Sqlite     string        `yaml:"sqlite"`
-	MTLS       GRPCTLSConfig `yaml:"mtls"`
+	ListenHost    string        `yaml:"listen_host"`
+	AdvertiseHost string        `yaml:"advertise_host"`
+	ListenPort    int           `yaml:"listen_port"`
+	ZipRoot       string        `yaml:"zip_root"`
+	Sqlite        string        `yaml:"sqlite"`
+	MTLS          GRPCTLSConfig `yaml:"mtls"`
 }
 
 func (c ArchiveNodeConfig) Validate() error {
@@ -335,17 +351,27 @@ func (c ArchiveNodeConfig) Validate() error {
 }
 
 func (c ArchiveNodeConfig) ListenAddr() string {
-	return fmt.Sprintf(":%d", c.ListenPort)
+	return buildAddr(normalizeListenHost(c.ListenHost), c.ListenPort)
+}
+
+func (c ArchiveNodeConfig) AdvertiseAddr() string {
+	host := strings.TrimSpace(c.AdvertiseHost)
+	if host == "" {
+		host = "localhost"
+	}
+	return buildAddr(host, c.ListenPort)
 }
 
 /* ---------- TIER ---------- */
 
 type TierNodeConfig struct {
-	ListenPort int           `yaml:"listen_port"`
-	RootPath   string        `yaml:"root_path"`
-	Sqlite     string        `yaml:"sqlite"`
-	ParentAddr string        `yaml:"parent"`
-	MTLS       GRPCTLSConfig `yaml:"mtls"`
+	ListenHost    string        `yaml:"listen_host"`
+	AdvertiseHost string        `yaml:"advertise_host"`
+	ListenPort    int           `yaml:"listen_port"`
+	RootPath      string        `yaml:"root_path"`
+	Sqlite        string        `yaml:"sqlite"`
+	ParentAddr    string        `yaml:"parent"`
+	MTLS          GRPCTLSConfig `yaml:"mtls"`
 }
 
 func (c TierNodeConfig) Validate() error {
@@ -368,18 +394,28 @@ func (c TierNodeConfig) Validate() error {
 }
 
 func (c TierNodeConfig) ListenAddr() string {
-	return fmt.Sprintf(":%d", c.ListenPort)
+	return buildAddr(normalizeListenHost(c.ListenHost), c.ListenPort)
+}
+
+func (c TierNodeConfig) AdvertiseAddr() string {
+	host := strings.TrimSpace(c.AdvertiseHost)
+	if host == "" {
+		host = "localhost"
+	}
+	return buildAddr(host, c.ListenPort)
 }
 
 /* ---------- PLASMA ---------- */
 
 type PlasmaNodeConfig struct {
-	ListenPort int           `yaml:"listen_port"`
-	ParentAddr string        `yaml:"parent"`
-	MaxBytes   int64         `yaml:"max_bytes"`
-	MaxItems   int           `yaml:"max_items"`
-	DebugAddr  string        `yaml:"debug"`
-	MTLS       GRPCTLSConfig `yaml:"mtls"`
+	ListenHost    string        `yaml:"listen_host"`
+	AdvertiseHost string        `yaml:"advertise_host"`
+	ListenPort    int           `yaml:"listen_port"`
+	ParentAddr    string        `yaml:"parent"`
+	MaxBytes      int64         `yaml:"max_bytes"`
+	MaxItems      int           `yaml:"max_items"`
+	DebugAddr     string        `yaml:"debug"`
+	MTLS          GRPCTLSConfig `yaml:"mtls"`
 }
 
 func (c PlasmaNodeConfig) Validate() error {
@@ -402,21 +438,31 @@ func (c PlasmaNodeConfig) Validate() error {
 }
 
 func (c PlasmaNodeConfig) ListenAddr() string {
-	return fmt.Sprintf(":%d", c.ListenPort)
+	return buildAddr(normalizeListenHost(c.ListenHost), c.ListenPort)
+}
+
+func (c PlasmaNodeConfig) AdvertiseAddr() string {
+	host := strings.TrimSpace(c.AdvertiseHost)
+	if host == "" {
+		host = "localhost"
+	}
+	return buildAddr(host, c.ListenPort)
 }
 
 /* ---------- GATEWAY ---------- */
 
 type GatewayConfig struct {
-	Port       int                   `yaml:"port"`
-	TLSCert    string                `yaml:"tls_cert"`
-	TLSKey     string                `yaml:"tls_key"`
-	RateLimit  RateLimitConfig       `yaml:"rate_limit"`
-	Mapper     MapperConfig          `yaml:"mapper"`
-	MTLS       MTLSConfig            `yaml:"mtls"`
-	Validation ValidationConfig      `yaml:"validation"`
-	CORS       CORSConfig            `yaml:"cors"`
-	Services   GatewayServicesConfig `yaml:"services"`
+	ListenHost    string                `yaml:"listen_host"`
+	AdvertiseHost string                `yaml:"advertise_host"`
+	Port          int                   `yaml:"port"`
+	TLSCert       string                `yaml:"tls_cert"`
+	TLSKey        string                `yaml:"tls_key"`
+	RateLimit     RateLimitConfig       `yaml:"rate_limit"`
+	Mapper        MapperConfig          `yaml:"mapper"`
+	MTLS          MTLSConfig            `yaml:"mtls"`
+	Validation    ValidationConfig      `yaml:"validation"`
+	CORS          CORSConfig            `yaml:"cors"`
+	Services      GatewayServicesConfig `yaml:"services"`
 }
 
 func (c GatewayConfig) Validate() error {
@@ -566,16 +612,32 @@ func Get() *Config {
 	return instance
 }
 
+func (c ComponentConfig) listenHost() string {
+	return normalizeListenHost(c.ListenHost)
+}
+
+func (c ComponentConfig) advertiseHost() string {
+	return normalizeAdvertiseHost(c.AdvertiseHost, c.Host)
+}
+
+func (c ComponentConfig) ListenAddress() string {
+	return buildAddr(c.listenHost(), c.Port)
+}
+
+func (c ComponentConfig) DialAddress() string {
+	return buildAddr(c.advertiseHost(), c.Port)
+}
+
 func (c ComponentConfig) Address() string {
-	return fmt.Sprintf("%s:%d", c.Host, c.Port)
+	return c.DialAddress()
 }
 
 func (c ComponentConfig) Validate() error {
 	if strings.TrimSpace(c.Protocol) == "" {
 		return fmt.Errorf("component protocol is required")
 	}
-	if strings.TrimSpace(c.Host) == "" {
-		return fmt.Errorf("component host is required")
+	if strings.TrimSpace(c.advertiseHost()) == "" {
+		return fmt.Errorf("component advertise_host (or legacy host) is required")
 	}
 	if err := validatePort("component.port", c.Port); err != nil {
 		return err
@@ -587,7 +649,7 @@ func (c ComponentConfig) Validate() error {
 }
 
 func (c ComponentConfig) FullURL() string {
-	return fmt.Sprintf("%s://%s:%d", c.Protocol, c.Host, c.Port)
+	return fmt.Sprintf("%s://%s:%d", c.Protocol, c.advertiseHost(), c.Port)
 }
 
 func (c *Config) EdgePolicyForSource(source string) EdgePolicyConfig {
@@ -624,6 +686,26 @@ func validatePort(field string, port int) error {
 		return fmt.Errorf("%s must be in range 1..65535", field)
 	}
 	return nil
+}
+
+func buildAddr(host string, port int) string {
+	return fmt.Sprintf("%s:%d", host, port)
+}
+
+func normalizeListenHost(host string) string {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return "0.0.0.0"
+	}
+	return host
+}
+
+func normalizeAdvertiseHost(advertiseHost, legacyHost string) string {
+	host := strings.TrimSpace(advertiseHost)
+	if host != "" {
+		return host
+	}
+	return strings.TrimSpace(legacyHost)
 }
 
 func validateURL(field, raw string) error {

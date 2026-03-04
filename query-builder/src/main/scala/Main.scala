@@ -10,6 +10,7 @@ import io.grpc.Metadata
 import io.grpc.protobuf.services.ProtoReflectionService
 import io.grpc.protobuf.services.HealthStatusManager
 import io.grpc.health.v1.HealthCheckResponse.ServingStatus
+import java.net.InetSocketAddress
 
 import io.circe.*
 import io.circe.syntax.*
@@ -185,7 +186,8 @@ class QueryBuilderImpl(logger: SimpleLogger) extends QueryBuilderFs2Grpc[IO, Met
 
 object Main extends IOApp {
   case class RuntimeConfig(
-    host: String,
+    listenHost: String,
+    advertiseHost: String,
     port: Int,
     cacheMaxSize: Long,
     cacheTtlSeconds: Long,
@@ -203,7 +205,14 @@ object Main extends IOApp {
     val yaml = new Yaml()
     val data = yaml.load(input).asInstanceOf[JMap[String, Any]]
     val section = data.get("query_builder").asInstanceOf[JMap[String, Any]]
-    val host = section.get("host").toString
+    val listenHost = Option(section.get("listen_host"))
+      .orElse(Option(section.get("host")))
+      .map(_.toString)
+      .getOrElse("0.0.0.0")
+    val advertiseHost = Option(section.get("advertise_host"))
+      .orElse(Option(section.get("host")))
+      .map(_.toString)
+      .getOrElse(listenHost)
     val port = section.get("port").toString.toDouble.toInt
 
     val cacheSection = Option(section.get("cache")).map(_.asInstanceOf[JMap[String, Any]])
@@ -229,7 +238,7 @@ object Main extends IOApp {
     val tlsKeyFile = mtlsSection.flatMap(s => Option(s.get("key_file"))).map(_.toString).getOrElse("")
     input.close()
 
-    RuntimeConfig(host, port, cacheMaxSize, cacheTtlSeconds, metricsPort, tlsEnabled, tlsCaFile, tlsCertFile, tlsKeyFile)
+    RuntimeConfig(listenHost, advertiseHost, port, cacheMaxSize, cacheTtlSeconds, metricsPort, tlsEnabled, tlsCaFile, tlsCertFile, tlsKeyFile)
   }
 
   override def run(args: List[String]): IO[ExitCode] = {
@@ -246,7 +255,7 @@ object Main extends IOApp {
 
     initStep.flatMap { cfg =>
       val serverResource = for {
-        _ <- Resource.eval(logger.info(s"Listening on ${cfg.host}:${cfg.port}"))
+        _ <- Resource.eval(logger.info(s"Listening on ${cfg.listenHost}:${cfg.port} (advertise: ${cfg.advertiseHost}:${cfg.port})"))
         _ <- Resource.eval(if (cfg.tlsEnabled) logger.info("mTLS mode enabled") else logger.info("mTLS mode disabled"))
         _ <- Resource.eval(IO(QueryCache.configure(cfg.cacheMaxSize, cfg.cacheTtlSeconds)))
         _ <- Resource.eval(logger.info(s"Cache configured: max_size=${cfg.cacheMaxSize} ttl_seconds=${cfg.cacheTtlSeconds}"))
@@ -260,7 +269,7 @@ object Main extends IOApp {
         _ <- Resource.eval(IO(health.setStatus("", ServingStatus.SERVING)))
         server <- Resource.make(
           IO {
-            val baseBuilder = NettyServerBuilder.forPort(cfg.port)
+            val baseBuilder = NettyServerBuilder.forAddress(new InetSocketAddress(cfg.listenHost, cfg.port))
               .addService(service)
               .addService(health.getHealthService)
               .addService(ProtoReflectionService.newInstance())

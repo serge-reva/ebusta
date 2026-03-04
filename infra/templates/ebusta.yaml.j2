@@ -5,7 +5,8 @@ opensearch:
 
 datamanager:
   protocol: "grpc"
-  host: "{{ datamanager_host }}"
+  listen_host: "0.0.0.0"
+  advertise_host: "{{ datamanager_host }}"
   port: 50051
   debug: false
   mtls:
@@ -16,7 +17,8 @@ datamanager:
 
 dsl_scala:
   protocol: "grpc"
-  host: "{{ dsl_scala_host }}"
+  listen_host: "0.0.0.0"
+  advertise_host: "{{ dsl_scala_host }}"
   port: 50052
   debug: false
   mtls:
@@ -27,7 +29,8 @@ dsl_scala:
 
 query_builder:
   protocol: "grpc"
-  host: "{{ query_builder_host }}"
+  listen_host: "0.0.0.0"
+  advertise_host: "{{ query_builder_host }}"
   port: 50053
   debug: false
   mtls:
@@ -38,7 +41,8 @@ query_builder:
 
 orchestrator:
   protocol: "grpc"
-  host: "{{ orchestrator_host }}"
+  listen_host: "0.0.0.0"
+  advertise_host: "{{ orchestrator_host }}"
   port: 50054
   debug: false
   mtls:
@@ -49,7 +53,8 @@ orchestrator:
 
 auth_manager:
   protocol: "grpc"
-  host: "auth-manager.ebusta"
+  listen_host: "0.0.0.0"
+  advertise_host: "auth-manager.ebusta"
   port: 50055
   debug: false
   mtls:
@@ -57,11 +62,14 @@ auth_manager:
 
 web_adapter:
   protocol: "http"
-  host: "0.0.0.0"
+  listen_host: "0.0.0.0"
+  advertise_host: "web-adapter.ebusta"
   port: 50080
   debug: false
 
 web_frontend:
+  listen_host: "0.0.0.0"
+  advertise_host: "{{ web_frontend_host }}"
   port: 3000
   page_size: 20
   gateway_url: "http://{{ gateway_host }}:8443"
@@ -86,6 +94,8 @@ metrics:
 
 downloads:
   archive_node:
+    listen_host: "0.0.0.0"
+    advertise_host: "{{ archive_node_host }}"
     listen_port: 50110
     zip_root: "{{ archive_node_zip_root }}"
     sqlite: "{{ archive_node_sqlite }}"
@@ -96,6 +106,8 @@ downloads:
       key_file: "./certs/archive-node/archive-node.key"
 
   tier_node:
+    listen_host: "0.0.0.0"
+    advertise_host: "{{ tier_node_host }}"
     listen_port: 50111
     root_path: "{{ tier_node_root_path }}"
     sqlite: "{{ tier_node_sqlite }}"
@@ -107,6 +119,8 @@ downloads:
       key_file: "./certs/tier-node/tier-node.key"
 
   plasma_node:
+    listen_host: "0.0.0.0"
+    advertise_host: "{{ plasma_node_host }}"
     listen_port: 50112
     parent: "{{ tier_node_host }}:50111"
     max_bytes: 1073741824
@@ -119,6 +133,8 @@ downloads:
       key_file: "./certs/plasma-node/plasma-node.key"
 
   downloader:
+    listen_host: "0.0.0.0"
+    advertise_host: "{{ downloader_host }}"
     listen_port: 50081
     plasma: "{{ plasma_node_host }}:50112"
     mtls:
@@ -146,6 +162,8 @@ logger:
       append: true
 
 gateway:
+  listen_host: "0.0.0.0"
+  advertise_host: "{{ gateway_host }}"
   port: 8443
   tls_cert: ""
   tls_key: ""

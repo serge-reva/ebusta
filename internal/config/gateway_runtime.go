@@ -10,9 +10,10 @@ import (
 
 // GatewayRuntimeConfig is a gateway-ready config with duration fields normalized.
 type GatewayRuntimeConfig struct {
-	Port    int
-	TLSCert string
-	TLSKey  string
+	ListenHost string
+	Port       int
+	TLSCert    string
+	TLSKey     string
 
 	RateLimit  GatewayRateLimitConfig
 	Mapper     GatewayMapperConfig
@@ -70,9 +71,10 @@ func LoadGatewayRuntimeConfig(cfg *Config) *GatewayRuntimeConfig {
 	g := cfg.Gateway
 
 	return &GatewayRuntimeConfig{
-		Port:    g.Port,
-		TLSCert: g.TLSCert,
-		TLSKey:  g.TLSKey,
+		ListenHost: normalizeListenHost(g.ListenHost),
+		Port:       g.Port,
+		TLSCert:    g.TLSCert,
+		TLSKey:     g.TLSKey,
 
 		RateLimit: GatewayRateLimitConfig{
 			IP:            g.RateLimit.IP,

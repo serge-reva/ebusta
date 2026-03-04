@@ -65,7 +65,7 @@ func main() {
 		json.NewEncoder(w).Encode(resp)
 	})
 
-	addr := cfg.WebAdapter.Address()
+	addr := cfg.WebAdapter.ListenAddress()
 	logger.GetGlobal().WithField("addr", addr).InfoCtx(context.Background(), "[web-adapter] listening")
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to serve", err)

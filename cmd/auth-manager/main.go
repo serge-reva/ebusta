@@ -104,7 +104,7 @@ func main() {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to parse whitelist", err)
 	}
 
-	lis, err := net.Listen("tcp", cfg.AuthManager.Address())
+	lis, err := net.Listen("tcp", cfg.AuthManager.ListenAddress())
 	if err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to listen", err)
 	}
@@ -123,7 +123,7 @@ func main() {
 	healthpb.RegisterHealthServer(s, hs)
 	libraryv1.RegisterAuthServiceServer(s, &authServer{whitelist: wl})
 
-	logger.GetGlobal().WithField("addr", cfg.AuthManager.Address()).InfoCtx(context.Background(), "[auth] started")
+	logger.GetGlobal().WithField("addr", cfg.AuthManager.ListenAddress()).InfoCtx(context.Background(), "[auth] started")
 	serveErr := make(chan error, 1)
 	var wg sync.WaitGroup
 	wg.Add(1)

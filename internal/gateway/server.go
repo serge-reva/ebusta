@@ -96,7 +96,7 @@ func (s *Server) setupRoutes() http.Handler {
 }
 
 func (s *Server) Run() error {
-	addr := fmt.Sprintf(":%d", s.config.Port)
+	addr := fmt.Sprintf("%s:%d", s.config.ListenHost, s.config.Port)
 	handler := s.setupRoutes()
 
 	s.httpServer = &http.Server{
@@ -107,7 +107,7 @@ func (s *Server) Run() error {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	logger.GetGlobal().WithField("port", s.config.Port).WithField("tls", s.config.TLSCert != "").InfoCtx(context.Background(), "gateway starting")
+	logger.GetGlobal().WithField("addr", addr).WithField("tls", s.config.TLSCert != "").InfoCtx(context.Background(), "gateway starting")
 
 	if s.config.TLSCert != "" && s.config.TLSKey != "" {
 		return s.httpServer.ListenAndServeTLS(s.config.TLSCert, s.config.TLSKey)

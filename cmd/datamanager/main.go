@@ -193,7 +193,7 @@ func main() {
 	}
 	metricsSrv := metrics.Start("datamanager", cfg.Metrics.Services.Datamanager)
 
-	lis, err := net.Listen("tcp", cfg.Datamanager.Address())
+	lis, err := net.Listen("tcp", cfg.Datamanager.ListenAddress())
 	if err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to listen", err)
 	}
@@ -212,7 +212,7 @@ func main() {
 	healthpb.RegisterHealthServer(s, hs)
 	libraryv1.RegisterStorageServiceServer(s, &storageServer{cfg: cfg})
 
-	logger.GetGlobal().WithField("addr", cfg.Datamanager.Address()).InfoCtx(context.Background(), "[datamanager] started")
+	logger.GetGlobal().WithField("addr", cfg.Datamanager.ListenAddress()).InfoCtx(context.Background(), "[datamanager] started")
 	serveErr := make(chan error, 1)
 	var wg sync.WaitGroup
 	wg.Add(1)
