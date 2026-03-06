@@ -1,7 +1,7 @@
 # Architectural Constitution
 
-Version: 1.0  
-Last Updated: 2026-03-01
+Version: 1.1  
+Last Updated: 2026-03-06
 
 This document defines non-negotiable architectural rules for `ebusta`.
 
@@ -48,6 +48,11 @@ Recommended aggregate gate: `make ci-check`.
 - bypassing `errutil` mapping for transport-facing errors.
 - runtime Dockerfiles compiling sources (`RUN go build`, `RUN npm`) instead of copying host-built artifacts.
 - breaking proto contracts without versioned migration process.
+
+## Asynchronous Processing
+- all background tasks initiated by gateway (cache warmup, IPFS link generation, CDN upload, and similar jobs) must run asynchronously via NATS.
+- gateway request handlers must not execute such workloads via inline goroutines tied to request lifetime.
+- async commands must carry `trace_id` and be observable in logs/metrics end-to-end.
 
 ## References
 - [TRACE.md](TRACE.md)
