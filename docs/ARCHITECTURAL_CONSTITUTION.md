@@ -49,10 +49,10 @@ Recommended aggregate gate: `make ci-check`.
 - runtime Dockerfiles compiling sources (`RUN go build`, `RUN npm`) instead of copying host-built artifacts.
 - breaking proto contracts without versioned migration process.
 
-## Asynchronous Processing
-- all background tasks initiated by gateway (cache warmup, IPFS link generation, CDN upload, and similar jobs) must run asynchronously via NATS.
-- gateway request handlers must not execute such workloads via inline goroutines tied to request lifetime.
-- async commands must carry `trace_id` and be observable in logs/metrics end-to-end.
+## Асинхронная Обработка
+- все фоновые задачи, инициируемые gateway (прогрев кеша, генерация IPFS-ссылок, загрузка в CDN и аналогичные операции), должны выполняться асинхронно через NATS.
+- обработчики gateway не должны запускать такие задачи через inline-горутины, привязанные к жизненному циклу HTTP-запроса.
+- каждая асинхронная команда должна содержать `trace_id` и быть наблюдаемой end-to-end в логах и метриках.
 
 ## References
 - [TRACE.md](TRACE.md)

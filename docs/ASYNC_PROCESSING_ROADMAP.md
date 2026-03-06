@@ -1,72 +1,72 @@
-# Async Processing Roadmap
+# Дорожная Карта: Асинхронная Обработка Через NATS
 
-Version: 1.0  
+Version: 1.1  
 Last Updated: 2026-03-06
 
-## Objective
-Introduce NATS-based asynchronous processing into Ebusta incrementally, without breaking existing synchronous behavior.
+## Цель
+Пошагово внедрить NATS-ориентированную асинхронную обработку в Ebusta без регресса текущего синхронного поведения.
 
-## Delivery Phases
+## Этапы внедрения
 
-| Phase | Priority | Scope | Expected Result | Effort |
+| Этап | Приоритет | Область | Ожидаемый результат | Оценка |
 |---|---|---|---|---|
-| 1 | P0 | Infrastructure: add NATS with JetStream to docker-compose/runtime | NATS available in local/stage environments | 0.5-1 day |
-| 2 | P0 | `CommandBus` abstraction in gateway + `NatsBus` implementation | Gateway can publish async commands behind interface | 1-2 days |
-| 3 | P0 | `PreloadBook` command publication from gateway flow | Gateway publishes preload command after response path | 1 day |
-| 4 | P0 | `cmd/preloader` worker consuming `preload.book` | Preloader performs downloader HEAD warmup asynchronously | 1-2 days |
-| 5 | P1 | Config model and validation (`async.enabled`, `async.nats_url`) | Controlled feature toggling and explicit config errors | 0.5-1 day |
-| 6 | P1 | Operational hardening via JetStream (durable consumers, replay strategy) | Better delivery guarantees and recovery | 1-2 days |
-| 7 | P2 | Extend with new command types (IPFS, torrent, CDN) | Reusable async platform for background jobs | 2-5 days |
+| 1 | P0 | Инфраструктура: добавить NATS + JetStream в docker-compose/stage | NATS доступен в локальной и stage-среде | 0.5-1 день |
+| 2 | P0 | Абстракция `CommandBus` + реализация `NatsBus` в gateway | Gateway публикует async-команды через интерфейс | 1-2 дня |
+| 3 | P0 | Команда `PreloadBook` в gateway flow | После ответа клиенту отправляется `preload.book` | 1 день |
+| 4 | P0 | Сервис `cmd/preloader` | Подписка на `preload.book`, HEAD к downloader | 1-2 дня |
+| 5 | P1 | Конфигурация и валидация (`async.enabled`, `async.nats_url`) | Управляемый rollout и явные ошибки конфига | 0.5-1 день |
+| 6 | P1 | Отказоустойчивость через JetStream | Гарантии доставки, recover после сбоев | 1-2 дня |
+| 7 | P2 | Расширение команд (IPFS, torrent, CDN) | Универсальная async-платформа фоновых задач | 2-5 дней |
 
-## Stage Details
+## Детализация этапов
 
-### Phase 1: NATS Infrastructure
-- Add `nats` service to compose/deploy manifests.
-- Enable JetStream (`-js`) for optional persistence.
-- Define health checks and startup dependency rules.
+### Этап 1: Инфраструктура NATS
+- Добавить `nats` сервис в compose/deploy.
+- Включить JetStream (`-js`) для персистентных сценариев.
+- Добавить healthcheck и зависимости запуска.
 
-### Phase 2: CommandBus Abstraction
-- Introduce `CommandBus` interface in gateway domain layer.
-- Add concrete `NatsBus` implementation.
-- Keep handler code independent from specific broker library.
+### Этап 2: Абстракция CommandBus
+- Ввести интерфейс `CommandBus` в слое gateway.
+- Реализовать `NatsBus`.
+- Изолировать обработчики от деталей транспортной библиотеки.
 
-### Phase 3: PreloadBook Command
-- Define command schema and envelope (`type`, `payload`, `trace_id`).
-- Publish command in relevant gateway endpoint after primary response logic.
-- Make failures non-blocking for user response path.
+### Этап 3: Команда PreloadBook
+- Зафиксировать схему команды и envelope (`type`, `payload`, `trace_id`).
+- Публиковать команду из обработчика `/api/book/{sha1}` после формирования ответа.
+- Ошибку публикации считать non-blocking для user path.
 
-### Phase 4: Preloader Service
-- Add `cmd/preloader` Go service.
-- Subscribe to `preload.book`.
-- Perform HEAD to downloader and log success/failure with trace.
+### Этап 4: Сервис Preloader
+- Добавить новый сервис `cmd/preloader`.
+- Подписать его на `preload.book`.
+- Выполнять `HEAD` к downloader и логировать результат с trace.
 
-### Phase 5: Configuration and Validation
-- Add `async` config section to `ebusta.yaml` and templates.
-- Validate `nats_url` when `async.enabled=true`.
-- Support feature-flagged rollout.
+### Этап 5: Конфигурация
+- Добавить секцию `async` в `ebusta.yaml` и шаблоны.
+- Добавить валидацию `nats_url` при `async.enabled=true`.
+- Поддержать feature-flag rollout.
 
-### Phase 6: Reliability Enhancements
-- Configure JetStream stream and durable consumer.
-- Add bounded retries / dead-letter strategy if needed.
-- Add observability counters for publish/consume/fail/retry.
+### Этап 6: Надежность
+- Настроить stream/consumer в JetStream.
+- Добавить bounded retries и backoff (при необходимости DLQ).
+- Добавить метрики: publish/consume/error/retry.
 
-### Phase 7: Functional Expansion
-- Introduce additional commands:
+### Этап 7: Расширение
+- Добавить новые команды:
   - `ipfs.pin`
   - `torrent.generate`
   - `cdn.upload`
-- Keep commands independently deployable and horizontally scalable.
+- Сохранять независимость и горизонтальную масштабируемость обработчиков.
 
-## Acceptance Criteria Per Milestone
-- Publish path tested and traceable (`trace_id` present end-to-end).
-- Consumer idempotency documented.
-- Failure behavior explicit and observable.
-- No blocking behavior introduced into gateway request path.
+## Критерии готовности этапов
+- Команды публикуются и трассируются end-to-end (`trace_id`).
+- Идемпотентность обработчиков задокументирована.
+- Ошибки и повторные попытки наблюдаемы.
+- В gateway не появляется блокирующая фоновой логики.
 
-## Risks and Mitigations
-- Risk: hidden coupling between gateway and worker payloads.
-  - Mitigation: versioned command envelope and compatibility tests.
-- Risk: retry storms under downstream instability.
-  - Mitigation: bounded retries + backoff + alerting.
-- Risk: async failures ignored in operations.
-  - Mitigation: metrics/log dashboards and SLO checks.
+## Риски и меры
+- Риск: жёсткая связность payload между publisher/consumer.
+  - Мера: версионирование envelope и контрактные тесты.
+- Риск: retry storm при деградации downstream.
+  - Мера: ограниченные ретраи, backoff, алерты.
+- Риск: “тихие” сбои async-пайплайна.
+  - Мера: обязательные метрики и дашборды наблюдаемости.

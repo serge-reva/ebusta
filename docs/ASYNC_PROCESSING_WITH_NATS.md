@@ -1,68 +1,76 @@
-# Async Processing With NATS
+# Асинхронная Обработка Через NATS
 
-Version: 1.0  
+Version: 1.1  
 Last Updated: 2026-03-06
 
-## Goal
-Provide asynchronous execution of background tasks (cache warmup, IPFS/torrent generation, CDN upload) without blocking user-facing HTTP responses.
+## Цель
+Обеспечить асинхронное выполнение фоновых задач (прогрев кеша, генерация IPFS/торрентов, загрузка в CDN) без блокировки пользовательских HTTP-ответов.
 
-## Why NATS
-NATS is selected as the default async transport for Ebusta because it gives low operational overhead and predictable latency for command-style messaging.
+## Почему NATS
+NATS выбран как базовый транспорт для асинхронных команд в Ebusta, потому что сочетает низкую задержку, простое сопровождение и достаточную функциональность для командной шины.
 
-### Comparison Summary
+### Краткое сравнение
 - NATS:
-  - simple deployment and operations footprint
-  - very low latency for request-triggered background commands
-  - native subject-based routing
-  - JetStream support for persistence and replay when needed
-  - supports request/reply pattern for lightweight RPC
+  - небольшой операционный overhead
+  - высокая производительность для request-triggered команд
+  - простая subject-маршрутизация
+  - поддержка JetStream для надежной доставки/повторов
+  - встроенный request/reply для lightweight RPC
 - RabbitMQ:
-  - rich queueing features and routing patterns
-  - heavier operational model for current Ebusta needs
+  - мощная модель маршрутизации и очередей
+  - более тяжелая эксплуатация для текущего профиля Ebusta
 - Kafka:
-  - strong event log capabilities for very high-throughput stream processing
-  - higher complexity and infra cost than needed for command fan-out and workers
-- Macula (internal/alternative bus option):
-  - possible fit for specific workflows
-  - lower standardization and ecosystem/tooling alignment for current Ebusta roadmap
+  - сильна для event-log и потоковой аналитики на больших объемах
+  - более высокий порог сложности и инфраструктурных затрат
+- Macula (альтернативный внутренний вариант):
+  - потенциально применима для отдельных сценариев
+  - ниже стандартизация и экосистемная поддержка для текущего roadmap
 
-## Target Components
-- NATS server:
-  - separate container/service
-  - JetStream enabled where delivery guarantees are required
+## Компоненты
+- NATS-сервер:
+  - отдельный контейнер/сервис
+  - JetStream включается там, где нужны гарантии доставки
 - Gateway:
-  - publishes background commands via `CommandBus`
-  - does not execute long-running background workflows inline in request handlers
-- Preloader service:
-  - subscribes to `preload.book`
-  - performs HEAD request to downloader to warm storage/cache chain
-- Future workers:
-  - IPFS publisher
-  - torrent/metadata packager
-  - CDN uploader
+  - публикует команды через `CommandBus`
+  - не выполняет долгие фоновые задачи внутри HTTP-обработчиков
+- Preloader:
+  - подписчик на `preload.book`
+  - выполняет `HEAD` в downloader для прогрева цепочки хранения
+- Будущие обработчики:
+  - IPFS-публикатор
+  - генератор торрент-метаданных
+  - uploader в CDN
 
-## High-Level Flow
-1. User requests `GET /api/book/{sha1}` (or equivalent flow that needs optional warmup).
-2. Gateway returns metadata/response to user immediately.
-3. Gateway publishes `preload.book` command to NATS asynchronously.
-4. Preloader consumes command and executes HEAD call to downloader.
-5. Preloader logs result with `trace_id` for correlation.
+## Схема взаимодействия
+1. Пользователь вызывает `GET /api/book/{sha1}`.
+2. Gateway отвечает клиенту данными книги.
+3. Gateway асинхронно публикует команду `preload.book` в NATS.
+4. Preloader получает команду и выполняет `HEAD` в downloader.
+5. Результат логируется с `trace_id` для сквозной трассировки.
 
-## Command Envelope
-All commands use a common JSON envelope:
+Псевдосхема:
+
+```text
+Client -> Gateway (/api/book/{sha1}) -> Response to Client
+                           \
+                            -> NATS subject: preload.book -> Preloader -> Downloader(HEAD)
+```
+
+## Формат команд
+Общий envelope для команд:
 
 ```json
 {
   "type": "preload.book",
   "payload": {
-    "sha1": "<sha1>"
+    "sha1": "..."
   },
-  "trace_id": "<trace-id>"
+  "trace_id": "..."
 }
 ```
 
-## Configuration
-Add async section in runtime config:
+## Конфигурация
+Пример секции в `ebusta.yaml`:
 
 ```yaml
 async:
@@ -70,7 +78,7 @@ async:
   nats_url: "nats://nats:4222"
 ```
 
-Recommended extensions for production:
+Рекомендуемые расширения для production:
 
 ```yaml
 async:
@@ -83,17 +91,17 @@ async:
     retention: "limits"
 ```
 
-## Error Handling
-- Publish failures in gateway:
-  - do not break user response path for non-critical background tasks
-  - log with `trace_id` and command type
-- Consumer failures (preloader):
-  - log error and context (`sha1`, `trace_id`)
-  - optional bounded retry policy
-  - avoid unbounded retry loops
+## Обработка ошибок
+- Ошибка публикации в gateway:
+  - не должна ломать пользовательский ответ для non-critical фоновых задач
+  - должна логироваться с `trace_id` и `type` команды
+- Ошибка обработки в preloader:
+  - логировать `sha1` и `trace_id`
+  - при необходимости использовать ограниченные ретраи
+  - избегать бесконечных циклов повторов
 
-## Design Rules
-- Gateway handlers must stay short-lived and non-blocking.
-- Async work must be idempotent where possible.
-- Trace propagation is mandatory (`trace_id` in command envelope).
-- Command payloads must be versionable and backward compatible.
+## Правила проектирования
+- HTTP-обработчики gateway должны оставаться короткими и неблокирующими.
+- Фоновые команды должны быть по возможности идемпотентными.
+- `trace_id` обязателен в командном envelope.
+- Формат команд должен быть версионируемым и обратно совместимым.
