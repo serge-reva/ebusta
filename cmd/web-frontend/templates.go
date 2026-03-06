@@ -37,9 +37,8 @@ const cssStyles = `
 
 // templateFuncs — функции для использования в шаблонах
 var templateFuncs = template.FuncMap{
-	"urlEscape": urlEscape,
-	"add":       func(a, b int) int { return a + b },
-	"sub":       func(a, b int) int { return a - b },
+	"add": func(a, b int) int { return a + b },
+	"sub": func(a, b int) int { return a - b },
 }
 
 // tmpl — базовый шаблонизатор
@@ -85,7 +84,7 @@ var resultsTmpl = template.Must(template.Must(tmpl.Clone()).Parse(`
     </thead>
     <tbody>
     {{range .Result.Books}}
-        <tr class="table-row" onclick="window.location='{{.DownloadURL}}?q={{$.Query | urlEscape}}'">
+        <tr class="table-row" onclick="window.location='{{.DownloadURL}}?q={{$.Query}}'">
             <td class="table-cell-title">{{.Title}}</td>
             <td class="table-cell-authors">{{.FullAuthors}}</td>
             <td class="table-cell-file">{{.DownloadURL}}</td>
@@ -96,8 +95,8 @@ var resultsTmpl = template.Must(template.Must(tmpl.Clone()).Parse(`
 
 <div id="pagination">
     {{if gt .Result.Page 1}}
-        <a class="page-link page-nav" href="/search?q={{.Query | urlEscape}}&page=1">&laquo; Первая</a>
-        <a class="page-link page-nav" href="/search?q={{.Query | urlEscape}}&page={{sub .Result.Page 1}}">&lt;</a>
+        <a class="page-link page-nav" href="/search?q={{.Query}}&page=1">&laquo; Первая</a>
+        <a class="page-link page-nav" href="/search?q={{.Query}}&page={{sub .Result.Page 1}}">&lt;</a>
     {{else}}
         <span class="page-link page-disabled">&laquo; Первая</span>
         <span class="page-link page-disabled">&lt;</span>
@@ -107,8 +106,8 @@ var resultsTmpl = template.Must(template.Must(tmpl.Clone()).Parse(`
     <span class="page-link">/ {{.Result.Pages}}</span>
 
     {{if lt .Result.Page .Result.Pages}}
-        <a class="page-link page-nav" href="/search?q={{.Query | urlEscape}}&page={{add .Result.Page 1}}">&gt;</a>
-        <a class="page-link page-nav" href="/search?q={{.Query | urlEscape}}&page={{.Result.Pages}}">Последняя &raquo;</a>
+        <a class="page-link page-nav" href="/search?q={{.Query}}&page={{add .Result.Page 1}}">&gt;</a>
+        <a class="page-link page-nav" href="/search?q={{.Query}}&page={{.Result.Pages}}">Последняя &raquo;</a>
     {{else}}
         <span class="page-link page-disabled">&gt;</span>
         <span class="page-link page-disabled">Последняя &raquo;</span>
