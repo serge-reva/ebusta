@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"ebusta/internal/config"
 	"ebusta/internal/gateway/clients"
+	"ebusta/internal/gateway/download"
 	"ebusta/internal/gateway/mapper"
 	"ebusta/internal/gateway/middleware"
 	"ebusta/internal/gateway/validation"
@@ -25,6 +27,9 @@ type Server struct {
 
 	orchestrator *clients.OrchestratorClient
 	downloader   *clients.DownloaderClient
+	downloadMode string
+
+	downloadBackend download.DownloadBackend
 
 	rateLimiter *middleware.RateLimiter
 	cors        *middleware.CORS
@@ -48,6 +53,18 @@ func NewServer(cfg *config.GatewayRuntimeConfig) (*Server, error) {
 	}
 
 	downloader := clients.NewDownloaderClient(cfg.Services.Downloader)
+	downloadMode := strings.ToLower(strings.TrimSpace(cfg.DownloadMode))
+	if downloadMode == "" {
+		downloadMode = "direct"
+	}
+
+	var downloadBackend download.DownloadBackend
+	switch downloadMode {
+	case "direct":
+		downloadBackend = download.NewDirectBackend(mapper, downloader)
+	default:
+		return nil, fmt.Errorf("unsupported gateway download_mode: %s", downloadMode)
+	}
 
 	rateLimiter := middleware.NewRateLimiter(cfg)
 	cors := middleware.NewCORS(&cfg.CORS)
@@ -57,19 +74,21 @@ func NewServer(cfg *config.GatewayRuntimeConfig) (*Server, error) {
 	recover := &middleware.Recover{}
 
 	s := &Server{
-		config:       cfg,
-		mapper:       mapper,
-		validator:    validator,
-		sizeLimiter:  sizeLimiter,
-		sanitizer:    sanitizer,
-		orchestrator: orchestrator,
-		downloader:   downloader,
-		rateLimiter:  rateLimiter,
-		cors:         cors,
-		security:     security,
-		csrf:         csrf,
-		contentType:  contentType,
-		recover:      recover,
+		config:          cfg,
+		mapper:          mapper,
+		validator:       validator,
+		sizeLimiter:     sizeLimiter,
+		sanitizer:       sanitizer,
+		orchestrator:    orchestrator,
+		downloader:      downloader,
+		downloadMode:    downloadMode,
+		downloadBackend: downloadBackend,
+		rateLimiter:     rateLimiter,
+		cors:            cors,
+		security:        security,
+		csrf:            csrf,
+		contentType:     contentType,
+		recover:         recover,
 	}
 
 	return s, nil

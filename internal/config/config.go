@@ -454,6 +454,7 @@ func (c PlasmaNodeConfig) AdvertiseAddr() string {
 type GatewayConfig struct {
 	ListenHost    string                `yaml:"listen_host"`
 	AdvertiseHost string                `yaml:"advertise_host"`
+	DownloadMode  string                `yaml:"download_mode"`
 	Port          int                   `yaml:"port"`
 	TLSCert       string                `yaml:"tls_cert"`
 	TLSKey        string                `yaml:"tls_key"`
@@ -468,6 +469,10 @@ type GatewayConfig struct {
 func (c GatewayConfig) Validate() error {
 	if err := validatePort("gateway.port", c.Port); err != nil {
 		return err
+	}
+	mode := strings.ToLower(strings.TrimSpace(c.DownloadMode))
+	if mode != "" && mode != "direct" {
+		return fmt.Errorf("gateway.download_mode must be 'direct' (current: %q)", c.DownloadMode)
 	}
 	if (strings.TrimSpace(c.TLSCert) == "") != (strings.TrimSpace(c.TLSKey) == "") {
 		return fmt.Errorf("gateway.tls_cert and gateway.tls_key must be set together")
