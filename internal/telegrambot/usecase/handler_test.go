@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"ebusta/internal/edge"
@@ -121,5 +122,39 @@ func TestHandleHelp(t *testing.T) {
 	result := h.HandleHelp("tg-help")
 	if result.Text != "help" || result.TraceID != "tg-help" {
 		t.Fatalf("unexpected result: %+v", result)
+	}
+}
+
+func TestHandleSearchFullCycleFormatsResult(t *testing.T) {
+	store := session.NewMemoryStore()
+	formatter := tgpresenter.NewTelegramFormatter(4096)
+	p := edge.DefaultPolicy("telegram")
+	p.Actions["command"] = edge.ActionPolicy{PerMinute: 30, Burst: 30}
+	h := NewHandler(fakeSearcher{
+		resp: &gatewayclient.SearchResponse{
+			TraceID: "tg-full",
+			Total:   6,
+			Books: []gatewayclient.SearchBook{{
+				ID:          "1",
+				Title:       "Dune",
+				FullAuthors: "Frank Herbert",
+			}},
+			Page:  1,
+			Pages: 2,
+		},
+	}, store, formatter, edge.NewEngine(p, nil), 5)
+
+	result, err := h.HandleSearch(context.Background(), "u1", "/search dune", "tg-full")
+	if err != nil {
+		t.Fatalf("HandleSearch() error = %v", err)
+	}
+	if result.TraceID != "tg-full" {
+		t.Fatalf("unexpected trace id: %q", result.TraceID)
+	}
+	if result.Keyboard == nil || len(result.Keyboard.InlineKeyboard) == 0 {
+		t.Fatal("expected pagination keyboard")
+	}
+	if got := result.Text; got == "" || !strings.Contains(got, "Dune") || !strings.Contains(got, "Frank Herbert") {
+		t.Fatalf("unexpected formatted text: %q", got)
 	}
 }
