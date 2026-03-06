@@ -52,6 +52,27 @@ type docOut struct {
 	} `json:"fileInfo"`
 }
 
+type fb2Author struct {
+	FirstName  string `xml:"first-name"`
+	MiddleName string `xml:"middle-name"`
+	LastName   string `xml:"last-name"`
+	Nickname   string `xml:"nickname"`
+}
+
+type fb2Description struct {
+	TitleInfo struct {
+		BookTitle string      `xml:"book-title"`
+		Authors   []fb2Author `xml:"author"`
+	} `xml:"title-info"`
+	DocumentInfo struct {
+		Authors []fb2Author `xml:"author"`
+	} `xml:"document-info"`
+}
+
+type fb2Book struct {
+	Description fb2Description `xml:"description"`
+}
+
 var (
 	cfg           Config
 	log           = logrus.New()
@@ -100,11 +121,15 @@ func main() {
 
 func normalizeJSONL(path string) (int, error) {
 	f, err := os.Open(path)
-	if err != nil { return 0, err }
+	if err != nil {
+		return 0, err
+	}
 	defer f.Close()
 	tmpPath := path + ".tmp"
 	tmpFile, err := os.Create(tmpPath)
-	if err != nil { return 0, err }
+	if err != nil {
+		return 0, err
+	}
 	defer tmpFile.Close()
 
 	hashes := make(map[string]bool)
@@ -136,11 +161,15 @@ func normalizeJSONL(path string) (int, error) {
 func countExistingDocs(path string) int {
 	count := 0
 	f, err := os.Open(path)
-	if err != nil { return 0 }
+	if err != nil {
+		return 0
+	}
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		if strings.Contains(scanner.Text(), `"_index"`) { count++ }
+		if strings.Contains(scanner.Text(), `"_index"`) {
+			count++
+		}
 	}
 	return count
 }
@@ -148,7 +177,9 @@ func countExistingDocs(path string) int {
 func loadExistingHashes(path string) map[string]bool {
 	hashes := make(map[string]bool)
 	f, err := os.Open(path)
-	if err != nil { return hashes }
+	if err != nil {
+		return hashes
+	}
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
 	re := regexp.MustCompile(`"_id":"([a-fA-F0-9]+)"`)
@@ -156,7 +187,9 @@ func loadExistingHashes(path string) map[string]bool {
 		line := scanner.Text()
 		if strings.Contains(line, `"_index"`) {
 			match := re.FindStringSubmatch(line)
-			if len(match) > 1 { hashes[match[1]] = true }
+			if len(match) > 1 {
+				hashes[match[1]] = true
+			}
 		}
 	}
 	return hashes
@@ -172,12 +205,16 @@ func processSingleZip(zipPath, dstPath string) {
 	}
 
 	z, err := zip.OpenReader(zipPath)
-	if err != nil { return }
+	if err != nil {
+		return
+	}
 	defer z.Close()
 
 	fb2Count := 0
 	for _, f := range z.File {
-		if strings.HasSuffix(strings.ToLower(f.Name), ".fb2") { fb2Count++ }
+		if strings.HasSuffix(strings.ToLower(f.Name), ".fb2") {
+			fb2Count++
+		}
 	}
 
 	if !*flagRescan && !*flagVerbose {
@@ -186,13 +223,17 @@ func processSingleZip(zipPath, dstPath string) {
 				os.Exit(10)
 			} else {
 				newCount, _ := normalizeJSONL(dstPath)
-				if newCount == fb2Count { os.Exit(10) }
+				if newCount == fb2Count {
+					os.Exit(10)
+				}
 			}
 		}
 	}
 
 	existingHashes := make(map[string]bool)
-	if !*flagRescan { existingHashes = loadExistingHashes(dstPath) }
+	if !*flagRescan {
+		existingHashes = loadExistingHashes(dstPath)
+	}
 
 	type workItem struct {
 		file *zip.File
@@ -202,15 +243,19 @@ func processSingleZip(zipPath, dstPath string) {
 	var tasks []workItem
 
 	for _, f := range z.File {
-		if !strings.HasSuffix(strings.ToLower(f.Name), ".fb2") { continue }
-		
+		if !strings.HasSuffix(strings.ToLower(f.Name), ".fb2") {
+			continue
+		}
+
 		if len(existingHashes) == 0 && !*flagRescan && !*flagVerbose {
 			tasks = append(tasks, workItem{file: f})
 			continue
 		}
 
 		rc, err := f.Open()
-		if err != nil { continue }
+		if err != nil {
+			continue
+		}
 		data, _ := io.ReadAll(rc)
 		rc.Close()
 		sum := sha1.Sum(data)
@@ -220,7 +265,9 @@ func processSingleZip(zipPath, dstPath string) {
 		}
 	}
 
-	if len(tasks) == 0 { os.Exit(10) }
+	if len(tasks) == 0 {
+		os.Exit(10)
+	}
 
 	openOutputFile(dstPath)
 	defer outFile.Close()
@@ -250,14 +297,18 @@ func processSingleZip(zipPath, dstPath string) {
 			}
 		}()
 	}
-	for _, t := range tasks { jobs <- t }
+	for _, t := range tasks {
+		jobs <- t
+	}
 	close(jobs)
 	wg.Wait()
 }
 
 func runRescueMode() {
 	files, _ := filepath.Glob(filepath.Join(cfg.Paths.WarnDir, "*fb2"))
-	if len(files) == 0 { return }
+	if len(files) == 0 {
+		return
+	}
 	dstPath := filepath.Join(cfg.Paths.OutputDir, "rescued_items.jsonl")
 	openOutputFile(dstPath)
 	defer outFile.Close()
@@ -269,7 +320,9 @@ func runRescueMode() {
 			defer wg.Done()
 			for path := range jobs {
 				data, err := os.ReadFile(path)
-				if err != nil { continue }
+				if err != nil {
+					continue
+				}
 				if doc, err := parseResilient(data); err == nil {
 					if saveToOutput(filepath.Base(path), "rescued", data, doc) {
 						_ = os.Remove(path)
@@ -279,19 +332,25 @@ func runRescueMode() {
 			}
 		}()
 	}
-	for _, f := range files { jobs <- f }
+	for _, f := range files {
+		jobs <- f
+	}
 	close(jobs)
 	wg.Wait()
 }
 
 func parseResilient(data []byte) (*docOut, error) {
 	utf8Data := convertToUTF8(data)
-	if doc, err := parseFB2(utf8Data); err == nil { return doc, nil }
+	if doc, err := parseFB2(utf8Data); err == nil {
+		return doc, nil
+	}
 	return parseWithRegex(utf8Data)
 }
 
 func convertToUTF8(data []byte) []byte {
-	if len(data) < 2 { return data }
+	if len(data) < 2 {
+		return data
+	}
 	if (data[0] == 0xFF && data[1] == 0xFE) || (data[0] == 0xFE && data[1] == 0xFF) {
 		dec := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder()
 		out, _ := dec.Bytes(data)
@@ -308,8 +367,16 @@ func convertToUTF8(data []byte) []byte {
 func parseWithRegex(data []byte) (*docOut, error) {
 	doc := &docOut{}
 	reTitle := regexp.MustCompile(`(?is)<book-title[^>]*>(.*?)</book-title>`)
-	if m := reTitle.FindSubmatch(data); len(m) > 1 { doc.Title = string(m[1]) }
-	if doc.Title == "" { return nil, fmt.Errorf("regex failed") }
+	if m := reTitle.FindSubmatch(data); len(m) > 1 {
+		doc.Title = string(m[1])
+	}
+	doc.Authors = parseAuthorsWithRegex(data)
+	if len(doc.Authors) == 0 {
+		doc.Authors = nil
+	}
+	if doc.Title == "" {
+		return nil, fmt.Errorf("regex failed")
+	}
 	return doc, nil
 }
 
@@ -340,17 +407,104 @@ func saveToOutputWithSha(filename, container string, raw []byte, sha string, doc
 }
 
 func parseFB2(data []byte) (*docOut, error) {
-	var doc docOut
-	d := xml.NewDecoder(bytes.NewReader(data))
-	for {
-		t, _ := d.Token()
-		if t == nil { break }
-		if se, ok := t.(xml.StartElement); ok && se.Name.Local == "book-title" {
-			_ = d.DecodeElement(&doc.Title, &se)
-		}
+	var parsed fb2Book
+	dec := xml.NewDecoder(bytes.NewReader(data))
+	dec.Strict = false
+	if err := dec.Decode(&parsed); err != nil {
+		return nil, err
 	}
-	if doc.Title == "" { return nil, fmt.Errorf("no title") }
-	return &doc, nil
+
+	doc := &docOut{
+		Title: strings.TrimSpace(parsed.Description.TitleInfo.BookTitle),
+	}
+	if doc.Title == "" {
+		return nil, fmt.Errorf("no title")
+	}
+
+	doc.Authors = buildAuthors(parsed.Description.TitleInfo.Authors)
+	if len(doc.Authors) == 0 {
+		doc.Authors = buildAuthors(parsed.Description.DocumentInfo.Authors)
+	}
+	if len(doc.Authors) == 0 {
+		doc.Authors = nil
+	}
+
+	return doc, nil
 }
 
-func min(a, b int) int { if a < b { return a }; return b }
+func buildAuthors(authors []fb2Author) []string {
+	if len(authors) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(authors))
+	seen := make(map[string]struct{}, len(authors))
+	for _, a := range authors {
+		parts := make([]string, 0, 3)
+		if s := strings.TrimSpace(a.FirstName); s != "" {
+			parts = append(parts, s)
+		}
+		if s := strings.TrimSpace(a.MiddleName); s != "" {
+			parts = append(parts, s)
+		}
+		if s := strings.TrimSpace(a.LastName); s != "" {
+			parts = append(parts, s)
+		}
+		name := strings.TrimSpace(strings.Join(parts, " "))
+		if name == "" {
+			name = strings.TrimSpace(a.Nickname)
+		}
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseAuthorsWithRegex(data []byte) []string {
+	authorRe := regexp.MustCompile(`(?is)<author[^>]*>(.*?)</author>`)
+	firstRe := regexp.MustCompile(`(?is)<first-name[^>]*>(.*?)</first-name>`)
+	middleRe := regexp.MustCompile(`(?is)<middle-name[^>]*>(.*?)</middle-name>`)
+	lastRe := regexp.MustCompile(`(?is)<last-name[^>]*>(.*?)</last-name>`)
+	nickRe := regexp.MustCompile(`(?is)<nickname[^>]*>(.*?)</nickname>`)
+
+	matches := authorRe.FindAllSubmatch(data, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	parsed := make([]fb2Author, 0, len(matches))
+	for _, m := range matches {
+		block := m[1]
+		var a fb2Author
+		if x := firstRe.FindSubmatch(block); len(x) > 1 {
+			a.FirstName = strings.TrimSpace(string(x[1]))
+		}
+		if x := middleRe.FindSubmatch(block); len(x) > 1 {
+			a.MiddleName = strings.TrimSpace(string(x[1]))
+		}
+		if x := lastRe.FindSubmatch(block); len(x) > 1 {
+			a.LastName = strings.TrimSpace(string(x[1]))
+		}
+		if x := nickRe.FindSubmatch(block); len(x) > 1 {
+			a.Nickname = strings.TrimSpace(string(x[1]))
+		}
+		parsed = append(parsed, a)
+	}
+
+	return buildAuthors(parsed)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
