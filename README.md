@@ -102,5 +102,7 @@ Core architecture and operations docs:
 - `docs/MTLS_INTERNAL.md`
 - `docs/LOGGING_LOKI.md`
 - `docs/JSON_GATEWAY.md`
+- `docs/TELEGRAM_BOT_ARCHITECTURE.md`
+- `docs/TELEGRAM_BOT_USAGE.md`
 - `docs/api/openapi.yaml`
 - `docs/RUNBOOK.md`
