@@ -26,6 +26,7 @@ Example `ebusta.yaml` section:
 telegram_bot:
   enabled: true
   mode: "polling"
+  mock_mode: false
   listen_host: "0.0.0.0"
   listen_port: 8088
   bot_token: "123456:telegram-token"
@@ -121,3 +122,57 @@ docker compose --profile telegram stop telegram-bot
 - Polling mode does not expose an HTTP health endpoint.
 - Webhook mode requires external webhook registration and reachable routing.
 - Session storage is in-memory only; restart clears user pagination state.
+
+
+## Testing and CI
+
+Fast local bot checks:
+
+```bash
+make test-telegram-bot
+make build-telegram-bot
+```
+
+Docker e2e check with mock Telegram transport and mock gateway:
+
+```bash
+make test-e2e-telegram
+```
+
+This scenario does not require:
+
+- a real Telegram bot token;
+- access to the real Telegram Bot API;
+- the full Ebusta distributed stack.
+
+Instead it uses:
+
+- `telegram_bot.mock_mode: true`;
+- a local webhook endpoint exposed by `telegram-bot`;
+- a mock Telegram outbound client exposed through `/_mock/messages`;
+- a lightweight gateway-compatible mock service for `/search`.
+
+### Mock Mode
+
+When `telegram_bot.mock_mode: true`:
+
+- `bot_token` may be empty;
+- outbound Telegram calls are not sent to Telegram;
+- sent and edited messages are recorded by the mock transport;
+- webhook updates can be posted directly to `/webhook`;
+- recorded operations can be inspected at `/_mock/messages`.
+
+### CI Recommendation
+
+At minimum, CI should run:
+
+```bash
+make test-telegram-bot
+make build-telegram-bot
+```
+
+If Docker is available in CI, also run:
+
+```bash
+make test-e2e-telegram
+```

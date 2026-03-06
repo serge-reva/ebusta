@@ -245,6 +245,11 @@ proto-breaking:
 test-go:
 	go test $$(go list ./... 2>/dev/null | grep -v -e '^ebusta/old_do_not_use')
 
+
+.PHONY: test-telegram-bot
+test-telegram-bot:
+	go test ./cmd/telegram-bot ./internal/telegrambot/... ./internal/botcommand ./internal/config
+
 .PHONY: test-scala
 test-scala:
 	@command -v sbt >/dev/null 2>&1 || (echo "❌ sbt not installed"; exit 1)
@@ -257,7 +262,11 @@ test-unit:
 
 .PHONY: test-integration
 test-integration:
-	go test $$(go list ./internal/gateway/... ./internal/logger/... ./cmd/irc-adapter ./cmd/json-gateway ./tests/errutil ./tests/gateway | grep -v -e '^ebusta/old_do_not_use')
+	go test $$(go list ./internal/gateway/... ./internal/logger/... ./internal/telegrambot/... ./cmd/telegram-bot ./cmd/irc-adapter ./cmd/json-gateway ./tests/errutil ./tests/gateway | grep -v -e '^ebusta/old_do_not_use')
+
+.PHONY: test-e2e-telegram
+test-e2e-telegram:
+	./test/e2e/telegram_bot.sh
 
 .PHONY: test-e2e
 test-e2e:
