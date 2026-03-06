@@ -35,7 +35,7 @@ Current helper behavior (`internal/errutil/trace.go`):
 | web-frontend | `wf` |
 | auth-manager | `auth` |
 | irc-adapter | `irc` |
-| telegram-adapter | `tg` |
+| json-gateway | `tg` |
 | cli | `cli` |
 
 ## Mandatory Flow

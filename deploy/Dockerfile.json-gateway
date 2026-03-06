@@ -7,9 +7,9 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-COPY ./bin/telegram-adapter /app/telegram-adapter
+COPY ./bin/json-gateway /app/json-gateway
 COPY ./deploy/ebusta.docker.yaml /app/ebusta.yaml
 
 EXPOSE 8087
 
-ENTRYPOINT ["/app/telegram-adapter"]
+ENTRYPOINT ["/app/json-gateway"]

@@ -211,6 +211,7 @@ func (c IRCAdapterConfig) BotAddress() string {
 }
 
 type TelegramAdapterConfig struct {
+	ListenHost string `yaml:"listen_host"`
 	Host       string `yaml:"host"`
 	Port       int    `yaml:"port"`
 	GatewayURL string `yaml:"gateway_url"`
@@ -219,9 +220,6 @@ type TelegramAdapterConfig struct {
 }
 
 func (c TelegramAdapterConfig) Validate() error {
-	if strings.TrimSpace(c.Host) == "" {
-		return fmt.Errorf("telegram_adapter.host is required")
-	}
 	if err := validatePort("telegram_adapter.port", c.Port); err != nil {
 		return err
 	}
@@ -237,8 +235,16 @@ func (c TelegramAdapterConfig) Validate() error {
 	return nil
 }
 
+func (c TelegramAdapterConfig) ListenAddr() string {
+	host := normalizeListenHost(c.ListenHost)
+	if strings.TrimSpace(c.ListenHost) == "" {
+		host = normalizeListenHost(c.Host)
+	}
+	return buildAddr(host, c.Port)
+}
+
 func (c TelegramAdapterConfig) Address() string {
-	return fmt.Sprintf("%s:%d", c.Host, c.Port)
+	return c.ListenAddr()
 }
 
 /* ---------- WEB FRONTEND ---------- */

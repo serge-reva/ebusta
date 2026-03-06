@@ -4,7 +4,7 @@ LOG_DIR       := ./logs
 API_PROTO_DIR := api/proto/v1
 CONFIG_FILE   := ebusta.yaml
 IRC_ADAPTER_PORT := 6667
-TELEGRAM_ADAPTER_PORT := $(shell sed -n '/telegram_adapter:/,/port:/p' $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
+JSON_GATEWAY_PORT := $(shell sed -n '/telegram_adapter:/,/port:/p' $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
 
 # Пути к Scala компонентам (в корне проекта)
 DSL_DIR := dsl-scala
@@ -27,7 +27,7 @@ DOWNLOADER_PORT := $(shell sed -n '/downloader:/,/listen_port:/p'      $(CONFIG_
 WEB_FRONTEND_PORT := $(shell sed -n '/web_frontend:/,/listen_port:/p'  $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 GATEWAY_PORT    := $(shell sed -n '/gateway:/,/port:/p'                $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
 
-.PHONY: all build proto proto-generate proto-verify openapi-generate build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean architecture-check docs-check docs-refresh certs-generate proto-lint proto-breaking test-go test-scala test-unit test-integration test-e2e test-load ci-check docker-build docker-up docker-down docker-logs docker-status
+.PHONY: all build proto proto-generate proto-verify openapi-generate build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-json-gateway up down restart test clean architecture-check docs-check docs-refresh certs-generate proto-lint proto-breaking test-go test-scala test-unit test-integration test-e2e test-load ci-check docker-build docker-up docker-down docker-logs docker-status
 
 all: build
 
@@ -66,10 +66,10 @@ build-irc: proto
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/irc-adapter ./cmd/irc-adapter
 
-build-telegram: proto
-	@echo "🛠 Building Telegram adapter..."
+build-json-gateway: proto
+	@echo "🛠 Building JSON gateway..."
 	@mkdir -p $(BIN_DIR)
-	@go build -o $(BIN_DIR)/telegram-adapter ./cmd/telegram-adapter
+	@go build -o $(BIN_DIR)/json-gateway ./cmd/json-gateway
 
 $(DSL_JAR): $(DSL_SCALA_SRC) $(PROTO_SRC)
 	@echo "🛠 Building DSL Scala..."
@@ -113,7 +113,7 @@ build-gateway: proto
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/gateway ./cmd/gateway
 
-build-go: build-search-go build-cli build-web-frontend build-downloads-go build-gateway build-irc build-telegram
+build-go: build-search-go build-cli build-web-frontend build-downloads-go build-gateway build-irc build-json-gateway
 	@echo "✅ Go build done."
 
 build: proto build-scala build-go
@@ -121,7 +121,7 @@ build: proto build-scala build-go
 
 down:
 	@echo "🛑 Stopping all services..."
-	@-pkill -9 -f "datamanager|orchestrator|web-adapter|web-frontend|gateway|dsl-server.jar|query-builder.jar|archive-node|tier-node|plasma-node|downloader|irc-adapter|telegram-adapter" || true
+	@-pkill -9 -f "datamanager|orchestrator|web-adapter|web-frontend|gateway|dsl-server.jar|query-builder.jar|archive-node|tier-node|plasma-node|downloader|irc-adapter|json-gateway" || true
 	@sleep 1
 
 up: down
@@ -176,13 +176,13 @@ up: down
 	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/irc-adapter >> $(LOG_DIR)/irc.log 2>&1 & sleep 0.5
 	@pgrep -f irc-adapter > /dev/null && echo "✅ RUNNING on port $(IRC_ADAPTER_PORT)" || echo "❌ FAILED"
 
-	@echo -n "   - Telegram Adapter: "
-	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/telegram-adapter >> $(LOG_DIR)/telegram.log 2>&1 & sleep 0.5
-	@pgrep -f telegram-adapter > /dev/null && echo "✅ RUNNING on port $(TELEGRAM_ADAPTER_PORT)" || echo "❌ FAILED"
+	@echo -n "   - JSON Gateway: "
+	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/json-gateway >> $(LOG_DIR)/json-gateway.log 2>&1 & sleep 0.5
+	@pgrep -f json-gateway > /dev/null && echo "✅ RUNNING on port $(JSON_GATEWAY_PORT)" || echo "❌ FAILED"
 
 
 	@echo "\n📊 Active processes:"
-	@ps aux | grep -v grep | grep -E "archive-node|tier-node|plasma-node|downloader|web-adapter|orchestrator|datamanager|gateway|irc-adapter|telegram-adapter"
+	@ps aux | grep -v grep | grep -E "archive-node|tier-node|plasma-node|downloader|web-adapter|orchestrator|datamanager|gateway|irc-adapter|json-gateway"
 
 restart: up
 
@@ -252,7 +252,7 @@ test-unit:
 
 .PHONY: test-integration
 test-integration:
-	go test $$(go list ./internal/gateway/... ./internal/logger/... ./cmd/irc-adapter ./cmd/telegram-adapter ./tests/errutil ./tests/gateway | grep -v -e '^ebusta/old_do_not_use')
+	go test $$(go list ./internal/gateway/... ./internal/logger/... ./cmd/irc-adapter ./cmd/json-gateway ./tests/errutil ./tests/gateway | grep -v -e '^ebusta/old_do_not_use')
 
 .PHONY: test-e2e
 test-e2e:

@@ -155,7 +155,7 @@ all:
 ## Playbook Strategy
 - `site.yml`: full deployment orchestrator (imports partial playbooks).
 - `bootstrap.yml`: base OS setup, Docker runtime, users, firewall baseline.
-- `deploy_public.yml`: deploy `gateway`, `web-frontend`, `telegram-adapter`.
+- `deploy_public.yml`: deploy `gateway`, `web-frontend`, `json-gateway`.
 - `deploy_internal.yml`: deploy internal services stack.
 - `deploy_registry.yml`: manage private registry on `yuro.local`.
 - `deploy_monitoring.yml`: Prometheus/Loki/Grafana stack.

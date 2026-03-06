@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -28,7 +27,7 @@ func main() {
 	os.Setenv("EBUSTA_CONFIG", configPath)
 	cfg := config.Get()
 	if err := cfg.Metrics.Validate(); err != nil {
-		log.Fatalf("telegram-adapter metrics config validation failed: %v", err)
+		log.Fatalf("json-gateway metrics config validation failed: %v", err)
 	}
 	tgCfg := loadTelegramConfig(cfg, verbose)
 
@@ -36,9 +35,9 @@ func main() {
 	if tgCfg.Debug {
 		logCfg.Level = "DEBUG"
 	}
-	logger.InitFromConfig(logCfg, "telegram-adapter")
+	logger.InitFromConfig(logCfg, "json-gateway")
 	if err := tgCfg.Validate(); err != nil {
-		logger.GetGlobal().FatalCtx(context.Background(), "telegram-adapter config validation failed", err)
+		logger.GetGlobal().FatalCtx(context.Background(), "json-gateway config validation failed", err)
 	}
 
 	labelHook := edge.NewLabelCounterHook()
@@ -51,7 +50,7 @@ func main() {
 	mux.Handle("/metrics", promhttp.Handler())
 
 	srv := &http.Server{
-		Addr:         tgCfg.Address(),
+		Addr:         tgCfg.ListenAddr(),
 		Handler:      mux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -62,9 +61,9 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	go func() {
-		logger.GetGlobal().WithField("addr", tgCfg.Address()).InfoCtx(context.Background(), "telegram adapter started")
+		logger.GetGlobal().WithField("addr", tgCfg.ListenAddr()).InfoCtx(context.Background(), "json gateway started")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.FatalCtx(context.Background(), "telegram adapter failed", err)
+			logger.FatalCtx(context.Background(), "json gateway failed", err)
 		}
 	}()
 
@@ -81,16 +80,19 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.ErrorCtx(context.Background(), "telegram adapter shutdown error", err)
+		logger.ErrorCtx(context.Background(), "json gateway shutdown error", err)
 	}
-	logger.InfoCtx(context.Background(), "telegram adapter stopped")
+	logger.InfoCtx(context.Background(), "json gateway stopped")
 }
 
 func loadTelegramConfig(cfg *config.Config, verboseFlag bool) *config.TelegramAdapterConfig {
 	tg := cfg.TelegramAdapter
 
-	if tg.Host == "" {
-		tg.Host = "0.0.0.0"
+	if tg.ListenHost == "" {
+		tg.ListenHost = tg.Host
+	}
+	if tg.ListenHost == "" {
+		tg.ListenHost = "0.0.0.0"
 	}
 	if tg.Port == 0 {
 		tg.Port = 8087
@@ -105,6 +107,6 @@ func loadTelegramConfig(cfg *config.Config, verboseFlag bool) *config.TelegramAd
 		tg.Debug = true
 	}
 
-	fmt.Fprintf(os.Stderr, "🚀 Telegram adapter starting on %s (verbose: %v)\n", tg.Address(), tg.Debug)
+	logger.GetGlobal().WithField("addr", tg.ListenAddr()).WithField("debug", tg.Debug).InfoCtx(context.Background(), "json gateway configuration loaded")
 	return &tg
 }

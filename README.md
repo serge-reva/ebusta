@@ -101,5 +101,6 @@ Core architecture and operations docs:
 - `docs/PROTO_IMMUTABILITY.md`
 - `docs/MTLS_INTERNAL.md`
 - `docs/LOGGING_LOKI.md`
+- `docs/JSON_GATEWAY.md`
 - `docs/api/openapi.yaml`
 - `docs/RUNBOOK.md`

@@ -11,8 +11,8 @@ Legend:
 | cmd/irc-adapter/bot_test.go | integration-local | medium | integration | P1 | Protocol-heavy tests, complex setup. |
 | cmd/irc-adapter/handler_test.go | integration-local | medium | integration | P1 | Large scenario file, should be split. |
 | cmd/irc-adapter/main_test.go | unit | good | unit | P2 | Config/default checks. |
-| cmd/telegram-adapter/handler_test.go | integration-local | good | integration | P2 | Uses httptest and mock transport. |
-| cmd/telegram-adapter/main_test.go | unit | good | unit | P2 | Config/default checks. |
+| cmd/json-gateway/handler_test.go | integration-local | good | integration | P2 | Uses httptest and mock transport. |
+| cmd/json-gateway/main_test.go | unit | good | unit | P2 | Config/default checks. |
 | internal/edge/engine_test.go | unit | good | unit | P2 | Isolated engine behavior tests. |
 | internal/edge/guards_test.go | unit | good | unit | P2 | Validation checks, no external deps. |
 | internal/edge/telemetry_test.go | unit | good | unit | P2 | Local telemetry hooks only. |

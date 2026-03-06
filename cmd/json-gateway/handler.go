@@ -1,17 +1,16 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"ebusta/internal/edge"
 	"ebusta/internal/errutil"
+	"ebusta/internal/gatewayclient"
 	"ebusta/internal/logger"
 	"ebusta/internal/presenter"
 )
@@ -32,10 +31,9 @@ type UpdateResponse struct {
 }
 
 type TGHandler struct {
-	gatewayURL string
-	pageSize   int
-	httpClient *http.Client
-	engine     *edge.Engine
+	pageSize      int
+	gatewayClient *gatewayclient.Client
+	engine        *edge.Engine
 }
 
 func NewTGHandler(gatewayURL string, pageSize int, engine *edge.Engine) *TGHandler {
@@ -45,15 +43,19 @@ func NewTGHandler(gatewayURL string, pageSize int, engine *edge.Engine) *TGHandl
 		engine = edge.NewEngine(p, edge.NewLabelCounterHook())
 	}
 	return &TGHandler{
-		gatewayURL: gatewayURL,
-		pageSize:   pageSize,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
-		engine:     engine,
+		pageSize:      pageSize,
+		gatewayClient: gatewayclient.NewClient(gatewayURL),
+		engine:        engine,
 	}
 }
 
-func (h *TGHandler) handleHealth(w http.ResponseWriter, _ *http.Request) {
+func (h *TGHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
+	traceID := errutil.TraceIDFromRequest(r)
+	if traceID == "" {
+		traceID = errutil.GenerateTraceID("jg")
+	}
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Trace-Id", traceID)
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
@@ -102,56 +104,50 @@ func (h *TGHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gwReq := map[string]interface{}{
-		"query": query,
-		"page":  page,
-		"limit": h.pageSize,
-	}
-	j, _ := json.Marshal(gwReq)
-	httpReq, _ := http.NewRequest(http.MethodPost, h.gatewayURL+"/search", bytes.NewBuffer(j))
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("X-Trace-Id", traceID)
-
-	resp, err := h.httpClient.Do(httpReq)
+	resp, err := h.gatewayClient.Search(r.Context(), query, page, h.pageSize, traceID)
 	if err != nil {
-		logger.GetGlobal().WithField("trace_id", traceID).Error(traceID, "telegram gateway request failed", err)
+		logger.GetGlobal().WithField("trace_id", traceID).Error(traceID, "json gateway request failed", err)
+		if appErr, ok := err.(*errutil.AppError); ok {
+			errutil.WriteJSONError(w, appErr)
+			return
+		}
 		errutil.WriteJSONErrorSimple(w, http.StatusBadGateway, errutil.CodeBadGateway, "gateway unavailable", traceID)
-		return
-	}
-	defer resp.Body.Close()
-
-	respBody, appErr := errutil.ReadBodyAndError(resp, traceID)
-	if appErr != nil {
-		errutil.WriteJSONError(w, appErr)
-		return
-	}
-
-	var sr struct {
-		TraceID string              `json:"trace_id"`
-		Total   int                 `json:"total"`
-		Books   []presenter.BookDTO `json:"books"`
-		Page    int                 `json:"page"`
-		Pages   int                 `json:"pages"`
-	}
-	if err := json.Unmarshal(respBody, &sr); err != nil {
-		errutil.WriteJSONErrorSimple(w, http.StatusBadGateway, errutil.CodeBadGateway, "invalid gateway response", traceID)
 		return
 	}
 
 	writeTGResponse(w, UpdateResponse{
 		OK:      true,
-		TraceID: sr.TraceID,
-		Total:   sr.Total,
-		Books:   sr.Books,
-		Page:    sr.Page,
-		Pages:   sr.Pages,
+		TraceID: resp.TraceID,
+		Total:   resp.Total,
+		Books:   toPresenterBooks(resp.Books),
+		Page:    resp.Page,
+		Pages:   resp.Pages,
 	})
 }
 
 func writeTGResponse(w http.ResponseWriter, resp UpdateResponse) {
 	w.Header().Set("Content-Type", "application/json")
+	if resp.TraceID != "" {
+		w.Header().Set("X-Trace-Id", resp.TraceID)
+	}
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func toPresenterBooks(books []gatewayclient.SearchBook) []presenter.BookDTO {
+	result := make([]presenter.BookDTO, 0, len(books))
+	for _, book := range books {
+		result = append(result, presenter.BookDTO{
+			ID:          book.ID,
+			Title:       book.Title,
+			Authors:     book.Authors,
+			Container:   book.Container,
+			Filename:    book.Filename,
+			FullAuthors: book.FullAuthors,
+			DownloadURL: book.DownloadURL,
+		})
+	}
+	return result
 }
 
 func parseTGSearch(msg string) (query string, page int, err error) {

@@ -146,7 +146,7 @@ Safe reload поведение:
 
 ## 6. Защиты в Telegram adapter
 
-`cmd/telegram-adapter` реализован как внешний HTTP edge-adapter:
+`cmd/json-gateway` реализован как внешний HTTP edge-adapter:
 - endpoint `/update` проходит через:
   - `ValidateJSON(action=update)`;
   - парсинг и валидацию полей (`user_id`, `message`);
@@ -231,7 +231,7 @@ Safe reload:
   - rate-limit deny path;
   - long command rejection.
 
-- `cmd/telegram-adapter/*_test.go`:
+- `cmd/json-gateway/*_test.go`:
   - command parse;
   - success flow;
   - rate-limit deny;
