@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"mime"
@@ -12,33 +10,15 @@ import (
 	"time"
 
 	"ebusta/internal/errutil"
+	"ebusta/internal/gatewayclient"
 	"ebusta/internal/logger"
 )
 
 type Handler struct {
-	gatewayURL string
-	httpClient *http.Client
-	pageSize   int
-}
-
-type gatewaySearchRequest struct {
-	Query string `json:"query"`
-	Page  int    `json:"page"`
-	Limit int    `json:"limit"`
-}
-
-type gatewaySearchResponse struct {
-	TraceID string              `json:"trace_id"`
-	Total   int                 `json:"total"`
-	Books   []gatewaySearchBook `json:"books"`
-	Page    int                 `json:"page"`
-	Pages   int                 `json:"pages"`
-}
-
-type gatewaySearchBook struct {
-	Title       string `json:"title"`
-	FullAuthors string `json:"full_authors"`
-	DownloadURL string `json:"download_url"`
+	gatewayURL    string
+	httpClient    *http.Client
+	gatewayClient *gatewayclient.Client
+	pageSize      int
 }
 
 type WebSearchResult struct {
@@ -88,58 +68,25 @@ func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		page = 1
 	}
 
-	reqPayload := gatewaySearchRequest{
-		Query: query,
-		Page:  page,
-		Limit: h.pageSize,
-	}
-	body, err := json.Marshal(reqPayload)
+	resp, err := h.gatewayClient.Search(r.Context(), query, page, h.pageSize, traceID)
 	if err != nil {
-		logger.GetGlobal().ErrorCtx(r.Context(), "[web-frontend] search payload marshal failed", err)
-		renderError(w, "Ошибка поиска", traceID)
-		return
-	}
-
-	searchReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, h.gatewayURL+"/search", bytes.NewReader(body))
-	if err != nil {
-		logger.GetGlobal().ErrorCtx(r.Context(), "[web-frontend] search request build failed", err)
-		renderError(w, "Ошибка поиска", traceID)
-		return
-	}
-	searchReq.Header.Set("Content-Type", "application/json")
-	searchReq.Header.Set("X-Trace-Id", traceID)
-
-	resp, err := h.httpClient.Do(searchReq)
-	if err != nil {
-		logger.GetGlobal().ErrorCtx(r.Context(), "[web-frontend] gateway search unavailable", err)
+		logger.GetGlobal().ErrorCtx(r.Context(), "[web-frontend] gateway search failed", err)
+		if appErr, ok := err.(*errutil.AppError); ok {
+			renderError(w, appErr.Message, appErr.TraceID)
+			return
+		}
 		renderError(w, "Сервис поиска недоступен", traceID)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		appErr := errutil.FromHTTPResponse(resp, respBody, traceID)
-		logger.GetGlobal().WithField("status", resp.StatusCode).WarnCtx(r.Context(), "[web-frontend] gateway search error")
-		renderError(w, appErr.Message, appErr.TraceID)
-		return
-	}
-
-	var gwResp gatewaySearchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&gwResp); err != nil {
-		logger.GetGlobal().ErrorCtx(r.Context(), "[web-frontend] decode gateway search failed", err)
-		renderError(w, "Ошибка поиска", traceID)
 		return
 	}
 
 	result := &WebSearchResult{
-		TraceID: gwResp.TraceID,
-		Total:   gwResp.Total,
-		Page:    gwResp.Page,
-		Pages:   gwResp.Pages,
-		Books:   make([]WebBook, 0, len(gwResp.Books)),
+		TraceID: resp.TraceID,
+		Total:   resp.Total,
+		Page:    resp.Page,
+		Pages:   resp.Pages,
+		Books:   make([]WebBook, 0, len(resp.Books)),
 	}
-	for _, book := range gwResp.Books {
+	for _, book := range resp.Books {
 		result.Books = append(result.Books, WebBook{
 			Title:       book.Title,
 			FullAuthors: book.FullAuthors,

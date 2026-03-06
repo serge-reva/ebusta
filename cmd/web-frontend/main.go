@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ebusta/internal/config"
+	"ebusta/internal/gatewayclient"
 	"ebusta/internal/logger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -27,9 +28,10 @@ func main() {
 	wfCfg := cfg.WebFrontend
 
 	h := &Handler{
-		gatewayURL: strings.TrimRight(wfCfg.GatewayURL, "/"),
-		httpClient: newGatewayClient(),
-		pageSize:   wfCfg.PageSize,
+		gatewayURL:    strings.TrimRight(wfCfg.GatewayURL, "/"),
+		httpClient:    newGatewayClient(),
+		gatewayClient: gatewayclient.NewClient(wfCfg.GatewayURL, gatewayclient.WithTimeout(30*time.Second)),
+		pageSize:      wfCfg.PageSize,
 	}
 
 	mux := http.NewServeMux()
