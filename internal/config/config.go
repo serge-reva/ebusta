@@ -255,17 +255,18 @@ type TelegramBotTimeoutsConfig struct {
 }
 
 type TelegramBotConfig struct {
-	Enabled      bool                      `yaml:"enabled"`
-	Mode         string                    `yaml:"mode"`
-	ListenHost   string                    `yaml:"listen_host"`
-	ListenPort   int                       `yaml:"listen_port"`
-	BotToken     string                    `yaml:"bot_token"`
-	GatewayURL   string                    `yaml:"gateway_url"`
-	PageSize     int                       `yaml:"page_size"`
-	WebhookURL   string                    `yaml:"webhook_url"`
-	WebhookSecret string                   `yaml:"webhook_secret"`
-	Timeouts     TelegramBotTimeoutsConfig `yaml:"timeouts"`
-	Debug        bool                      `yaml:"debug"`
+	Enabled       bool                      `yaml:"enabled"`
+	MockMode      bool                      `yaml:"mock_mode"`
+	Mode          string                    `yaml:"mode"`
+	ListenHost    string                    `yaml:"listen_host"`
+	ListenPort    int                       `yaml:"listen_port"`
+	BotToken      string                    `yaml:"bot_token"`
+	GatewayURL    string                    `yaml:"gateway_url"`
+	PageSize      int                       `yaml:"page_size"`
+	WebhookURL    string                    `yaml:"webhook_url"`
+	WebhookSecret string                    `yaml:"webhook_secret"`
+	Timeouts      TelegramBotTimeoutsConfig `yaml:"timeouts"`
+	Debug         bool                      `yaml:"debug"`
 }
 
 func (c TelegramBotConfig) Validate() error {
@@ -277,7 +278,7 @@ func (c TelegramBotConfig) Validate() error {
 	if mode != "polling" && mode != "webhook" {
 		return fmt.Errorf("telegram_bot.mode must be either 'polling' or 'webhook'")
 	}
-	if strings.TrimSpace(c.BotToken) == "" {
+	if !c.MockMode && strings.TrimSpace(c.BotToken) == "" {
 		return fmt.Errorf("telegram_bot.bot_token is required")
 	}
 	if strings.TrimSpace(c.GatewayURL) == "" {

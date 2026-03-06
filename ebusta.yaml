@@ -269,6 +269,7 @@ telegram_adapter:
 telegram_bot:
   enabled: false
   mode: "polling"
+  mock_mode: false
   listen_host: "0.0.0.0"
   listen_port: 8088
   bot_token: ""
