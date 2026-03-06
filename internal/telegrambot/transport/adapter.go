@@ -1,0 +1,74 @@
+package transport
+
+import (
+	"context"
+	"strings"
+
+	"ebusta/internal/botcommand"
+	"ebusta/internal/errutil"
+	"ebusta/internal/telegrambot/usecase"
+)
+
+type Adapter struct {
+	client  TelegramClient
+	handler UsecaseHandler
+}
+
+func NewAdapter(client TelegramClient, handler UsecaseHandler) *Adapter {
+	return &Adapter{client: client, handler: handler}
+}
+
+func (a *Adapter) ProcessUpdate(ctx context.Context, update IncomingUpdate) error {
+	traceID := strings.TrimSpace(update.TraceID)
+	if traceID == "" {
+		traceID = errutil.GenerateTraceID("tg")
+	}
+
+	if update.CallbackID != "" {
+		result, err := a.handler.HandleCallback(ctx, update.UserID, update.CallbackData, traceID)
+		if err != nil {
+			return err
+		}
+		if err := a.client.AnswerCallback(ctx, update.CallbackID, ""); err != nil {
+			return err
+		}
+		return a.respond(ctx, update.ChatID, update.MessageID, result, true)
+	}
+
+	var (
+		result *usecase.Result
+		err    error
+	)
+
+	switch c := botcommand.Parse(update.Text).(type) {
+	case botcommand.HelpCommand:
+		result = a.handler.HandleHelp(traceID)
+	case botcommand.PageCommand:
+		result, err = a.handler.HandlePage(ctx, update.UserID, c.Page, traceID)
+	case botcommand.NextCommand:
+		result, err = a.handler.HandleCallback(ctx, update.UserID, "page:next", traceID)
+	case botcommand.PrevCommand:
+		result, err = a.handler.HandleCallback(ctx, update.UserID, "page:prev", traceID)
+	case botcommand.SearchCommand:
+		result, err = a.handler.HandleSearch(ctx, update.UserID, update.Text, traceID)
+	case botcommand.InvalidCommand:
+		result, err = a.handler.HandleSearch(ctx, update.UserID, update.Text, traceID)
+	default:
+		result = a.handler.HandleHelp(traceID)
+	}
+	if err != nil {
+		return err
+	}
+	return a.respond(ctx, update.ChatID, update.MessageID, result, false)
+}
+
+func (a *Adapter) respond(ctx context.Context, chatID int64, messageID int, result *usecase.Result, preferEdit bool) error {
+	if result == nil {
+		return nil
+	}
+	if preferEdit && chatID != 0 && messageID != 0 {
+		return a.client.EditMessage(ctx, chatID, messageID, result.Text, result.Keyboard)
+	}
+	_, err := a.client.SendMessage(ctx, chatID, result.Text, result.Keyboard)
+	return err
+}
