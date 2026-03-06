@@ -316,6 +316,22 @@ services:
     restart: unless-stopped
     logging: *loki-logging
 
+
+  telegram-bot:
+    profiles: ["telegram"]
+    image: ebusta-telegram-bot:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.telegram-bot
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *loki-logging
   json-gateway:
     profiles: ["adapters"]
     image: ebusta-json-gateway:local
