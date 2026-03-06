@@ -169,35 +169,35 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Method == http.MethodHead {
-		meta, err := s.downloadBackend.GetMeta(ctx, token)
-		if err != nil {
-			logger.GetGlobal().WithField("token", s.sanitizer.SanitizeForLog(token)).WithField("error", err.Error()).WarnCtx(ctx, "download meta failed")
-			switch err {
-			case mapper.ErrTokenExpired:
-				errutil.WriteJSONError(w, errutil.New(
-					errutil.CodeNotFound,
-					"download token expired",
-				).WithTrace(traceID))
-			case mapper.ErrTokenInvalid:
-				errutil.WriteJSONError(w, errutil.New(
-					errutil.CodeNotFound,
-					"invalid download token",
-				).WithTrace(traceID))
-			default:
-				var appErr *errutil.AppError
-				if errors.As(err, &appErr) {
-					errutil.WriteJSONError(w, appErr)
-					return
-				}
-				errutil.WriteJSONError(w, errutil.New(
-					errutil.CodeInternal,
-					"failed to get book metadata",
-				).WithTrace(traceID).WithDetails(err.Error()))
+	meta, err := s.downloadBackend.GetMeta(ctx, token)
+	if err != nil {
+		logger.GetGlobal().WithField("token", s.sanitizer.SanitizeForLog(token)).WithField("error", err.Error()).WarnCtx(ctx, "download meta failed")
+		switch err {
+		case mapper.ErrTokenExpired:
+			errutil.WriteJSONError(w, errutil.New(
+				errutil.CodeNotFound,
+				"download token expired",
+			).WithTrace(traceID))
+		case mapper.ErrTokenInvalid:
+			errutil.WriteJSONError(w, errutil.New(
+				errutil.CodeNotFound,
+				"invalid download token",
+			).WithTrace(traceID))
+		default:
+			var appErr *errutil.AppError
+			if errors.As(err, &appErr) {
+				errutil.WriteJSONError(w, appErr)
+				return
 			}
-			return
+			errutil.WriteJSONError(w, errutil.New(
+				errutil.CodeInternal,
+				"failed to get book metadata",
+			).WithTrace(traceID).WithDetails(err.Error()))
 		}
+		return
+	}
 
+	if r.Method == http.MethodHead {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", meta.Filename))
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", meta.Size))
@@ -205,8 +205,16 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+	if r.URL.Query().Get("meta") == "1" {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Trace-Id", traceID)
+		json.NewEncoder(w).Encode(meta)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", meta.Filename))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", meta.Size))
 	w.Header().Set("X-Trace-Id", traceID)
 
 	if err := s.downloadBackend.GetFile(ctx, token, w); err != nil {
