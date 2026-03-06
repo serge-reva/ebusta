@@ -247,6 +247,82 @@ func (c TelegramAdapterConfig) Address() string {
 	return c.ListenAddr()
 }
 
+type TelegramBotTimeoutsConfig struct {
+	ReadTimeoutSec     int `yaml:"read_timeout_sec"`
+	WriteTimeoutSec    int `yaml:"write_timeout_sec"`
+	ShutdownTimeoutSec int `yaml:"shutdown_timeout_sec"`
+	PollTimeoutSec     int `yaml:"poll_timeout_sec"`
+}
+
+type TelegramBotConfig struct {
+	Enabled      bool                      `yaml:"enabled"`
+	Mode         string                    `yaml:"mode"`
+	ListenHost   string                    `yaml:"listen_host"`
+	ListenPort   int                       `yaml:"listen_port"`
+	BotToken     string                    `yaml:"bot_token"`
+	GatewayURL   string                    `yaml:"gateway_url"`
+	PageSize     int                       `yaml:"page_size"`
+	WebhookURL   string                    `yaml:"webhook_url"`
+	WebhookSecret string                   `yaml:"webhook_secret"`
+	Timeouts     TelegramBotTimeoutsConfig `yaml:"timeouts"`
+	Debug        bool                      `yaml:"debug"`
+}
+
+func (c TelegramBotConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+
+	mode := strings.ToLower(strings.TrimSpace(c.Mode))
+	if mode != "polling" && mode != "webhook" {
+		return fmt.Errorf("telegram_bot.mode must be either 'polling' or 'webhook'")
+	}
+	if strings.TrimSpace(c.BotToken) == "" {
+		return fmt.Errorf("telegram_bot.bot_token is required")
+	}
+	if strings.TrimSpace(c.GatewayURL) == "" {
+		return fmt.Errorf("telegram_bot.gateway_url is required")
+	}
+	if err := validateURL("telegram_bot.gateway_url", c.GatewayURL); err != nil {
+		return err
+	}
+	if c.PageSize <= 0 {
+		return fmt.Errorf("telegram_bot.page_size must be > 0")
+	}
+	if c.Timeouts.ReadTimeoutSec <= 0 {
+		return fmt.Errorf("telegram_bot.timeouts.read_timeout_sec must be > 0")
+	}
+	if c.Timeouts.WriteTimeoutSec <= 0 {
+		return fmt.Errorf("telegram_bot.timeouts.write_timeout_sec must be > 0")
+	}
+	if c.Timeouts.ShutdownTimeoutSec <= 0 {
+		return fmt.Errorf("telegram_bot.timeouts.shutdown_timeout_sec must be > 0")
+	}
+	if c.Timeouts.PollTimeoutSec <= 0 {
+		return fmt.Errorf("telegram_bot.timeouts.poll_timeout_sec must be > 0")
+	}
+	if mode == "webhook" {
+		if err := validatePort("telegram_bot.listen_port", c.ListenPort); err != nil {
+			return err
+		}
+		if strings.TrimSpace(c.WebhookURL) == "" {
+			return fmt.Errorf("telegram_bot.webhook_url is required in webhook mode")
+		}
+		if err := validateURL("telegram_bot.webhook_url", c.WebhookURL); err != nil {
+			return err
+		}
+	} else if c.ListenPort != 0 {
+		if err := validatePort("telegram_bot.listen_port", c.ListenPort); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c TelegramBotConfig) ListenAddr() string {
+	return buildAddr(normalizeListenHost(c.ListenHost), c.ListenPort)
+}
+
 /* ---------- WEB FRONTEND ---------- */
 
 type WebFrontendConfig struct {
@@ -584,6 +660,7 @@ type Config struct {
 	WebAdapter      ComponentConfig       `yaml:"web_adapter"`
 	IRCAdapter      IRCAdapterConfig      `yaml:"irc_adapter"`
 	TelegramAdapter TelegramAdapterConfig `yaml:"telegram_adapter"`
+	TelegramBot     TelegramBotConfig     `yaml:"telegram_bot"`
 	CLI             CLIConfig             `yaml:"cli"`
 
 	DslScala     ComponentConfig `yaml:"dsl_scala"`
