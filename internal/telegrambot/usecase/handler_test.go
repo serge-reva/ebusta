@@ -139,6 +139,17 @@ func TestHandleCallbackNext(t *testing.T) {
 	}
 }
 
+func TestHandleCallbackCurrentPageIsNoop(t *testing.T) {
+	h := testHandler(fakeSearcher{}, session.NewMemoryStore())
+	result, err := h.HandleCallback(context.Background(), "u1", "page:current", "tg-current")
+	if err != nil {
+		t.Fatalf("HandleCallback() error = %v", err)
+	}
+	if result != nil {
+		t.Fatalf("expected nil result for current page callback, got %+v", result)
+	}
+}
+
 func TestHandleHelp(t *testing.T) {
 	h := testHandler(fakeSearcher{}, session.NewMemoryStore())
 	result := h.HandleHelp("tg-help")

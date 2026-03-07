@@ -116,6 +116,8 @@ func (h *Handler) HandleCallback(ctx context.Context, userID, callbackData, trac
 	switch callbackData {
 	case "back":
 		return h.HandleBack(ctx, userID, traceID)
+	case "page:current":
+		return nil, nil
 	case "page:next":
 		s, ok := h.store.Get(ctx, userID)
 		if !ok {

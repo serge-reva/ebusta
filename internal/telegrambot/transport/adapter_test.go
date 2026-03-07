@@ -56,12 +56,14 @@ type fakeTelegramClient struct {
 	editText      string
 	callbackID    string
 	callbackText  string
+	callOrder     []string
 	err           error
 }
 
 func (f *fakeTelegramClient) SendMessage(ctx context.Context, chatID int64, text string, keyboard *tgpresenter.InlineKeyboardMarkup) (int, error) {
 	f.sentChatID = chatID
 	f.sentText = text
+	f.callOrder = append(f.callOrder, "sendMessage")
 	return 123, f.err
 }
 
@@ -69,18 +71,21 @@ func (f *fakeTelegramClient) EditMessage(ctx context.Context, chatID int64, mess
 	f.editChatID = chatID
 	f.editMessageID = messageID
 	f.editText = text
+	f.callOrder = append(f.callOrder, "editMessage")
 	return f.err
 }
 
 func (f *fakeTelegramClient) SendDocument(ctx context.Context, chatID int64, filename string, data *bytes.Reader, caption string) (int, error) {
 	f.sentChatID = chatID
 	f.sentDocument = filename
+	f.callOrder = append(f.callOrder, "sendDocument")
 	return 124, f.err
 }
 
 func (f *fakeTelegramClient) AnswerCallback(ctx context.Context, callbackID, text string) error {
 	f.callbackID = callbackID
 	f.callbackText = text
+	f.callOrder = append(f.callOrder, "answerCallback")
 	return f.err
 }
 
@@ -169,6 +174,9 @@ func TestAdapterRespondSendsDocumentWhenPresent(t *testing.T) {
 	if client.sentDocument != "book.fb2" {
 		t.Fatalf("expected document send, got %q", client.sentDocument)
 	}
+	if len(client.callOrder) < 2 || client.callOrder[0] != "answerCallback" || client.callOrder[1] != "sendDocument" {
+		t.Fatalf("unexpected callback/document order: %v", client.callOrder)
+	}
 }
 
 func TestAdapterProcessCallbackEditsMessage(t *testing.T) {
@@ -195,6 +203,30 @@ func TestAdapterProcessCallbackEditsMessage(t *testing.T) {
 	}
 	if client.editChatID != 99 || client.editMessageID != 11 || client.editText != "page text" {
 		t.Fatalf("unexpected edit payload: chat=%d msg=%d text=%q", client.editChatID, client.editMessageID, client.editText)
+	}
+}
+
+func TestAdapterProcessCurrentPageCallbackIsNoop(t *testing.T) {
+	uc := &fakeUsecase{result: nil}
+	client := &fakeTelegramClient{}
+	adapter := NewAdapter(client, uc)
+
+	err := adapter.ProcessUpdate(context.Background(), IncomingUpdate{
+		TraceID:      "tg-current",
+		UserID:       "42",
+		ChatID:       99,
+		MessageID:    11,
+		CallbackID:   "cb-current",
+		CallbackData: "page:current",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if client.callbackID != "cb-current" {
+		t.Fatalf("expected callback answer, got %q", client.callbackID)
+	}
+	if client.editMessageID != 0 || client.sentChatID != 0 {
+		t.Fatalf("current callback must not send/edit: edit=%d sendChat=%d order=%v", client.editMessageID, client.sentChatID, client.callOrder)
 	}
 }
 

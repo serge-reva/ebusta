@@ -71,3 +71,57 @@ func TestBotClientUsesTelegramAPI(t *testing.T) {
 		t.Fatal("expected sendDocument call")
 	}
 }
+
+func TestBotClientOmitsReplyMarkupWhenKeyboardIsNil(t *testing.T) {
+	server := testutil.NewTelegramAPIServer()
+	defer server.Close()
+
+	client, err := NewBotClient(
+		"test-token",
+		2*time.Second,
+		func(context.Context, *bot.Bot, *models.Update) {},
+		bot.WithServerURL(server.URL()),
+	)
+	if err != nil {
+		t.Fatalf("NewBotClient() error = %v", err)
+	}
+
+	if _, err := client.SendMessage(context.Background(), 12345, "hello", nil); err != nil {
+		t.Fatalf("SendMessage() error = %v", err)
+	}
+
+	call, ok := server.LastCall("sendMessage")
+	if !ok {
+		t.Fatal("expected sendMessage call")
+	}
+	if bytes.Contains(call.Body, []byte("reply_markup")) {
+		t.Fatalf("reply_markup must be omitted for nil keyboard, got %s", string(call.Body))
+	}
+}
+
+func TestBotClientEditOmitsReplyMarkupWhenKeyboardIsNil(t *testing.T) {
+	server := testutil.NewTelegramAPIServer()
+	defer server.Close()
+
+	client, err := NewBotClient(
+		"test-token",
+		2*time.Second,
+		func(context.Context, *bot.Bot, *models.Update) {},
+		bot.WithServerURL(server.URL()),
+	)
+	if err != nil {
+		t.Fatalf("NewBotClient() error = %v", err)
+	}
+
+	if err := client.EditMessage(context.Background(), 12345, 101, "updated", nil); err != nil {
+		t.Fatalf("EditMessage() error = %v", err)
+	}
+
+	call, ok := server.LastCall("editMessageText")
+	if !ok {
+		t.Fatal("expected editMessageText call")
+	}
+	if bytes.Contains(call.Body, []byte("reply_markup")) {
+		t.Fatalf("reply_markup must be omitted for nil keyboard, got %s", string(call.Body))
+	}
+}
