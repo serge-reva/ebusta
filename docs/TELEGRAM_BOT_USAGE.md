@@ -17,6 +17,7 @@ It accepts Telegram updates in `polling` or `webhook` mode, routes user commands
 - `/prev`
 - `/help`
 - `/start`
+- `/start book_<index>`
 
 ## Configuration
 
@@ -25,6 +26,7 @@ Example `ebusta.yaml` section:
 ```yaml
 telegram_bot:
   enabled: true
+  bot_username: "ebusta_test_bot"
   mode: "polling"
   mock_mode: false
   listen_host: "0.0.0.0"
@@ -45,6 +47,7 @@ telegram_bot:
 Notes:
 
 - `enabled: false` disables the component completely.
+- `bot_username` must match the Telegram bot username without `@`.
 - `mode: polling` does not require a public HTTP endpoint.
 - `mode: webhook` requires `webhook_url` and a reachable listener.
 - `gateway_url` must point to the public HTTP gateway, not to internal gRPC services.
@@ -94,6 +97,16 @@ docker compose --profile telegram stop telegram-bot
 4. Expected result:
    - bot returns a formatted page of books;
    - navigation buttons appear when more than one page exists.
+   - each book title is rendered as a clickable Telegram deep link.
+
+### Book Selection Path
+
+1. Send `/search tolstoy`.
+2. Click a book title.
+3. Expected result:
+   - Telegram re-enters the bot through `/start book_<index>`;
+   - bot sends a detail message with title and authors only;
+   - detail message contains `📥 Скачать` and `◀️ Назад` buttons.
 
 ### Pagination Path
 
@@ -110,6 +123,16 @@ docker compose --profile telegram stop telegram-bot
 3. Expected result:
    - user sees a readable failure message;
    - logs contain the same `trace_id` for the failed interaction.
+
+### Download Behaviour
+
+- For files smaller than 20 MB:
+  - bot downloads the file through `gateway`;
+  - bot uploads it to Telegram as a document.
+
+- For files 20 MB or larger:
+  - bot does not expose internal download URLs;
+  - bot responds with a user-facing message explaining that the file is too large for Telegram and should be obtained through the web interface.
 
 ## Trace Behaviour
 
