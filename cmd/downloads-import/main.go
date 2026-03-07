@@ -1,136 +1,70 @@
 package main
 
 import (
-	"bufio"
-	"database/sql"
-	"encoding/json"
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
-	"time"
 
-	ds "ebusta/internal/downloads/sqlite"
-
-	_ "modernc.org/sqlite"
+	"ebusta/internal/errutil"
+	"ebusta/internal/logger"
 )
 
-type docLine struct {
-	FileInfo struct {
-		Container string `json:"container"`
-		Sha1      string `json:"sha1"`
-		Filename  string `json:"filename"`
-		Size      int64  `json:"size"`
-	} `json:"fileInfo"`
-	Title string `json:"title"`
+type cliOptions struct {
+	JSONLPath       string
+	SQLitePath      string
+	LogLevel        string
+	LogFile         string
+	ContinueOnError bool
+	Quiet           bool
+	CommitInterval  int
+}
+
+func parseFlags(args []string) (cliOptions, error) {
+	fs := flag.NewFlagSet("downloads-import", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	opts := cliOptions{}
+	fs.StringVar(&opts.JSONLPath, "jsonl", "", "path to f2bulker JSONL bulk file (action line + doc line)")
+	fs.StringVar(&opts.SQLitePath, "sqlite", "", "path to sqlite metadata database")
+	fs.StringVar(&opts.LogLevel, "log-level", "INFO", "log level: DEBUG, INFO, WARN, ERROR")
+	fs.StringVar(&opts.LogFile, "log-file", "", "optional file to append logs to")
+	fs.BoolVar(&opts.ContinueOnError, "continue-on-error", false, "log per-record errors and continue processing")
+	fs.BoolVar(&opts.Quiet, "quiet", false, "suppress stderr output including progress bar and informational logs")
+	fs.IntVar(&opts.CommitInterval, "commit-interval", 0, "commit every N successfully inserted records; 0 keeps one transaction for the whole file")
+
+	if err := fs.Parse(args); err != nil {
+		return cliOptions{}, err
+	}
+	if opts.JSONLPath == "" || opts.SQLitePath == "" {
+		return cliOptions{}, errors.New("usage: downloads-import -jsonl <file.jsonl> -sqlite <meta.sqlite>")
+	}
+	if opts.CommitInterval < 0 {
+		return cliOptions{}, errors.New("commit-interval must be >= 0")
+	}
+	return opts, nil
 }
 
 func main() {
-	var (
-		jsonlPath  = flag.String("jsonl", "", "path to f2bulker jsonl (bulk format: action line + doc line)")
-		sqlitePath = flag.String("sqlite", "", "path to sqlite db")
-	)
-	flag.Parse()
-
-	if *jsonlPath == "" || *sqlitePath == "" {
-		fmt.Fprintf(os.Stderr, "usage: downloads-import -jsonl <file.jsonl> -sqlite <meta.sqlite>\n")
+	opts, err := parseFlags(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "downloads-import: %v\n", err)
 		os.Exit(2)
 	}
 
-	db, err := sql.Open("sqlite", *sqlitePath)
+	traceID := errutil.GenerateTraceID("dli")
+	ctx := logger.ContextWithTraceID(context.Background(), traceID)
+
+	app, err := newApp(opts, os.Stderr)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "open sqlite: %v\n", err)
+		fmt.Fprintf(os.Stderr, "downloads-import: %v\n", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer app.Close()
 
-	if err := ds.EnsureSchema(db); err != nil {
-		fmt.Fprintf(os.Stderr, "ensure schema: %v\n", err)
+	if _, err := app.Run(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "downloads-import: %v\n", err)
 		os.Exit(1)
 	}
-
-	f, err := os.Open(*jsonlPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "open jsonl: %v\n", err)
-		os.Exit(1)
-	}
-	defer f.Close()
-
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 64*1024), 64*1024*1024)
-
-	now := time.Now().Format(time.RFC3339Nano)
-
-	tx, err := db.Begin()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "begin tx: %v\n", err)
-		os.Exit(1)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	stmt, err := tx.Prepare(`
-INSERT OR IGNORE INTO books(sha1, container, filename, size, title, created_at, updated_at)
-VALUES(?, ?, ?, ?, ?, ?, ?)
-`)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "prepare: %v\n", err)
-		os.Exit(1)
-	}
-	defer stmt.Close()
-
-	lineNo := 0
-	inserted := 0
-	skipped := 0
-
-	for {
-		// action line
-		if !sc.Scan() {
-			break
-		}
-		lineNo++
-		// doc line
-		if !sc.Scan() {
-			fmt.Fprintf(os.Stderr, "unexpected EOF: missing doc line after action at line %d\n", lineNo)
-			os.Exit(1)
-		}
-		lineNo++
-
-		var doc docLine
-		if err := json.Unmarshal(sc.Bytes(), &doc); err != nil {
-			fmt.Fprintf(os.Stderr, "json parse error at line %d: %v\n", lineNo, err)
-			os.Exit(1)
-		}
-
-		sha1 := doc.FileInfo.Sha1
-		if sha1 == "" || doc.FileInfo.Container == "" || doc.FileInfo.Filename == "" {
-			skipped++
-			continue
-		}
-
-		_, err := stmt.Exec(
-			sha1,
-			doc.FileInfo.Container,
-			doc.FileInfo.Filename,
-			doc.FileInfo.Size,
-			doc.Title,
-			now,
-			now,
-		)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "sqlite insert error at line %d: %v\n", lineNo, err)
-			os.Exit(1)
-		}
-		inserted++
-	}
-
-	if err := sc.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "scan error: %v\n", err)
-		os.Exit(1)
-	}
-
-	if err := tx.Commit(); err != nil {
-		fmt.Fprintf(os.Stderr, "commit: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("import done: inserted=%d skipped=%d\n", inserted, skipped)
 }
