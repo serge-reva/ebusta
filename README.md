@@ -101,6 +101,7 @@ Core architecture and operations docs:
 - `docs/PROTO_IMMUTABILITY.md`
 - `docs/MTLS_INTERNAL.md`
 - `docs/LOGGING_LOKI.md`
+- `docs/TRACE_VIEWER.md`
 - `docs/JSON_GATEWAY.md`
 - `docs/TELEGRAM_BOT_ARCHITECTURE.md`
 - `docs/TELEGRAM_BOT_USAGE.md`
