@@ -53,6 +53,22 @@ func TestParseLogLineKeepsRawWhenPatternDoesNotMatch(t *testing.T) {
 	}
 }
 
+func TestParseLogLineStripsANSISequences(t *testing.T) {
+	entry := parseLogLine("2026-03-07 10:00:00.000 \x1b[32m[INFO]\x1b[0m [gw-1] [gateway] request accepted error=none")
+	if entry.Level != "INFO" {
+		t.Fatalf("unexpected level: %+v", entry)
+	}
+	if entry.Service != "gateway" {
+		t.Fatalf("unexpected service: %+v", entry)
+	}
+	if entry.Message != "request accepted" {
+		t.Fatalf("unexpected message: %+v", entry)
+	}
+	if entry.Error != "none" {
+		t.Fatalf("unexpected error: %+v", entry)
+	}
+}
+
 func TestQueryTraceSupportsCustomSelector(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.URL.Query().Get("query"); !strings.Contains(got, `{compose_service="gateway"}`) {

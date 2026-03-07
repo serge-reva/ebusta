@@ -18,6 +18,7 @@ import (
 const defaultSelector = `{compose_project="ebusta"}`
 
 var textLogPattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \[([A-Z]+)\] \[[^\]]+\](?: \[([^\]]+)\])? (.*)$`)
+var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 type Client struct {
 	baseURL    string
@@ -152,6 +153,7 @@ func parseLokiTimestamp(raw string) (time.Time, error) {
 }
 
 func parseLogLine(line string) Entry {
+	line = ansiPattern.ReplaceAllString(line, "")
 	matches := textLogPattern.FindStringSubmatch(line)
 	if len(matches) != 4 {
 		return Entry{Message: line}
