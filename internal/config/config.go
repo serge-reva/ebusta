@@ -257,6 +257,7 @@ type TelegramBotTimeoutsConfig struct {
 type TelegramBotConfig struct {
 	Enabled       bool                      `yaml:"enabled"`
 	MockMode      bool                      `yaml:"mock_mode"`
+	BotUsername   string                    `yaml:"bot_username"`
 	Mode          string                    `yaml:"mode"`
 	ListenHost    string                    `yaml:"listen_host"`
 	ListenPort    int                       `yaml:"listen_port"`
@@ -277,6 +278,9 @@ func (c TelegramBotConfig) Validate() error {
 	mode := strings.ToLower(strings.TrimSpace(c.Mode))
 	if mode != "polling" && mode != "webhook" {
 		return fmt.Errorf("telegram_bot.mode must be either 'polling' or 'webhook'")
+	}
+	if strings.TrimSpace(c.BotUsername) == "" {
+		return fmt.Errorf("telegram_bot.bot_username is required")
 	}
 	if !c.MockMode && strings.TrimSpace(c.BotToken) == "" {
 		return fmt.Errorf("telegram_bot.bot_token is required")

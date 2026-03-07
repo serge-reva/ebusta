@@ -4,13 +4,14 @@ import "testing"
 
 func TestTelegramBotConfigValidateMockModeWithoutToken(t *testing.T) {
 	cfg := TelegramBotConfig{
-		Enabled:    true,
-		MockMode:   true,
-		Mode:       "webhook",
-		GatewayURL: "http://gateway:8443",
-		PageSize:   5,
-		ListenPort: 8088,
-		WebhookURL: "http://localhost:8088/webhook",
+		Enabled:     true,
+		MockMode:    true,
+		BotUsername: "ebusta_test_bot",
+		Mode:        "webhook",
+		GatewayURL:  "http://gateway:8443",
+		PageSize:    5,
+		ListenPort:  8088,
+		WebhookURL:  "http://localhost:8088/webhook",
 		Timeouts: TelegramBotTimeoutsConfig{
 			ReadTimeoutSec:     5,
 			WriteTimeoutSec:    10,

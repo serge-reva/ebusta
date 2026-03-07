@@ -28,8 +28,16 @@ func (integrationSearcher) Search(_ context.Context, query string, page, limit i
 	}, nil
 }
 
+func (integrationSearcher) GetMeta(_ context.Context, _ string, _ string) (*gatewayclient.FileMeta, error) {
+	return &gatewayclient.FileMeta{Size: 1024, Filename: "book.fb2"}, nil
+}
+
+func (integrationSearcher) DownloadBook(_ context.Context, _ string, _ string) ([]byte, *gatewayclient.FileMeta, error) {
+	return []byte("payload"), &gatewayclient.FileMeta{Size: 7, Filename: "book.fb2"}, nil
+}
+
 func TestAdapterProcessUpdateEndToEndSearch(t *testing.T) {
-	formatter := tgpresenter.NewTelegramFormatter(4096)
+	formatter := tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot")
 	policy := edge.DefaultPolicy("telegram")
 	policy.Actions["command"] = edge.ActionPolicy{PerMinute: 30, Burst: 30}
 	handler := usecase.NewHandler(integrationSearcher{}, session.NewMemoryStore(), formatter, edge.NewEngine(policy, nil), 5)

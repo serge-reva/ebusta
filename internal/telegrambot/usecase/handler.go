@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"bytes"
 	"context"
 	"strconv"
 	"strings"
@@ -17,18 +18,29 @@ import (
 
 type SearchService interface {
 	Search(ctx context.Context, query string, page, limit int, traceID string) (*gatewayclient.SearchResponse, error)
+	GetMeta(ctx context.Context, token, traceID string) (*gatewayclient.FileMeta, error)
+	DownloadBook(ctx context.Context, token, traceID string) ([]byte, *gatewayclient.FileMeta, error)
 }
 
 type Formatter interface {
 	FormatSearchResult(result *corepresenter.PresenterResult, page int) (string, *tgpresenter.InlineKeyboardMarkup, error)
+	FormatBookDetails(book *corepresenter.BookDTO) (string, *tgpresenter.InlineKeyboardMarkup)
 	FormatHelp() string
 	FormatError(message, traceID string) string
 }
 
+type Document struct {
+	Filename string
+	Data     *bytes.Reader
+	Caption  string
+}
+
 type Result struct {
-	Text     string
-	Keyboard *tgpresenter.InlineKeyboardMarkup
-	TraceID  string
+	Text      string
+	Keyboard  *tgpresenter.InlineKeyboardMarkup
+	Document  *Document
+	ForceSend bool
+	TraceID   string
 }
 
 type Handler struct {
@@ -102,6 +114,8 @@ func (h *Handler) HandleCallback(ctx context.Context, userID, callbackData, trac
 		traceID = errutil.GenerateTraceID("tg")
 	}
 	switch callbackData {
+	case "back":
+		return h.HandleBack(ctx, userID, traceID)
 	case "page:next":
 		s, ok := h.store.Get(ctx, userID)
 		if !ok {
@@ -115,6 +129,9 @@ func (h *Handler) HandleCallback(ctx context.Context, userID, callbackData, trac
 		}
 		return h.HandlePage(ctx, userID, s.CurrentPage-1, traceID)
 	default:
+		if strings.HasPrefix(callbackData, "download:") {
+			return h.HandleDownload(ctx, userID, strings.TrimPrefix(callbackData, "download:"), traceID)
+		}
 		if strings.HasPrefix(callbackData, "page:") {
 			page, err := strconv.Atoi(strings.TrimPrefix(callbackData, "page:"))
 			if err == nil {
@@ -123,6 +140,86 @@ func (h *Handler) HandleCallback(ctx context.Context, userID, callbackData, trac
 		}
 		return &Result{Text: h.formatter.FormatError("Unsupported action.", traceID), TraceID: traceID}, nil
 	}
+}
+
+func (h *Handler) HandleSelectBook(ctx context.Context, userID string, globalIndex int, traceID string) (*Result, error) {
+	if traceID == "" {
+		traceID = errutil.GenerateTraceID("tg")
+	}
+	s, ok := h.store.Get(ctx, userID)
+	if !ok || s.LastResult == nil || s.LastResult.SearchResult == nil {
+		return &Result{Text: h.formatter.FormatError("No recent search. Use /search first.", traceID), TraceID: traceID}, nil
+	}
+	book := bookByGlobalIndex(s, globalIndex)
+	if book == nil {
+		return &Result{Text: h.formatter.FormatError("Book selection is out of range.", traceID), TraceID: traceID}, nil
+	}
+	text, keyboard := h.formatter.FormatBookDetails(book)
+	return &Result{Text: text, Keyboard: keyboard, TraceID: traceID, ForceSend: true}, nil
+}
+
+func (h *Handler) HandleBack(ctx context.Context, userID, traceID string) (*Result, error) {
+	if traceID == "" {
+		traceID = errutil.GenerateTraceID("tg")
+	}
+	s, ok := h.store.Get(ctx, userID)
+	if !ok || s.LastResult == nil {
+		return &Result{Text: h.formatter.FormatError("No recent search. Use /search first.", traceID), TraceID: traceID}, nil
+	}
+	text, keyboard, err := h.formatter.FormatSearchResult(s.LastResult, s.CurrentPage)
+	if err != nil {
+		return nil, err
+	}
+	return &Result{Text: text, Keyboard: keyboard, TraceID: traceID}, nil
+}
+
+func (h *Handler) HandleDownload(ctx context.Context, userID, sha1, traceID string) (*Result, error) {
+	if traceID == "" {
+		traceID = errutil.GenerateTraceID("tg")
+	}
+	s, ok := h.store.Get(ctx, userID)
+	if !ok || s.LastResult == nil || s.LastResult.SearchResult == nil {
+		return &Result{Text: h.formatter.FormatError("No recent search. Use /search first.", traceID), TraceID: traceID}, nil
+	}
+	book := bookBySHA1(s, sha1)
+	if book == nil {
+		return &Result{Text: h.formatter.FormatError("Book is unavailable.", traceID), TraceID: traceID}, nil
+	}
+	token := strings.TrimPrefix(book.DownloadURL, "/download/")
+	if token == "" || token == book.DownloadURL {
+		return &Result{Text: h.formatter.FormatError("Download is unavailable.", traceID), TraceID: traceID}, nil
+	}
+	meta, err := h.searcher.GetMeta(ctx, token, traceID)
+	if err != nil {
+		return &Result{Text: h.formatter.FormatError("Failed to inspect file metadata.", traceID), TraceID: traceID, ForceSend: true}, nil
+	}
+	if meta.Size >= 20*1024*1024 {
+		return &Result{
+			Text:      h.formatter.FormatError("File is too large to send through Telegram. Please use the web interface or contact the administrator.", traceID),
+			TraceID:   traceID,
+			ForceSend: true,
+		}, nil
+	}
+	body, downloadMeta, err := h.searcher.DownloadBook(ctx, token, traceID)
+	if err != nil {
+		return &Result{Text: h.formatter.FormatError("Failed to download file.", traceID), TraceID: traceID, ForceSend: true}, nil
+	}
+	filename := meta.Filename
+	if filename == "" && downloadMeta != nil {
+		filename = downloadMeta.Filename
+	}
+	if filename == "" {
+		filename = "book.fb2"
+	}
+	return &Result{
+		Document: &Document{
+			Filename: filename,
+			Data:     bytes.NewReader(body),
+			Caption:  book.Title,
+		},
+		TraceID:   traceID,
+		ForceSend: true,
+	}, nil
 }
 
 func (h *Handler) searchAndStore(ctx context.Context, userID, query string, page int, traceID string) (*Result, error) {
@@ -158,6 +255,30 @@ func (h *Handler) searchAndStore(ctx context.Context, userID, query string, page
 		Keyboard: keyboard,
 		TraceID:  resp.TraceID,
 	}, nil
+}
+
+func bookByGlobalIndex(s *session.Session, globalIndex int) *corepresenter.BookDTO {
+	if s == nil || s.LastResult == nil || s.LastResult.SearchResult == nil {
+		return nil
+	}
+	offset := (s.CurrentPage - 1) * s.PageSize
+	localIndex := globalIndex - offset - 1
+	if localIndex < 0 || localIndex >= len(s.LastResult.Books) {
+		return nil
+	}
+	return &s.LastResult.Books[localIndex]
+}
+
+func bookBySHA1(s *session.Session, sha1 string) *corepresenter.BookDTO {
+	if s == nil || s.LastResult == nil || s.LastResult.SearchResult == nil {
+		return nil
+	}
+	for i := range s.LastResult.Books {
+		if s.LastResult.Books[i].ID == sha1 {
+			return &s.LastResult.Books[i]
+		}
+	}
+	return nil
 }
 
 func toPresenterBooks(books []gatewayclient.SearchBook) []corepresenter.BookDTO {

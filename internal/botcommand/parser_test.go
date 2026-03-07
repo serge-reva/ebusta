@@ -36,6 +36,17 @@ func TestParseNavigationCommands(t *testing.T) {
 	}
 }
 
+func TestParseSelectBookCommand(t *testing.T) {
+	cmd := Parse("/start book_7")
+	selectCmd, ok := cmd.(SelectBookCommand)
+	if !ok {
+		t.Fatalf("expected SelectBookCommand, got %T", cmd)
+	}
+	if selectCmd.BookIndex != 7 {
+		t.Fatalf("unexpected select command: %+v", selectCmd)
+	}
+}
+
 func TestParseInvalidCommands(t *testing.T) {
 	tests := []string{
 		"",

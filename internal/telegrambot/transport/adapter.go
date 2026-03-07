@@ -43,6 +43,8 @@ func (a *Adapter) ProcessUpdate(ctx context.Context, update IncomingUpdate) erro
 	switch c := botcommand.Parse(update.Text).(type) {
 	case botcommand.HelpCommand:
 		result = a.handler.HandleHelp(traceID)
+	case botcommand.SelectBookCommand:
+		result, err = a.handler.HandleSelectBook(ctx, update.UserID, c.BookIndex, traceID)
 	case botcommand.PageCommand:
 		result, err = a.handler.HandlePage(ctx, update.UserID, c.Page, traceID)
 	case botcommand.NextCommand:
@@ -65,6 +67,14 @@ func (a *Adapter) ProcessUpdate(ctx context.Context, update IncomingUpdate) erro
 func (a *Adapter) respond(ctx context.Context, chatID int64, messageID int, result *usecase.Result, preferEdit bool) error {
 	if result == nil {
 		return nil
+	}
+	if result.Document != nil {
+		_, err := a.client.SendDocument(ctx, chatID, result.Document.Filename, result.Document.Data, result.Document.Caption)
+		return err
+	}
+	if result.ForceSend {
+		_, err := a.client.SendMessage(ctx, chatID, result.Text, result.Keyboard)
+		return err
 	}
 	if preferEdit && chatID != 0 && messageID != 0 {
 		return a.client.EditMessage(ctx, chatID, messageID, result.Text, result.Keyboard)

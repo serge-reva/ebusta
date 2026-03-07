@@ -72,6 +72,11 @@ func (s *TelegramAPIServer) handle(w http.ResponseWriter, r *http.Request) {
 			"ok":     true,
 			"result": map[string]any{"message_id": 101},
 		})
+	case "sendDocument":
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok":     true,
+			"result": map[string]any{"message_id": 102},
+		})
 	case "editMessageText":
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"ok":     true,

@@ -19,13 +19,14 @@ type InlineKeyboardMarkup struct {
 
 type TelegramFormatter struct {
 	maxMessageLen int
+	botUsername   string
 }
 
-func NewTelegramFormatter(maxMessageLen int) *TelegramFormatter {
+func NewTelegramFormatter(maxMessageLen int, botUsername string) *TelegramFormatter {
 	if maxMessageLen <= 0 {
 		maxMessageLen = 4096
 	}
-	return &TelegramFormatter{maxMessageLen: maxMessageLen}
+	return &TelegramFormatter{maxMessageLen: maxMessageLen, botUsername: strings.TrimSpace(botUsername)}
 }
 
 func (f *TelegramFormatter) FormatSearchResult(result *corepresenter.PresenterResult, page int) (string, *InlineKeyboardMarkup, error) {
@@ -53,7 +54,12 @@ func (f *TelegramFormatter) FormatSearchResult(result *corepresenter.PresenterRe
 		if authors == "" {
 			authors = "Unknown Author"
 		}
-		lines = append(lines, fmt.Sprintf("%d. %s\nby %s", globalIndex, title, authors))
+
+		bookLine := fmt.Sprintf("%d. %s", globalIndex, title)
+		if f.botUsername != "" {
+			bookLine = fmt.Sprintf("<a href=\"https://t.me/%s?start=book_%d\">%s</a>", html.EscapeString(f.botUsername), globalIndex, bookLine)
+		}
+		lines = append(lines, fmt.Sprintf("%s\nby %s", bookLine, authors))
 	}
 
 	text := strings.Join(lines, "\n\n")

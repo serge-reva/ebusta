@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -46,10 +47,13 @@ func TestBotClientUsesTelegramAPI(t *testing.T) {
 	if err := client.AnswerCallback(context.Background(), "cb-1", "done"); err != nil {
 		t.Fatalf("AnswerCallback() error = %v", err)
 	}
+	if _, err := client.SendDocument(context.Background(), 12345, "book.fb2", bytes.NewReader([]byte("payload")), "caption"); err != nil {
+		t.Fatalf("SendDocument() error = %v", err)
+	}
 
 	calls := server.Calls()
-	if len(calls) < 4 {
-		t.Fatalf("expected at least 4 calls, got %d", len(calls))
+	if len(calls) < 5 {
+		t.Fatalf("expected at least 5 calls, got %d", len(calls))
 	}
 	if !server.HasMethod("getMe") {
 		t.Fatal("expected getMe to be called during client init")
@@ -62,5 +66,8 @@ func TestBotClientUsesTelegramAPI(t *testing.T) {
 	}
 	if !server.HasMethod("answerCallbackQuery") {
 		t.Fatal("expected answerCallbackQuery call")
+	}
+	if !server.HasMethod("sendDocument") {
+		t.Fatal("expected sendDocument call")
 	}
 }

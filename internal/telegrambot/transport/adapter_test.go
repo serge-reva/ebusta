@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -14,6 +15,7 @@ type fakeUsecase struct {
 	searchInput   string
 	searchTraceID string
 	pageInput     int
+	selectIndex   int
 	callbackInput string
 	result        *usecase.Result
 	err           error
@@ -30,6 +32,11 @@ func (f *fakeUsecase) HandlePage(ctx context.Context, userID string, page int, t
 	return f.result, f.err
 }
 
+func (f *fakeUsecase) HandleSelectBook(ctx context.Context, userID string, bookIndex int, traceID string) (*usecase.Result, error) {
+	f.selectIndex = bookIndex
+	return f.result, f.err
+}
+
 func (f *fakeUsecase) HandleHelp(traceID string) *usecase.Result {
 	f.helpCalls++
 	return f.result
@@ -43,6 +50,7 @@ func (f *fakeUsecase) HandleCallback(ctx context.Context, userID, callbackData, 
 type fakeTelegramClient struct {
 	sentChatID    int64
 	sentText      string
+	sentDocument  string
 	editChatID    int64
 	editMessageID int
 	editText      string
@@ -62,6 +70,12 @@ func (f *fakeTelegramClient) EditMessage(ctx context.Context, chatID int64, mess
 	f.editMessageID = messageID
 	f.editText = text
 	return f.err
+}
+
+func (f *fakeTelegramClient) SendDocument(ctx context.Context, chatID int64, filename string, data *bytes.Reader, caption string) (int, error) {
+	f.sentChatID = chatID
+	f.sentDocument = filename
+	return 124, f.err
 }
 
 func (f *fakeTelegramClient) AnswerCallback(ctx context.Context, callbackID, text string) error {
@@ -111,6 +125,49 @@ func TestAdapterProcessMessageRoutesSearch(t *testing.T) {
 	}
 	if uc.searchTraceID != "tg-2" {
 		t.Fatalf("trace mismatch: %q", uc.searchTraceID)
+	}
+}
+
+func TestAdapterProcessMessageRoutesSelectBook(t *testing.T) {
+	uc := &fakeUsecase{result: &usecase.Result{Text: "details", TraceID: "tg-2b"}}
+	client := &fakeTelegramClient{}
+	adapter := NewAdapter(client, uc)
+
+	err := adapter.ProcessUpdate(context.Background(), IncomingUpdate{
+		TraceID: "tg-2b",
+		UserID:  "42",
+		ChatID:  99,
+		Text:    "/start book_7",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if uc.selectIndex != 7 {
+		t.Fatalf("select index mismatch: %d", uc.selectIndex)
+	}
+}
+
+func TestAdapterRespondSendsDocumentWhenPresent(t *testing.T) {
+	uc := &fakeUsecase{result: &usecase.Result{
+		Document: &usecase.Document{Filename: "book.fb2", Data: bytes.NewReader([]byte("abc"))},
+		TraceID:  "tg-doc",
+	}}
+	client := &fakeTelegramClient{}
+	adapter := NewAdapter(client, uc)
+
+	err := adapter.ProcessUpdate(context.Background(), IncomingUpdate{
+		TraceID:      "tg-doc",
+		UserID:       "42",
+		ChatID:       99,
+		MessageID:    11,
+		CallbackID:   "cb-1",
+		CallbackData: "download:sha1-1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if client.sentDocument != "book.fb2" {
+		t.Fatalf("expected document send, got %q", client.sentDocument)
 	}
 }
 

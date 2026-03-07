@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"time"
@@ -57,6 +58,21 @@ func (c *BotClient) EditMessage(ctx context.Context, chatID int64, messageID int
 		ReplyMarkup: toTelegramKeyboard(keyboard),
 	})
 	return err
+}
+
+func (c *BotClient) SendDocument(ctx context.Context, chatID int64, filename string, data *bytes.Reader, caption string) (int, error) {
+	msg, err := c.bot.SendDocument(ctx, &bot.SendDocumentParams{
+		ChatID:   chatID,
+		Document: &models.InputFileUpload{Filename: filename, Data: data},
+		Caption:  caption,
+	})
+	if err != nil {
+		return 0, err
+	}
+	if msg == nil {
+		return 0, nil
+	}
+	return msg.ID, nil
 }
 
 func (c *BotClient) AnswerCallback(ctx context.Context, callbackID, text string) error {

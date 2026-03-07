@@ -2,6 +2,7 @@ package gatewayclient
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -95,5 +96,49 @@ func TestSearchTimeout(t *testing.T) {
 	}
 	if appErr.Code != errutil.CodeBadGateway {
 		t.Fatalf("unexpected code: %s", appErr.Code)
+	}
+}
+
+func TestGetMetaParsesHeaders(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodHead || r.URL.Path != "/download/t1" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Length", "1234")
+		w.Header().Set("Content-Disposition", `attachment; filename="book.fb2"`)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.URL)
+	meta, err := client.GetMeta(context.Background(), "t1", "trace-meta")
+	if err != nil {
+		t.Fatalf("GetMeta() error = %v", err)
+	}
+	if meta.Size != 1234 || meta.Filename != "book.fb2" {
+		t.Fatalf("unexpected meta: %+v", meta)
+	}
+}
+
+func TestDownloadBookReturnsBytesAndFilename(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/download/t1" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Disposition", `attachment; filename="book.fb2"`)
+		_, _ = io.WriteString(w, "payload")
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.URL)
+	body, meta, err := client.DownloadBook(context.Background(), "t1", "trace-dl")
+	if err != nil {
+		t.Fatalf("DownloadBook() error = %v", err)
+	}
+	if string(body) != "payload" {
+		t.Fatalf("unexpected body: %q", string(body))
+	}
+	if meta.Filename != "book.fb2" || meta.Size != int64(len(body)) {
+		t.Fatalf("unexpected meta: %+v", meta)
 	}
 }

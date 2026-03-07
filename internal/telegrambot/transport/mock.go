@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -54,6 +55,17 @@ func (c *MockTelegramClient) EditMessage(ctx context.Context, chatID int64, mess
 	c.ops = append(c.ops, op)
 	c.log.WithFields(map[string]interface{}{"chat_id": chatID, "message_id": messageID}).Info(errutil.TraceIDFromContext(ctx), text)
 	return nil
+}
+
+func (c *MockTelegramClient) SendDocument(ctx context.Context, chatID int64, filename string, data *bytes.Reader, caption string) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	id := c.nextMsgID
+	c.nextMsgID++
+	op := MockOperation{Kind: "document", ChatID: chatID, MessageID: id, Text: filename}
+	c.ops = append(c.ops, op)
+	c.log.WithFields(map[string]interface{}{"chat_id": chatID, "message_id": id, "filename": filename, "caption": caption}).Info(errutil.TraceIDFromContext(ctx), "document sent")
+	return id, nil
 }
 
 func (c *MockTelegramClient) AnswerCallback(ctx context.Context, callbackID, text string) error {

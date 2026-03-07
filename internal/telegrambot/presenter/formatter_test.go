@@ -8,7 +8,7 @@ import (
 )
 
 func TestFormatSearchResultBuildsKeyboard(t *testing.T) {
-	f := NewTelegramFormatter(4096)
+	f := NewTelegramFormatter(4096, "ebusta_test_bot")
 	result := &corepresenter.PresenterResult{
 		SearchResult: &corepresenter.SearchResult{
 			TraceId: "tg-1",
@@ -27,13 +27,16 @@ func TestFormatSearchResultBuildsKeyboard(t *testing.T) {
 	if !strings.Contains(text, "Found 12 books. Page 2/3.") {
 		t.Fatalf("unexpected text: %s", text)
 	}
+	if !strings.Contains(text, `https://t.me/ebusta_test_bot?start=book_6`) {
+		t.Fatalf("expected deep link, got %s", text)
+	}
 	if keyboard == nil || len(keyboard.InlineKeyboard) == 0 {
 		t.Fatal("expected inline keyboard")
 	}
 }
 
 func TestFormatSearchResultEscapesHTML(t *testing.T) {
-	f := NewTelegramFormatter(4096)
+	f := NewTelegramFormatter(4096, "ebusta_test_bot")
 	result := &corepresenter.PresenterResult{
 		SearchResult: &corepresenter.SearchResult{
 			TraceId: "tg-1",
@@ -61,7 +64,7 @@ func TestFormatSearchResultEscapesHTML(t *testing.T) {
 }
 
 func TestFormatSearchResultRespectsLengthLimit(t *testing.T) {
-	f := NewTelegramFormatter(80)
+	f := NewTelegramFormatter(80, "ebusta_test_bot")
 	result := &corepresenter.PresenterResult{
 		SearchResult: &corepresenter.SearchResult{
 			TraceId: "tg-1",
@@ -83,7 +86,7 @@ func TestFormatSearchResultRespectsLengthLimit(t *testing.T) {
 }
 
 func TestFormatErrorEscapesHTML(t *testing.T) {
-	f := NewTelegramFormatter(4096)
+	f := NewTelegramFormatter(4096, "ebusta_test_bot")
 	text := f.FormatError(`bad <error> & reason`, `tg-1<2>`)
 	if !strings.Contains(text, `bad &lt;error&gt; &amp; reason`) {
 		t.Fatalf("expected escaped message, got %s", text)

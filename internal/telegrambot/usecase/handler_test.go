@@ -16,16 +16,38 @@ import (
 type fakeSearcher struct {
 	resp *gatewayclient.SearchResponse
 	err  error
+	meta *gatewayclient.FileMeta
+	body []byte
 }
 
 func (f fakeSearcher) Search(_ context.Context, _ string, _ int, _ int, _ string) (*gatewayclient.SearchResponse, error) {
 	return f.resp, f.err
 }
 
+func (f fakeSearcher) GetMeta(_ context.Context, _ string, _ string) (*gatewayclient.FileMeta, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.meta != nil {
+		return f.meta, nil
+	}
+	return &gatewayclient.FileMeta{}, nil
+}
+
+func (f fakeSearcher) DownloadBook(_ context.Context, _ string, _ string) ([]byte, *gatewayclient.FileMeta, error) {
+	if f.err != nil {
+		return nil, nil, f.err
+	}
+	return f.body, f.meta, nil
+}
+
 type fakeFormatter struct{}
 
 func (fakeFormatter) FormatSearchResult(result *corepresenter.PresenterResult, _ int) (string, *tgpresenter.InlineKeyboardMarkup, error) {
 	return result.Books[0].Title, &tgpresenter.InlineKeyboardMarkup{}, nil
+}
+func (fakeFormatter) FormatBookDetails(book *corepresenter.BookDTO) (string, *tgpresenter.InlineKeyboardMarkup) {
+	return book.Title, &tgpresenter.InlineKeyboardMarkup{}
 }
 func (fakeFormatter) FormatHelp() string { return "help" }
 func (fakeFormatter) FormatError(message, traceID string) string {
@@ -127,7 +149,7 @@ func TestHandleHelp(t *testing.T) {
 
 func TestHandleSearchFullCycleFormatsResult(t *testing.T) {
 	store := session.NewMemoryStore()
-	formatter := tgpresenter.NewTelegramFormatter(4096)
+	formatter := tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot")
 	p := edge.DefaultPolicy("telegram")
 	p.Actions["command"] = edge.ActionPolicy{PerMinute: 30, Burst: 30}
 	h := NewHandler(fakeSearcher{

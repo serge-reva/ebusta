@@ -44,7 +44,7 @@ func main() {
 	policy := edge.PolicyFromConfig(cfg, "telegram")
 	engine := edge.NewEngine(policy, edge.NewMultiHook(edge.NewLabelCounterHook(), &edge.OTelHook{}))
 	store := session.NewMemoryStore()
-	formatter := tgpresenter.NewTelegramFormatter(4096)
+	formatter := tgpresenter.NewTelegramFormatter(4096, tgCfg.BotUsername)
 	uc := usecase.NewHandler(gc, store, formatter, engine, tgCfg.PageSize)
 
 	if tgCfg.MockMode {

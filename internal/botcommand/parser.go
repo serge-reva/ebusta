@@ -6,7 +6,18 @@ import (
 )
 
 func Parse(input string) Command {
-	parts := strings.Fields(strings.TrimSpace(input))
+	trimmed := strings.TrimSpace(input)
+	if strings.HasPrefix(strings.ToLower(trimmed), "/start book_") {
+		value := strings.TrimSpace(strings.TrimPrefix(trimmed, "/start"))
+		value = strings.TrimSpace(strings.TrimPrefix(value, "book_"))
+		bookIndex, err := strconv.Atoi(value)
+		if err != nil || bookIndex <= 0 {
+			return InvalidCommand{Reason: "invalid book index"}
+		}
+		return SelectBookCommand{BookIndex: bookIndex}
+	}
+
+	parts := strings.Fields(trimmed)
 	if len(parts) == 0 {
 		return InvalidCommand{Reason: "empty command"}
 	}

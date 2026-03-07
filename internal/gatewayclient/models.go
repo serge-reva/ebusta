@@ -26,3 +26,8 @@ type BookDetails struct {
 	Filename  string   `json:"filename"`
 	Size      int64    `json:"size"`
 }
+
+type FileMeta struct {
+	Size     int64
+	Filename string
+}

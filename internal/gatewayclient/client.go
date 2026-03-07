@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -88,6 +91,86 @@ func (c *Client) GetBook(_ context.Context, _ string, traceID string) (*BookDeta
 		WithTrace(traceID)
 }
 
+func (c *Client) GetMeta(ctx context.Context, token, traceID string) (*FileMeta, error) {
+	if traceID == "" {
+		traceID = errutil.GenerateTraceID("gwc")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, c.baseURL+"/download/"+token, nil)
+	if err != nil {
+		return nil, errutil.New(errutil.CodeInternal, "failed to create metadata request").
+			WithTrace(traceID).
+			WithDetails(err.Error())
+	}
+	req.Header.Set("X-Trace-Id", traceID)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, errutil.New(errutil.CodeBadGateway, "gateway metadata request failed").
+			WithTrace(traceID).
+			WithDetails(err.Error())
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		_, appErr := errutil.ReadBodyAndError(resp, traceID)
+		if appErr != nil {
+			return nil, appErr
+		}
+		return nil, errutil.New(errutil.CodeBadGateway, "gateway metadata request failed").
+			WithTrace(traceID).
+			WithDetails(fmt.Sprintf("status=%d", resp.StatusCode))
+	}
+
+	return &FileMeta{
+		Size:     parseContentLength(resp.Header.Get("Content-Length")),
+		Filename: parseFilename(resp.Header.Get("Content-Disposition")),
+	}, nil
+}
+
+func (c *Client) DownloadBook(ctx context.Context, token, traceID string) ([]byte, *FileMeta, error) {
+	if traceID == "" {
+		traceID = errutil.GenerateTraceID("gwc")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/download/"+token, nil)
+	if err != nil {
+		return nil, nil, errutil.New(errutil.CodeInternal, "failed to create download request").
+			WithTrace(traceID).
+			WithDetails(err.Error())
+	}
+	req.Header.Set("X-Trace-Id", traceID)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, nil, errutil.New(errutil.CodeBadGateway, "gateway download request failed").
+			WithTrace(traceID).
+			WithDetails(err.Error())
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		_, appErr := errutil.ReadBodyAndError(resp, traceID)
+		if appErr != nil {
+			return nil, nil, appErr
+		}
+		return nil, nil, errutil.New(errutil.CodeBadGateway, "gateway download request failed").
+			WithTrace(traceID).
+			WithDetails(fmt.Sprintf("status=%d", resp.StatusCode))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, errutil.New(errutil.CodeBadGateway, "failed to read gateway download body").
+			WithTrace(traceID).
+			WithDetails(err.Error())
+	}
+
+	meta := &FileMeta{
+		Size:     int64(len(body)),
+		Filename: parseFilename(resp.Header.Get("Content-Disposition")),
+	}
+	return body, meta, nil
+}
+
 func (c *Client) doJSON(req *http.Request, traceID string, out interface{}) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -108,4 +191,28 @@ func (c *Client) doJSON(req *http.Request, traceID string, out interface{}) erro
 			WithDetails(err.Error())
 	}
 	return nil
+}
+
+func parseContentLength(v string) int64 {
+	if strings.TrimSpace(v) == "" {
+		return 0
+	}
+	var n int64
+	fmt.Sscanf(v, "%d", &n)
+	return n
+}
+
+func parseFilename(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return ""
+	}
+	const marker = `filename=`
+	idx := strings.Index(strings.ToLower(v), marker)
+	if idx == -1 {
+		return ""
+	}
+	name := strings.TrimSpace(v[idx+len(marker):])
+	name = strings.Trim(name, `"`)
+	return filepath.Base(name)
 }

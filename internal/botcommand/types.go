@@ -9,6 +9,7 @@ const (
 	KindPage    Kind = "page"
 	KindNext    Kind = "next"
 	KindPrev    Kind = "prev"
+	KindSelect  Kind = "select_book"
 )
 
 type Command interface {
@@ -45,3 +46,9 @@ func (NextCommand) Kind() Kind { return KindNext }
 type PrevCommand struct{}
 
 func (PrevCommand) Kind() Kind { return KindPrev }
+
+type SelectBookCommand struct {
+	BookIndex int
+}
+
+func (SelectBookCommand) Kind() Kind { return KindSelect }

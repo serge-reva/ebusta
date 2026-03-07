@@ -11,11 +11,12 @@ func TestTelegramBotConfigValidateDisabled(t *testing.T) {
 
 func TestTelegramBotConfigValidatePolling(t *testing.T) {
 	cfg := TelegramBotConfig{
-		Enabled:    true,
-		Mode:       "polling",
-		BotToken:   "token",
-		GatewayURL: "http://gateway:8443",
-		PageSize:   5,
+		Enabled:     true,
+		BotUsername: "ebusta_test_bot",
+		Mode:        "polling",
+		BotToken:    "token",
+		GatewayURL:  "http://gateway:8443",
+		PageSize:    5,
 		Timeouts: TelegramBotTimeoutsConfig{
 			ReadTimeoutSec:     5,
 			WriteTimeoutSec:    10,
@@ -30,11 +31,12 @@ func TestTelegramBotConfigValidatePolling(t *testing.T) {
 
 func TestTelegramBotConfigValidateWebhookRequiresFields(t *testing.T) {
 	cfg := TelegramBotConfig{
-		Enabled:    true,
-		Mode:       "webhook",
-		BotToken:   "token",
-		GatewayURL: "http://gateway:8443",
-		PageSize:   5,
+		Enabled:     true,
+		BotUsername: "ebusta_test_bot",
+		Mode:        "webhook",
+		BotToken:    "token",
+		GatewayURL:  "http://gateway:8443",
+		PageSize:    5,
 		Timeouts: TelegramBotTimeoutsConfig{
 			ReadTimeoutSec:     5,
 			WriteTimeoutSec:    10,
@@ -57,5 +59,24 @@ func TestTelegramBotConfigListenAddrDefaultHost(t *testing.T) {
 	cfg := TelegramBotConfig{ListenPort: 8091}
 	if got := cfg.ListenAddr(); got != "0.0.0.0:8091" {
 		t.Fatalf("unexpected listen addr: %s", got)
+	}
+}
+
+func TestTelegramBotConfigRequiresBotUsername(t *testing.T) {
+	cfg := TelegramBotConfig{
+		Enabled:    true,
+		Mode:       "polling",
+		BotToken:   "token",
+		GatewayURL: "http://gateway:8443",
+		PageSize:   5,
+		Timeouts: TelegramBotTimeoutsConfig{
+			ReadTimeoutSec:     5,
+			WriteTimeoutSec:    10,
+			ShutdownTimeoutSec: 10,
+			PollTimeoutSec:     30,
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected missing bot_username to fail")
 	}
 }
