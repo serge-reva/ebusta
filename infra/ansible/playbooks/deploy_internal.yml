@@ -14,7 +14,34 @@
         mode: "0755"
       loop:
         - /opt/ebusta
+        - /opt/ebusta/deploy
+        - /opt/ebusta/deploy/loki
+        - /opt/ebusta/deploy/grafana
+        - /opt/ebusta/deploy/grafana/provisioning
+        - /opt/ebusta/deploy/grafana/provisioning/datasources
         - /opt/ebusta/tier_data
+
+    - name: Check Loki docker logging plugin
+      ansible.builtin.command: docker plugin inspect loki
+      register: loki_plugin
+      failed_when: false
+      changed_when: false
+
+    - name: Install Loki docker logging plugin
+      ansible.builtin.command: docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
+      when: loki_plugin.rc != 0
+
+    - name: Copy Loki configuration
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../deploy/loki/loki-config.yml"
+        dest: /opt/ebusta/deploy/loki/loki-config.yml
+        mode: "0644"
+
+    - name: Copy Grafana Loki datasource provisioning
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../deploy/grafana/provisioning/datasources/loki.yml"
+        dest: /opt/ebusta/deploy/grafana/provisioning/datasources/loki.yml
+        mode: "0644"
 
     - name: Render ebusta config
       ansible.builtin.template:
@@ -44,6 +71,36 @@
         chdir: /opt/ebusta
       register: gateway_health
       until: gateway_health.rc == 0
+      retries: 30
+      delay: 2
+      changed_when: false
+
+    - name: Wait for Loki health
+      ansible.builtin.command: docker compose exec -T loki wget --spider -q http://localhost:3100/ready
+      args:
+        chdir: /opt/ebusta
+      register: loki_health
+      until: loki_health.rc == 0
+      retries: 30
+      delay: 2
+      changed_when: false
+
+    - name: Wait for Grafana health
+      ansible.builtin.command: docker compose exec -T grafana wget --spider -q http://localhost:3000/api/health
+      args:
+        chdir: /opt/ebusta
+      register: grafana_health
+      until: grafana_health.rc == 0
+      retries: 30
+      delay: 2
+      changed_when: false
+
+    - name: Wait for trace-viewer health
+      ansible.builtin.command: docker compose exec -T trace-viewer curl -fsS http://localhost:8080/health
+      args:
+        chdir: /opt/ebusta
+      register: trace_viewer_health
+      until: trace_viewer_health.rc == 0
       retries: 30
       delay: 2
       changed_when: false

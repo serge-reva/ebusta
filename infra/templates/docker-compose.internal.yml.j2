@@ -1,4 +1,62 @@
+x-loki-logging: &loki-logging
+  driver: loki
+  options:
+    loki-url: "http://localhost:3100/loki/api/v1/push"
+    loki-retries: "5"
+    loki-batch-size: "400"
+
 services:
+  loki:
+    image: grafana/loki:latest
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./deploy/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3300:3000"
+    volumes:
+      - ./deploy/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    logging: *loki-logging
+
+  trace-viewer:
+    image: "{{ docker_registry }}/ebusta-trace-viewer:{{ image_tag }}"
+    ports:
+      - "8089:8080"
+    depends_on:
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *loki-logging
+
   datamanager:
     image: "{{ docker_registry }}/ebusta-datamanager:{{ image_tag }}"
     ports:
@@ -16,6 +74,7 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
+    logging: *loki-logging
 
   dsl-scala:
     image: "{{ docker_registry }}/ebusta-dsl-scala:{{ image_tag }}"
@@ -34,6 +93,7 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
+    logging: *loki-logging
 
   query-builder:
     image: "{{ docker_registry }}/ebusta-query-builder:{{ image_tag }}"
@@ -52,6 +112,7 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
+    logging: *loki-logging
 
   orchestrator:
     image: "{{ docker_registry }}/ebusta-orchestrator:{{ image_tag }}"
@@ -77,6 +138,7 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
+    logging: *loki-logging
 
   tier-node:
     image: "{{ docker_registry }}/ebusta-tier-node:{{ image_tag }}"
@@ -96,6 +158,7 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
+    logging: *loki-logging
 
   plasma-node:
     image: "{{ docker_registry }}/ebusta-plasma-node:{{ image_tag }}"
@@ -118,6 +181,7 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
+    logging: *loki-logging
 
   downloader:
     image: "{{ docker_registry }}/ebusta-downloader:{{ image_tag }}"
@@ -139,6 +203,7 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
+    logging: *loki-logging
 
   gateway:
     image: "{{ docker_registry }}/ebusta-gateway:{{ image_tag }}"
@@ -162,6 +227,7 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
+    logging: *loki-logging
 
   web-frontend:
     image: "{{ docker_registry }}/ebusta-web-frontend:{{ image_tag }}"
@@ -183,7 +249,7 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
-
+    logging: *loki-logging
 
   telegram-bot:
     profiles: ["telegram"]
@@ -198,3 +264,8 @@ services:
     dns:
       - 192.168.1.11
     restart: unless-stopped
+    logging: *loki-logging
+
+volumes:
+  grafana-data:
+  loki-data:

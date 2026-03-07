@@ -1,0 +1,13 @@
+FROM debian:stable-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY ./bin/trace-viewer /app/trace-viewer
+
+EXPOSE 8080
+
+CMD ["/app/trace-viewer", "--loki-url=http://loki:3100", "--port=8080"]

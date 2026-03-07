@@ -40,6 +40,25 @@ services:
       start_period: 15s
     restart: unless-stopped
 
+  trace-viewer:
+    image: ebusta-trace-viewer:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.trace-viewer
+    ports:
+      - "8089:8080"
+    depends_on:
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *loki-logging
+
   dsl-scala:
     image: ebusta-dsl-scala:local
     build:

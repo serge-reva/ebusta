@@ -27,7 +27,7 @@ DOWNLOADER_PORT := $(shell sed -n '/downloader:/,/listen_port:/p'      $(CONFIG_
 WEB_FRONTEND_PORT := $(shell sed -n '/web_frontend:/,/listen_port:/p'  $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 GATEWAY_PORT    := $(shell sed -n '/gateway:/,/port:/p'                $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
 
-.PHONY: all build proto proto-generate proto-verify openapi-generate build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-json-gateway build-telegram-bot up down restart test clean architecture-check docs-check docs-refresh certs-generate proto-lint proto-breaking test-go test-scala test-unit test-integration test-e2e test-load ci-check docker-build docker-up docker-down docker-logs docker-status
+.PHONY: all build proto proto-generate proto-verify openapi-generate build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-json-gateway build-telegram-bot build-trace-viewer up down restart test clean architecture-check docs-check docs-refresh certs-generate proto-lint proto-breaking test-go test-scala test-unit test-integration test-e2e test-load ci-check docker-build docker-up docker-down docker-logs docker-status
 
 all: build
 
@@ -76,6 +76,11 @@ build-telegram-bot: proto
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/telegram-bot ./cmd/telegram-bot
 
+build-trace-viewer: proto
+	@echo "🛠 Building trace viewer..."
+	@mkdir -p $(BIN_DIR)
+	@go build -o $(BIN_DIR)/trace-viewer ./cmd/trace-viewer
+
 $(DSL_JAR): $(DSL_SCALA_SRC) $(PROTO_SRC)
 	@echo "🛠 Building DSL Scala..."
 	@cd $(DSL_DIR) && sbt assembly
@@ -118,7 +123,7 @@ build-gateway: proto
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/gateway ./cmd/gateway
 
-build-go: build-search-go build-cli build-web-frontend build-downloads-go build-gateway build-irc build-json-gateway build-telegram-bot
+build-go: build-search-go build-cli build-web-frontend build-downloads-go build-gateway build-irc build-json-gateway build-telegram-bot build-trace-viewer
 	@echo "✅ Go build done."
 
 build: proto build-scala build-go
