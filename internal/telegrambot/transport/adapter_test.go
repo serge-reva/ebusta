@@ -61,6 +61,8 @@ type fakeTelegramClient struct {
 	sentChatID    int64
 	sentText      string
 	sentDocument  string
+	deletedChatID int64
+	deletedMsgID  int
 	editChatID    int64
 	editMessageID int
 	editText      string
@@ -90,6 +92,13 @@ func (f *fakeTelegramClient) EditMessage(ctx context.Context, chatID int64, mess
 	if f.editErr != nil {
 		return f.editErr
 	}
+	return f.err
+}
+
+func (f *fakeTelegramClient) DeleteMessage(ctx context.Context, chatID int64, messageID int) error {
+	f.deletedChatID = chatID
+	f.deletedMsgID = messageID
+	f.callOrder = append(f.callOrder, "deleteMessage")
 	return f.err
 }
 
@@ -298,5 +307,41 @@ func TestAdapterFallsBackToSendWhenEditTargetMissing(t *testing.T) {
 	}
 	if uc.rememberMsgID != 123 || uc.rememberView != "book" {
 		t.Fatalf("unexpected remember after fallback send: msg=%d view=%q", uc.rememberMsgID, uc.rememberView)
+	}
+}
+
+func TestAdapterDeleteAndSendModeDeletesThenSends(t *testing.T) {
+	uc := &fakeUsecase{result: &usecase.Result{
+		Text:            "page text",
+		TraceID:         "tg-delete-send",
+		TargetMessageID: 777,
+		StoreAsView:     "list",
+		DeleteAndSend:   true,
+	}}
+	client := &fakeTelegramClient{}
+	adapter := NewAdapter(client, uc)
+
+	err := adapter.ProcessUpdate(context.Background(), IncomingUpdate{
+		TraceID:      "tg-delete-send",
+		UserID:       "42",
+		ChatID:       99,
+		MessageID:    11,
+		CallbackID:   "cb-1",
+		CallbackData: "page:next",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if client.deletedChatID != 99 || client.deletedMsgID != 777 {
+		t.Fatalf("expected delete of target message, got chat=%d msg=%d", client.deletedChatID, client.deletedMsgID)
+	}
+	if client.sentText != "page text" {
+		t.Fatalf("expected new send after delete, got %q", client.sentText)
+	}
+	if got := client.callOrder; len(got) < 3 || got[0] != "answerCallback" || got[1] != "deleteMessage" || got[2] != "sendMessage" {
+		t.Fatalf("unexpected operation order: %v", got)
+	}
+	if uc.rememberMsgID != 123 || uc.rememberView != "list" {
+		t.Fatalf("unexpected remember after delete-and-send: msg=%d view=%q", uc.rememberMsgID, uc.rememberView)
 	}
 }

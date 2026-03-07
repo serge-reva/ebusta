@@ -17,11 +17,11 @@ import (
 func TestHandleSelectBookUsesLastResult(t *testing.T) {
 	store := session.NewMemoryStore()
 	_ = store.Put(context.Background(), &session.Session{
-		UserID:            "u1",
-		Query:             "dune",
-		PageSize:          5,
-		CurrentPage:       1,
-		LastListMessageID: 321,
+		UserID:        "u1",
+		Query:         "dune",
+		PageSize:      5,
+		CurrentPage:   1,
+		LastMessageID: 321,
 		LastResult: &corepresenter.PresenterResult{
 			SearchResult: &corepresenter.SearchResult{
 				Total: 1,
@@ -37,7 +37,7 @@ func TestHandleSelectBookUsesLastResult(t *testing.T) {
 		UpdatedAt: time.Now(),
 	})
 	p := edge.DefaultPolicy("telegram")
-	h := NewHandler(fakeSearcher{}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5)
+	h := NewHandler(fakeSearcher{}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5, "edit")
 
 	result, err := h.HandleSelectBook(context.Background(), "u1", 1, "tg-select")
 	if err != nil {
@@ -51,6 +51,43 @@ func TestHandleSelectBookUsesLastResult(t *testing.T) {
 	}
 	if result.TargetMessageID != 321 || result.ForceSend {
 		t.Fatalf("expected detail view to edit existing list message, got target=%d force=%v", result.TargetMessageID, result.ForceSend)
+	}
+	if result.DeleteAndSend {
+		t.Fatalf("expected edit mode to keep editing in place, got %+v", result)
+	}
+}
+
+func TestHandleSelectBookDeleteAndSendMode(t *testing.T) {
+	store := session.NewMemoryStore()
+	_ = store.Put(context.Background(), &session.Session{
+		UserID:        "u1",
+		Query:         "dune",
+		PageSize:      5,
+		CurrentPage:   1,
+		LastMessageID: 321,
+		LastResult: &corepresenter.PresenterResult{
+			SearchResult: &corepresenter.SearchResult{
+				Total: 1,
+				Books: []corepresenter.BookDTO{{
+					ID:          "sha1-1",
+					Title:       "Dune",
+					FullAuthors: "Frank Herbert",
+					DownloadURL: "/download/t1",
+				}},
+			},
+			Pagination: corepresenter.NewPagination(1, 1, 5),
+		},
+		UpdatedAt: time.Now(),
+	})
+	p := edge.DefaultPolicy("telegram")
+	h := NewHandler(fakeSearcher{}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5, "delete_and_send")
+
+	result, err := h.HandleSelectBook(context.Background(), "u1", 1, "tg-select")
+	if err != nil {
+		t.Fatalf("HandleSelectBook() error = %v", err)
+	}
+	if !result.DeleteAndSend || result.TargetMessageID != 321 {
+		t.Fatalf("expected delete_and_send mode to target working message, got %+v", result)
 	}
 }
 
@@ -79,7 +116,7 @@ func TestHandleDownloadSendsDocumentForSmallFiles(t *testing.T) {
 	h := NewHandler(fakeSearcher{
 		meta: &gatewayclient.FileMeta{Size: 1024, Filename: "dune.fb2"},
 		body: []byte("payload"),
-	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5)
+	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5, "edit")
 
 	result, err := h.HandleDownload(context.Background(), "u1", "sha1-1", "tg-dl")
 	if err != nil {
@@ -117,7 +154,7 @@ func TestHandleDownloadRejectsLargeFiles(t *testing.T) {
 	p := edge.DefaultPolicy("telegram")
 	h := NewHandler(fakeSearcher{
 		meta: &gatewayclient.FileMeta{Size: 30 * 1024 * 1024, Filename: "dune.fb2"},
-	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5)
+	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5, "edit")
 
 	result, err := h.HandleDownload(context.Background(), "u1", "sha1-1", "tg-dl")
 	if err != nil {
@@ -137,7 +174,7 @@ func TestHandleDownloadMapsMetaNotFoundError(t *testing.T) {
 	p := edge.DefaultPolicy("telegram")
 	h := NewHandler(fakeSearcher{
 		err: errutil.New(errutil.CodeNotFound, "missing in storage").WithTrace("tg-notfound"),
-	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5)
+	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5, "edit")
 
 	result, err := h.HandleDownload(context.Background(), "u1", "sha1-1", "tg-notfound")
 	if err != nil {
@@ -157,7 +194,7 @@ func TestHandleDownloadMapsMetaUnavailableError(t *testing.T) {
 	p := edge.DefaultPolicy("telegram")
 	h := NewHandler(fakeSearcher{
 		err: errutil.New(errutil.CodeUnavailable, "gateway timeout").WithTrace("tg-unavail"),
-	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5)
+	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5, "edit")
 
 	result, err := h.HandleDownload(context.Background(), "u1", "sha1-1", "tg-unavail")
 	if err != nil {
@@ -177,7 +214,7 @@ func TestHandleDownloadMapsMetaInternalError(t *testing.T) {
 	p := edge.DefaultPolicy("telegram")
 	h := NewHandler(fakeSearcher{
 		err: errutil.New(errutil.CodeInternal, "boom").WithTrace("tg-int"),
-	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5)
+	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5, "edit")
 
 	result, err := h.HandleDownload(context.Background(), "u1", "sha1-1", "tg-int")
 	if err != nil {
@@ -197,7 +234,7 @@ func TestHandleDownloadMapsUnknownMetaErrorCode(t *testing.T) {
 	p := edge.DefaultPolicy("telegram")
 	h := NewHandler(fakeSearcher{
 		err: errutil.New(errutil.CodeForbidden, "blocked").WithTrace("tg-forbidden"),
-	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5)
+	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5, "edit")
 
 	result, err := h.HandleDownload(context.Background(), "u1", "sha1-1", "tg-forbidden")
 	if err != nil {
@@ -218,6 +255,7 @@ func TestHandleBackTargetsStoredBookMessage(t *testing.T) {
 		Query:             "dune",
 		PageSize:          5,
 		CurrentPage:       1,
+		LastMessageID:     222,
 		LastListMessageID: 111,
 		LastBookMessageID: 222,
 		LastResult: &corepresenter.PresenterResult{
@@ -230,14 +268,43 @@ func TestHandleBackTargetsStoredBookMessage(t *testing.T) {
 		UpdatedAt: time.Now(),
 	})
 	p := edge.DefaultPolicy("telegram")
-	h := NewHandler(fakeSearcher{}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5)
+	h := NewHandler(fakeSearcher{}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5, "edit")
 
 	result, err := h.HandleBack(context.Background(), "u1", "tg-back")
 	if err != nil {
 		t.Fatalf("HandleBack() error = %v", err)
 	}
 	if result.TargetMessageID != 222 || result.ForceSend {
-		t.Fatalf("expected back to edit stored book message, got target=%d force=%v", result.TargetMessageID, result.ForceSend)
+		t.Fatalf("expected back to edit current working message, got target=%d force=%v", result.TargetMessageID, result.ForceSend)
+	}
+}
+
+func TestHandleBackDeleteAndSendMode(t *testing.T) {
+	store := session.NewMemoryStore()
+	_ = store.Put(context.Background(), &session.Session{
+		UserID:        "u1",
+		Query:         "dune",
+		PageSize:      5,
+		CurrentPage:   1,
+		LastMessageID: 222,
+		LastResult: &corepresenter.PresenterResult{
+			SearchResult: &corepresenter.SearchResult{
+				Total: 1,
+				Books: []corepresenter.BookDTO{{ID: "sha1-1", Title: "Dune", FullAuthors: "Frank Herbert", DownloadURL: "/download/t1"}},
+			},
+			Pagination: corepresenter.NewPagination(1, 1, 5),
+		},
+		UpdatedAt: time.Now(),
+	})
+	p := edge.DefaultPolicy("telegram")
+	h := NewHandler(fakeSearcher{}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5, "delete_and_send")
+
+	result, err := h.HandleBack(context.Background(), "u1", "tg-back")
+	if err != nil {
+		t.Fatalf("HandleBack() error = %v", err)
+	}
+	if !result.DeleteAndSend || result.TargetMessageID != 222 {
+		t.Fatalf("expected delete_and_send mode to target working message, got %+v", result)
 	}
 }
 

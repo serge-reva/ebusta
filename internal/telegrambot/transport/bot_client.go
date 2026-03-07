@@ -74,6 +74,18 @@ func (c *BotClient) EditMessage(ctx context.Context, chatID int64, messageID int
 	return err
 }
 
+func (c *BotClient) DeleteMessage(ctx context.Context, chatID int64, messageID int) error {
+	logger.GetGlobal().WithFields(map[string]interface{}{"chat_id": chatID, "message_id": messageID}).DebugCtx(ctx, "telegram-bot deleteMessage request")
+	_, err := c.bot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+		ChatID:    chatID,
+		MessageID: messageID,
+	})
+	if err != nil {
+		logger.GetGlobal().WithFields(map[string]interface{}{"chat_id": chatID, "message_id": messageID}).WarnCtx(ctx, "telegram-bot deleteMessage failed")
+	}
+	return err
+}
+
 func (c *BotClient) SendDocument(ctx context.Context, chatID int64, filename string, data *bytes.Reader, caption string) (int, error) {
 	logger.GetGlobal().WithFields(map[string]interface{}{
 		"chat_id":     chatID,

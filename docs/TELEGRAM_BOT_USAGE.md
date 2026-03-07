@@ -27,6 +27,7 @@ Example `ebusta.yaml` section:
 telegram_bot:
   enabled: true
   bot_username: "ebusta_test_bot"
+  message_update_mode: "delete_and_send"
   mode: "polling"
   mock_mode: false
   listen_host: "0.0.0.0"
@@ -48,6 +49,9 @@ Notes:
 
 - `enabled: false` disables the component completely.
 - `bot_username` must match the Telegram bot username without `@`.
+- `message_update_mode` controls how navigation updates the working message:
+  - `edit` edits the same message in place;
+  - `delete_and_send` deletes the previous working message and sends a fresh one at the bottom of the chat.
 - `mode: polling` does not require a public HTTP endpoint.
 - `mode: webhook` requires `webhook_url` and a reachable listener.
 - `gateway_url` must point to the public HTTP gateway, not to internal gRPC services.
@@ -105,7 +109,7 @@ docker compose --profile telegram stop telegram-bot
 2. Click a book title.
 3. Expected result:
    - Telegram re-enters the bot through `/start book_<index>`;
-   - bot edits the existing result message into a detail view instead of adding a new bot message;
+   - bot updates the working result message according to `message_update_mode`;
    - detail message contains `📥 Скачать` and `◀️ Назад` buttons.
 
 ### Pagination Path
@@ -113,7 +117,8 @@ docker compose --profile telegram stop telegram-bot
 1. Send `/search tolstoy`.
 2. Press `Next` or send `/page 2`.
 3. Expected result:
-   - the existing result message is edited to the next page instead of creating a new bot message;
+   - if `message_update_mode: edit`, the existing result message is edited to the next page;
+   - if `message_update_mode: delete_and_send`, the previous working message is deleted and a fresh one is sent at the bottom of the chat;
    - trace-linked logs appear in the bot and gateway.
 
 ### Back Navigation
@@ -121,7 +126,7 @@ docker compose --profile telegram stop telegram-bot
 1. Open a book detail view.
 2. Press `◀️ Назад`.
 3. Expected result:
-   - the same bot message is edited back into the paginated results list;
+   - the working result message is updated back into the paginated results list;
    - the pagination keyboard is restored.
 
 ### Error Path
@@ -208,3 +213,14 @@ If Docker is available in CI, also run:
 ```bash
 make test-e2e-telegram
 ```
+
+## Stage Setting
+
+Stage currently uses:
+
+```yaml
+telegram_bot:
+  message_update_mode: "delete_and_send"
+```
+
+This keeps the active working message at the bottom of the chat so the user can compare that UX mode against the default `edit` behavior.

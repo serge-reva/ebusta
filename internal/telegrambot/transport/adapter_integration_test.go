@@ -40,7 +40,7 @@ func TestAdapterProcessUpdateEndToEndSearch(t *testing.T) {
 	formatter := tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot")
 	policy := edge.DefaultPolicy("telegram")
 	policy.Actions["command"] = edge.ActionPolicy{PerMinute: 30, Burst: 30}
-	handler := usecase.NewHandler(integrationSearcher{}, session.NewMemoryStore(), formatter, edge.NewEngine(policy, nil), 5)
+	handler := usecase.NewHandler(integrationSearcher{}, session.NewMemoryStore(), formatter, edge.NewEngine(policy, nil), 5, "edit")
 	client := &fakeTelegramClient{}
 	adapter := NewAdapter(client, handler)
 

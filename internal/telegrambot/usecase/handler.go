@@ -43,18 +43,20 @@ type Result struct {
 	ForceSend       bool
 	TargetMessageID int
 	StoreAsView     string
+	DeleteAndSend   bool
 	TraceID         string
 }
 
 type Handler struct {
-	searcher  SearchService
-	store     session.Store
-	formatter Formatter
-	engine    *edge.Engine
-	pageSize  int
+	searcher          SearchService
+	store             session.Store
+	formatter         Formatter
+	engine            *edge.Engine
+	pageSize          int
+	messageUpdateMode string
 }
 
-func NewHandler(searcher SearchService, store session.Store, formatter Formatter, engine *edge.Engine, pageSize int) *Handler {
+func NewHandler(searcher SearchService, store session.Store, formatter Formatter, engine *edge.Engine, pageSize int, messageUpdateMode string) *Handler {
 	if engine == nil {
 		p := edge.DefaultPolicy("telegram")
 		p.Actions["command"] = edge.ActionPolicy{PerMinute: 30, Burst: 30}
@@ -63,12 +65,17 @@ func NewHandler(searcher SearchService, store session.Store, formatter Formatter
 	if pageSize <= 0 {
 		pageSize = 5
 	}
+	mode := strings.ToLower(strings.TrimSpace(messageUpdateMode))
+	if mode == "" {
+		mode = "edit"
+	}
 	return &Handler{
-		searcher:  searcher,
-		store:     store,
-		formatter: formatter,
-		engine:    engine,
-		pageSize:  pageSize,
+		searcher:          searcher,
+		store:             store,
+		formatter:         formatter,
+		engine:            engine,
+		pageSize:          pageSize,
+		messageUpdateMode: mode,
 	}
 }
 
@@ -113,8 +120,9 @@ func (h *Handler) HandlePage(ctx context.Context, userID string, page int, trace
 		return result, err
 	}
 	result.StoreAsView = "list"
-	if s.LastListMessageID != 0 {
-		result.TargetMessageID = s.LastListMessageID
+	if s.LastMessageID != 0 {
+		result.TargetMessageID = s.LastMessageID
+		result.DeleteAndSend = h.shouldDeleteAndSend()
 	}
 	return result, nil
 }
@@ -175,8 +183,9 @@ func (h *Handler) HandleSelectBook(ctx context.Context, userID string, globalInd
 	}
 	text, keyboard := h.formatter.FormatBookDetails(book)
 	result := &Result{Text: text, Keyboard: keyboard, TraceID: traceID, StoreAsView: "book"}
-	if s.LastListMessageID != 0 {
-		result.TargetMessageID = s.LastListMessageID
+	if s.LastMessageID != 0 {
+		result.TargetMessageID = s.LastMessageID
+		result.DeleteAndSend = h.shouldDeleteAndSend()
 	} else {
 		result.ForceSend = true
 	}
@@ -196,10 +205,9 @@ func (h *Handler) HandleBack(ctx context.Context, userID, traceID string) (*Resu
 		return nil, err
 	}
 	result := &Result{Text: text, Keyboard: keyboard, TraceID: traceID, StoreAsView: "list"}
-	if s.LastBookMessageID != 0 {
-		result.TargetMessageID = s.LastBookMessageID
-	} else if s.LastListMessageID != 0 {
-		result.TargetMessageID = s.LastListMessageID
+	if s.LastMessageID != 0 {
+		result.TargetMessageID = s.LastMessageID
+		result.DeleteAndSend = h.shouldDeleteAndSend()
 	} else {
 		result.ForceSend = true
 	}
@@ -316,6 +324,10 @@ func (h *Handler) RememberBotMessage(ctx context.Context, userID string, message
 	}
 	s.UpdatedAt = time.Now()
 	return h.store.Put(ctx, s)
+}
+
+func (h *Handler) shouldDeleteAndSend() bool {
+	return h.messageUpdateMode == "delete_and_send"
 }
 
 func bookByGlobalIndex(s *session.Session, globalIndex int) *corepresenter.BookDTO {

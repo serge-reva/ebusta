@@ -21,6 +21,7 @@ type IncomingUpdate struct {
 type TelegramClient interface {
 	SendMessage(ctx context.Context, chatID int64, text string, keyboard *tgpresenter.InlineKeyboardMarkup) (int, error)
 	EditMessage(ctx context.Context, chatID int64, messageID int, text string, keyboard *tgpresenter.InlineKeyboardMarkup) error
+	DeleteMessage(ctx context.Context, chatID int64, messageID int) error
 	SendDocument(ctx context.Context, chatID int64, filename string, data *bytes.Reader, caption string) (int, error)
 	AnswerCallback(ctx context.Context, callbackID, text string) error
 }

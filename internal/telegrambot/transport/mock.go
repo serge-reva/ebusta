@@ -57,6 +57,15 @@ func (c *MockTelegramClient) EditMessage(ctx context.Context, chatID int64, mess
 	return nil
 }
 
+func (c *MockTelegramClient) DeleteMessage(ctx context.Context, chatID int64, messageID int) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	op := MockOperation{Kind: "delete", ChatID: chatID, MessageID: messageID}
+	c.ops = append(c.ops, op)
+	c.log.WithFields(map[string]interface{}{"chat_id": chatID, "message_id": messageID}).Info(errutil.TraceIDFromContext(ctx), "message deleted")
+	return nil
+}
+
 func (c *MockTelegramClient) SendDocument(ctx context.Context, chatID int64, filename string, data *bytes.Reader, caption string) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

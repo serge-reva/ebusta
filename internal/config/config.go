@@ -255,19 +255,20 @@ type TelegramBotTimeoutsConfig struct {
 }
 
 type TelegramBotConfig struct {
-	Enabled       bool                      `yaml:"enabled"`
-	MockMode      bool                      `yaml:"mock_mode"`
-	BotUsername   string                    `yaml:"bot_username"`
-	Mode          string                    `yaml:"mode"`
-	ListenHost    string                    `yaml:"listen_host"`
-	ListenPort    int                       `yaml:"listen_port"`
-	BotToken      string                    `yaml:"bot_token"`
-	GatewayURL    string                    `yaml:"gateway_url"`
-	PageSize      int                       `yaml:"page_size"`
-	WebhookURL    string                    `yaml:"webhook_url"`
-	WebhookSecret string                    `yaml:"webhook_secret"`
-	Timeouts      TelegramBotTimeoutsConfig `yaml:"timeouts"`
-	Debug         bool                      `yaml:"debug"`
+	Enabled           bool                      `yaml:"enabled"`
+	MockMode          bool                      `yaml:"mock_mode"`
+	BotUsername       string                    `yaml:"bot_username"`
+	MessageUpdateMode string                    `yaml:"message_update_mode"`
+	Mode              string                    `yaml:"mode"`
+	ListenHost        string                    `yaml:"listen_host"`
+	ListenPort        int                       `yaml:"listen_port"`
+	BotToken          string                    `yaml:"bot_token"`
+	GatewayURL        string                    `yaml:"gateway_url"`
+	PageSize          int                       `yaml:"page_size"`
+	WebhookURL        string                    `yaml:"webhook_url"`
+	WebhookSecret     string                    `yaml:"webhook_secret"`
+	Timeouts          TelegramBotTimeoutsConfig `yaml:"timeouts"`
+	Debug             bool                      `yaml:"debug"`
 }
 
 func (c TelegramBotConfig) Validate() error {
@@ -281,6 +282,11 @@ func (c TelegramBotConfig) Validate() error {
 	}
 	if strings.TrimSpace(c.BotUsername) == "" {
 		return fmt.Errorf("telegram_bot.bot_username is required")
+	}
+	switch strings.ToLower(strings.TrimSpace(c.MessageUpdateMode)) {
+	case "", "edit", "delete_and_send":
+	default:
+		return fmt.Errorf("telegram_bot.message_update_mode must be either 'edit' or 'delete_and_send'")
 	}
 	if !c.MockMode && strings.TrimSpace(c.BotToken) == "" {
 		return fmt.Errorf("telegram_bot.bot_token is required")

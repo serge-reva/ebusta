@@ -11,12 +11,13 @@ func TestTelegramBotConfigValidateDisabled(t *testing.T) {
 
 func TestTelegramBotConfigValidatePolling(t *testing.T) {
 	cfg := TelegramBotConfig{
-		Enabled:     true,
-		BotUsername: "ebusta_test_bot",
-		Mode:        "polling",
-		BotToken:    "token",
-		GatewayURL:  "http://gateway:8443",
-		PageSize:    5,
+		Enabled:           true,
+		BotUsername:       "ebusta_test_bot",
+		MessageUpdateMode: "edit",
+		Mode:              "polling",
+		BotToken:          "token",
+		GatewayURL:        "http://gateway:8443",
+		PageSize:          5,
 		Timeouts: TelegramBotTimeoutsConfig{
 			ReadTimeoutSec:     5,
 			WriteTimeoutSec:    10,
@@ -31,12 +32,13 @@ func TestTelegramBotConfigValidatePolling(t *testing.T) {
 
 func TestTelegramBotConfigValidateWebhookRequiresFields(t *testing.T) {
 	cfg := TelegramBotConfig{
-		Enabled:     true,
-		BotUsername: "ebusta_test_bot",
-		Mode:        "webhook",
-		BotToken:    "token",
-		GatewayURL:  "http://gateway:8443",
-		PageSize:    5,
+		Enabled:           true,
+		BotUsername:       "ebusta_test_bot",
+		MessageUpdateMode: "edit",
+		Mode:              "webhook",
+		BotToken:          "token",
+		GatewayURL:        "http://gateway:8443",
+		PageSize:          5,
 		Timeouts: TelegramBotTimeoutsConfig{
 			ReadTimeoutSec:     5,
 			WriteTimeoutSec:    10,
@@ -64,11 +66,12 @@ func TestTelegramBotConfigListenAddrDefaultHost(t *testing.T) {
 
 func TestTelegramBotConfigRequiresBotUsername(t *testing.T) {
 	cfg := TelegramBotConfig{
-		Enabled:    true,
-		Mode:       "polling",
-		BotToken:   "token",
-		GatewayURL: "http://gateway:8443",
-		PageSize:   5,
+		Enabled:           true,
+		MessageUpdateMode: "edit",
+		Mode:              "polling",
+		BotToken:          "token",
+		GatewayURL:        "http://gateway:8443",
+		PageSize:          5,
 		Timeouts: TelegramBotTimeoutsConfig{
 			ReadTimeoutSec:     5,
 			WriteTimeoutSec:    10,
@@ -78,5 +81,26 @@ func TestTelegramBotConfigRequiresBotUsername(t *testing.T) {
 	}
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected missing bot_username to fail")
+	}
+}
+
+func TestTelegramBotConfigRejectsUnknownMessageUpdateMode(t *testing.T) {
+	cfg := TelegramBotConfig{
+		Enabled:           true,
+		BotUsername:       "ebusta_test_bot",
+		MessageUpdateMode: "replace_in_place",
+		Mode:              "polling",
+		BotToken:          "token",
+		GatewayURL:        "http://gateway:8443",
+		PageSize:          5,
+		Timeouts: TelegramBotTimeoutsConfig{
+			ReadTimeoutSec:     5,
+			WriteTimeoutSec:    10,
+			ShutdownTimeoutSec: 10,
+			PollTimeoutSec:     30,
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected invalid message_update_mode to fail")
 	}
 }

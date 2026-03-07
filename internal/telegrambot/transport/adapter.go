@@ -74,6 +74,14 @@ func (a *Adapter) respond(ctx context.Context, userID string, chatID int64, mess
 		_, err := a.client.SendDocument(ctx, chatID, result.Document.Filename, result.Document.Data, result.Document.Caption)
 		return err
 	}
+	if result.DeleteAndSend && result.TargetMessageID != 0 {
+		_ = a.client.DeleteMessage(ctx, chatID, result.TargetMessageID)
+		sentMessageID, err := a.client.SendMessage(ctx, chatID, result.Text, result.Keyboard)
+		if err != nil {
+			return err
+		}
+		return a.handler.RememberBotMessage(ctx, userID, sentMessageID, result.StoreAsView)
+	}
 	if !result.ForceSend {
 		targetMessageID := result.TargetMessageID
 		if targetMessageID == 0 && preferEdit && chatID != 0 && messageID != 0 {

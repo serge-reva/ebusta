@@ -60,7 +60,7 @@ func (fakeFormatter) FormatError(message, traceID string) string {
 func testHandler(searcher SearchService, store session.Store) *Handler {
 	p := edge.DefaultPolicy("telegram")
 	p.Actions["command"] = edge.ActionPolicy{PerMinute: 30, Burst: 30}
-	return NewHandler(searcher, store, fakeFormatter{}, edge.NewEngine(p, nil), 5)
+	return NewHandler(searcher, store, fakeFormatter{}, edge.NewEngine(p, nil), 5, "edit")
 }
 
 func TestHandleSearchSuccess(t *testing.T) {
@@ -116,11 +116,11 @@ func TestHandlePageWithoutSession(t *testing.T) {
 func TestHandleCallbackNext(t *testing.T) {
 	store := session.NewMemoryStore()
 	_ = store.Put(context.Background(), &session.Session{
-		UserID:            "u1",
-		Query:             "book",
-		PageSize:          5,
-		CurrentPage:       1,
-		LastListMessageID: 444,
+		UserID:        "u1",
+		Query:         "book",
+		PageSize:      5,
+		CurrentPage:   1,
+		LastMessageID: 444,
 	})
 	h := testHandler(fakeSearcher{
 		resp: &gatewayclient.SearchResponse{
@@ -142,7 +142,42 @@ func TestHandleCallbackNext(t *testing.T) {
 		t.Fatalf("unexpected result: %+v", result)
 	}
 	if result.TargetMessageID != 444 || result.StoreAsView != "list" {
-		t.Fatalf("expected callback pagination to target stored list message, got %+v", result)
+		t.Fatalf("expected callback pagination to target stored working message, got %+v", result)
+	}
+	if result.DeleteAndSend {
+		t.Fatalf("expected edit mode to keep editing in place, got %+v", result)
+	}
+}
+
+func TestHandleCallbackNextDeleteAndSendMode(t *testing.T) {
+	store := session.NewMemoryStore()
+	_ = store.Put(context.Background(), &session.Session{
+		UserID:        "u1",
+		Query:         "book",
+		PageSize:      5,
+		CurrentPage:   1,
+		LastMessageID: 444,
+	})
+	p := edge.DefaultPolicy("telegram")
+	p.Actions["command"] = edge.ActionPolicy{PerMinute: 30, Burst: 30}
+	h := NewHandler(fakeSearcher{
+		resp: &gatewayclient.SearchResponse{
+			TraceID: "tg-4b",
+			Total:   1,
+			Books: []gatewayclient.SearchBook{
+				{ID: "1", Title: "Book", FullAuthors: "Author"},
+			},
+			Page:  2,
+			Pages: 3,
+		},
+	}, store, fakeFormatter{}, edge.NewEngine(p, nil), 5, "delete_and_send")
+
+	result, err := h.HandleCallback(context.Background(), "u1", "page:next", "tg-4b")
+	if err != nil {
+		t.Fatalf("HandleCallback() error = %v", err)
+	}
+	if !result.DeleteAndSend || result.TargetMessageID != 444 {
+		t.Fatalf("expected delete_and_send mode to target working message, got %+v", result)
 	}
 }
 
@@ -182,7 +217,7 @@ func TestHandleSearchFullCycleFormatsResult(t *testing.T) {
 			Page:  1,
 			Pages: 2,
 		},
-	}, store, formatter, edge.NewEngine(p, nil), 5)
+	}, store, formatter, edge.NewEngine(p, nil), 5, "edit")
 
 	result, err := h.HandleSearch(context.Background(), "u1", "/search dune", "tg-full")
 	if err != nil {

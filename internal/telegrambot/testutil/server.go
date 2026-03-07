@@ -93,7 +93,7 @@ func (s *TelegramAPIServer) handle(w http.ResponseWriter, r *http.Request) {
 			"ok":     true,
 			"result": map[string]any{"message_id": 101},
 		})
-	case "answerCallbackQuery", "setWebhook", "deleteWebhook":
+	case "answerCallbackQuery", "setWebhook", "deleteWebhook", "deleteMessage":
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "result": true})
 	default:
 		w.WriteHeader(http.StatusNotFound)

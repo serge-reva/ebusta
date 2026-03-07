@@ -45,7 +45,7 @@ func main() {
 	engine := edge.NewEngine(policy, edge.NewMultiHook(edge.NewLabelCounterHook(), &edge.OTelHook{}))
 	store := session.NewMemoryStore()
 	formatter := tgpresenter.NewTelegramFormatter(4096, tgCfg.BotUsername)
-	uc := usecase.NewHandler(gc, store, formatter, engine, tgCfg.PageSize)
+	uc := usecase.NewHandler(gc, store, formatter, engine, tgCfg.PageSize, tgCfg.MessageUpdateMode)
 
 	if tgCfg.MockMode {
 		mockClient := transport.NewMockTelegramClient(logger.GetGlobal())
@@ -117,6 +117,9 @@ func loadTelegramBotConfig(cfg *config.Config) config.TelegramBotConfig {
 	tg := cfg.TelegramBot
 	if strings.TrimSpace(tg.Mode) == "" {
 		tg.Mode = "polling"
+	}
+	if strings.TrimSpace(tg.MessageUpdateMode) == "" {
+		tg.MessageUpdateMode = "edit"
 	}
 	if strings.TrimSpace(tg.ListenHost) == "" {
 		tg.ListenHost = "0.0.0.0"
