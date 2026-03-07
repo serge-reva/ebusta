@@ -6,6 +6,7 @@ import (
 
 	"ebusta/internal/botcommand"
 	"ebusta/internal/errutil"
+	"ebusta/internal/logger"
 	"ebusta/internal/telegrambot/usecase"
 )
 
@@ -23,13 +24,14 @@ func (a *Adapter) ProcessUpdate(ctx context.Context, update IncomingUpdate) erro
 	if traceID == "" {
 		traceID = errutil.GenerateTraceID("tg")
 	}
+	ctx = logger.ContextWithTraceID(ctx, traceID)
 
 	if update.CallbackID != "" {
-		result, err := a.handler.HandleCallback(ctx, update.UserID, update.CallbackData, traceID)
-		if err != nil {
+		if err := a.client.AnswerCallback(ctx, update.CallbackID, ""); err != nil {
 			return err
 		}
-		if err := a.client.AnswerCallback(ctx, update.CallbackID, ""); err != nil {
+		result, err := a.handler.HandleCallback(ctx, update.UserID, update.CallbackData, traceID)
+		if err != nil {
 			return err
 		}
 		return a.respond(ctx, update.ChatID, update.MessageID, result, true)

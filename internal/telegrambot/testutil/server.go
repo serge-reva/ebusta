@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -68,6 +69,11 @@ func (s *TelegramAPIServer) handle(w http.ResponseWriter, r *http.Request) {
 			"result": map[string]any{"id": 1, "is_bot": true, "first_name": "test", "username": "ebusta_test_bot"},
 		})
 	case "sendMessage":
+		if bytes.Contains(body, []byte(`"reply_markup":null`)) {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "description": "Bad Request: object expected as reply markup"})
+			return
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"ok":     true,
 			"result": map[string]any{"message_id": 101},
@@ -78,6 +84,11 @@ func (s *TelegramAPIServer) handle(w http.ResponseWriter, r *http.Request) {
 			"result": map[string]any{"message_id": 102},
 		})
 	case "editMessageText":
+		if bytes.Contains(body, []byte(`"reply_markup":null`)) {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "description": "Bad Request: object expected as reply markup"})
+			return
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"ok":     true,
 			"result": map[string]any{"message_id": 101},
@@ -96,4 +107,14 @@ func apiMethod(path string) string {
 		return path
 	}
 	return path[idx+1:]
+}
+
+func (s *TelegramAPIServer) LastCall(method string) (Call, bool) {
+	calls := s.Calls()
+	for i := len(calls) - 1; i >= 0; i-- {
+		if calls[i].Method == method {
+			return calls[i], true
+		}
+	}
+	return Call{}, false
 }

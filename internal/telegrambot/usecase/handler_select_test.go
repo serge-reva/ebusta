@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ebusta/internal/edge"
+	"ebusta/internal/errutil"
 	"ebusta/internal/gatewayclient"
 	corepresenter "ebusta/internal/presenter"
 	tgpresenter "ebusta/internal/telegrambot/presenter"
@@ -127,4 +128,106 @@ func TestHandleDownloadRejectsLargeFiles(t *testing.T) {
 	if !strings.Contains(result.Text, "too large") {
 		t.Fatalf("unexpected result text: %s", result.Text)
 	}
+}
+
+func TestHandleDownloadMapsMetaNotFoundError(t *testing.T) {
+	store := session.NewMemoryStore()
+	_ = putDownloadSession(store)
+	p := edge.DefaultPolicy("telegram")
+	h := NewHandler(fakeSearcher{
+		err: errutil.New(errutil.CodeNotFound, "missing in storage").WithTrace("tg-notfound"),
+	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5)
+
+	result, err := h.HandleDownload(context.Background(), "u1", "sha1-1", "tg-notfound")
+	if err != nil {
+		t.Fatalf("HandleDownload() error = %v", err)
+	}
+	if result.Document != nil {
+		t.Fatal("did not expect document on meta error")
+	}
+	if !strings.Contains(result.Text, "Книга не найдена в хранилище") {
+		t.Fatalf("unexpected result text: %s", result.Text)
+	}
+}
+
+func TestHandleDownloadMapsMetaUnavailableError(t *testing.T) {
+	store := session.NewMemoryStore()
+	_ = putDownloadSession(store)
+	p := edge.DefaultPolicy("telegram")
+	h := NewHandler(fakeSearcher{
+		err: errutil.New(errutil.CodeUnavailable, "gateway timeout").WithTrace("tg-unavail"),
+	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5)
+
+	result, err := h.HandleDownload(context.Background(), "u1", "sha1-1", "tg-unavail")
+	if err != nil {
+		t.Fatalf("HandleDownload() error = %v", err)
+	}
+	if result.Document != nil {
+		t.Fatal("did not expect document on meta error")
+	}
+	if !strings.Contains(result.Text, "Сервис временно недоступен") {
+		t.Fatalf("unexpected result text: %s", result.Text)
+	}
+}
+
+func TestHandleDownloadMapsMetaInternalError(t *testing.T) {
+	store := session.NewMemoryStore()
+	_ = putDownloadSession(store)
+	p := edge.DefaultPolicy("telegram")
+	h := NewHandler(fakeSearcher{
+		err: errutil.New(errutil.CodeInternal, "boom").WithTrace("tg-int"),
+	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5)
+
+	result, err := h.HandleDownload(context.Background(), "u1", "sha1-1", "tg-int")
+	if err != nil {
+		t.Fatalf("HandleDownload() error = %v", err)
+	}
+	if result.Document != nil {
+		t.Fatal("did not expect document on meta error")
+	}
+	if !strings.Contains(result.Text, "Внутренняя ошибка") {
+		t.Fatalf("unexpected result text: %s", result.Text)
+	}
+}
+
+func TestHandleDownloadMapsUnknownMetaErrorCode(t *testing.T) {
+	store := session.NewMemoryStore()
+	_ = putDownloadSession(store)
+	p := edge.DefaultPolicy("telegram")
+	h := NewHandler(fakeSearcher{
+		err: errutil.New(errutil.CodeForbidden, "blocked").WithTrace("tg-forbidden"),
+	}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5)
+
+	result, err := h.HandleDownload(context.Background(), "u1", "sha1-1", "tg-forbidden")
+	if err != nil {
+		t.Fatalf("HandleDownload() error = %v", err)
+	}
+	if result.Document != nil {
+		t.Fatal("did not expect document on meta error")
+	}
+	if !strings.Contains(result.Text, errutil.CodeForbidden) {
+		t.Fatalf("unexpected result text: %s", result.Text)
+	}
+}
+
+func putDownloadSession(store session.Store) error {
+	return store.Put(context.Background(), &session.Session{
+		UserID:      "u1",
+		Query:       "dune",
+		PageSize:    5,
+		CurrentPage: 1,
+		LastResult: &corepresenter.PresenterResult{
+			SearchResult: &corepresenter.SearchResult{
+				Total: 1,
+				Books: []corepresenter.BookDTO{{
+					ID:          "sha1-1",
+					Title:       "Dune",
+					FullAuthors: "Frank Herbert",
+					DownloadURL: "/download/t1",
+				}},
+			},
+			Pagination: corepresenter.NewPagination(1, 1, 5),
+		},
+		UpdatedAt: time.Now(),
+	})
 }

@@ -11,6 +11,7 @@ import (
 	"ebusta/internal/edge"
 	"ebusta/internal/errutil"
 	"ebusta/internal/gatewayclient"
+	"ebusta/internal/logger"
 	corepresenter "ebusta/internal/presenter"
 	tgpresenter "ebusta/internal/telegrambot/presenter"
 	"ebusta/internal/telegrambot/session"
@@ -116,6 +117,8 @@ func (h *Handler) HandleCallback(ctx context.Context, userID, callbackData, trac
 	switch callbackData {
 	case "back":
 		return h.HandleBack(ctx, userID, traceID)
+	case "page:current":
+		return nil, nil
 	case "page:next":
 		s, ok := h.store.Get(ctx, userID)
 		if !ok {
@@ -191,7 +194,15 @@ func (h *Handler) HandleDownload(ctx context.Context, userID, sha1, traceID stri
 	}
 	meta, err := h.searcher.GetMeta(ctx, token, traceID)
 	if err != nil {
-		return &Result{Text: h.formatter.FormatError("Failed to inspect file metadata.", traceID), TraceID: traceID, ForceSend: true}, nil
+		code, message, details := mapDownloadMetaError(err)
+		logger.GetGlobal().WithFields(map[string]interface{}{
+			"sha1":         sha1,
+			"token":        token,
+			"error_code":   code,
+			"error_msg":    message,
+			"error_detail": details,
+		}).ErrorCtx(ctx, "telegram-bot download metadata lookup failed", err)
+		return &Result{Text: h.formatter.FormatError(message, traceID), TraceID: traceID, ForceSend: true}, nil
 	}
 	if meta.Size >= 20*1024*1024 {
 		return &Result{
@@ -314,5 +325,27 @@ func mapError(err error) string {
 			return appErr.Message
 		}
 		return "Internal error."
+	}
+}
+
+func mapDownloadMetaError(err error) (code string, userMessage string, details string) {
+	appErr, ok := err.(*errutil.AppError)
+	if !ok {
+		return errutil.CodeInternal, "Не удалось скачать книгу. Код ошибки: INTERNAL_ERROR. Попробуйте позже.", err.Error()
+	}
+
+	switch appErr.Code {
+	case errutil.CodeNotFound:
+		return appErr.Code, "Книга не найдена в хранилище. Возможно, она была удалена.", appErr.Message
+	case errutil.CodeUnavailable, errutil.CodeTimeout:
+		return appErr.Code, "Сервис временно недоступен. Пожалуйста, попробуйте позже.", appErr.Message
+	case errutil.CodeInternal:
+		return appErr.Code, "Внутренняя ошибка. Пожалуйста, сообщите администратору, указав trace_id.", appErr.Message
+	default:
+		code := appErr.Code
+		if strings.TrimSpace(code) == "" {
+			code = errutil.CodeInternal
+		}
+		return code, "Не удалось скачать книгу. Код ошибки: " + code + ". Попробуйте позже.", appErr.Message
 	}
 }
