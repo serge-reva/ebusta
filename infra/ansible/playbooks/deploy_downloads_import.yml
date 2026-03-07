@@ -1,0 +1,16 @@
+---
+- name: Deploy downloads-import utility on neptune
+  hosts: neptune
+  become: true
+  tasks:
+    - name: Ensure utility directory exists
+      ansible.builtin.file:
+        path: /opt/ebusta/bin
+        state: directory
+        mode: "0755"
+
+    - name: Copy downloads-import binary
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../../bin/downloads-import"
+        dest: /opt/ebusta/bin/downloads-import
+        mode: "0755"

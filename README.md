@@ -104,5 +104,6 @@ Core architecture and operations docs:
 - `docs/JSON_GATEWAY.md`
 - `docs/TELEGRAM_BOT_ARCHITECTURE.md`
 - `docs/TELEGRAM_BOT_USAGE.md`
+- `docs/DOWNLOADS_IMPORT.md`
 - `docs/api/openapi.yaml`
 - `docs/RUNBOOK.md`
