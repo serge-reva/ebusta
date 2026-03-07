@@ -92,3 +92,13 @@ func apiMethod(path string) string {
 	}
 	return path[idx+1:]
 }
+
+func (s *TelegramAPIServer) LastCall(method string) (Call, bool) {
+	calls := s.Calls()
+	for i := len(calls) - 1; i >= 0; i-- {
+		if calls[i].Method == method {
+			return calls[i], true
+		}
+	}
+	return Call{}, false
+}

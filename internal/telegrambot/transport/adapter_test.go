@@ -141,13 +141,37 @@ func TestAdapterProcessCallbackEditsMessage(t *testing.T) {
 	}
 }
 
+func TestAdapterProcessCurrentPageCallbackIsNoop(t *testing.T) {
+	uc := &fakeUsecase{result: &usecase.Result{Text: "page text", TraceID: "tg-4"}}
+	client := &fakeTelegramClient{}
+	adapter := NewAdapter(client, uc)
+
+	err := adapter.ProcessUpdate(context.Background(), IncomingUpdate{
+		TraceID:      "tg-4",
+		UserID:       "42",
+		ChatID:       99,
+		MessageID:    11,
+		CallbackID:   "cb-current",
+		CallbackData: "page:current",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if client.callbackID != "cb-current" {
+		t.Fatalf("expected callback answer, got %q", client.callbackID)
+	}
+	if client.editMessageID != 0 || client.sentChatID != 0 {
+		t.Fatalf("current page callback must not edit/send message: edit=%d send=%d", client.editMessageID, client.sentChatID)
+	}
+}
+
 func TestAdapterProcessUpdatePropagatesClientError(t *testing.T) {
-	uc := &fakeUsecase{result: &usecase.Result{Text: "help text", TraceID: "tg-4"}}
+	uc := &fakeUsecase{result: &usecase.Result{Text: "help text", TraceID: "tg-5"}}
 	client := &fakeTelegramClient{err: errors.New("send failed")}
 	adapter := NewAdapter(client, uc)
 
 	err := adapter.ProcessUpdate(context.Background(), IncomingUpdate{
-		TraceID: "tg-4",
+		TraceID: "tg-5",
 		UserID:  "42",
 		ChatID:  99,
 		Text:    "/help",

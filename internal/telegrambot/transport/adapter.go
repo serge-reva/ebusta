@@ -32,6 +32,9 @@ func (a *Adapter) ProcessUpdate(ctx context.Context, update IncomingUpdate) erro
 		if err := a.client.AnswerCallback(ctx, update.CallbackID, ""); err != nil {
 			return err
 		}
+		if update.CallbackData == "page:current" {
+			return nil
+		}
 		return a.respond(ctx, update.ChatID, update.MessageID, result, true)
 	}
 
