@@ -2,6 +2,7 @@ package presenter
 
 import (
 	"fmt"
+	"html"
 	"strings"
 
 	corepresenter "ebusta/internal/presenter"
@@ -44,15 +45,15 @@ func (f *TelegramFormatter) FormatSearchResult(result *corepresenter.PresenterRe
 	lines = append(lines, fmt.Sprintf("Found %d books. Page %d/%d.", result.Total, pg.CurrentPage, pg.TotalPages))
 	for i, book := range result.Books {
 		globalIndex := (pg.CurrentPage-1)*pg.PageSize + i + 1
-		title := escapeMarkdown(book.Title)
+		title := html.EscapeString(strings.TrimSpace(book.Title))
 		if title == "" {
 			title = "Unknown Title"
 		}
-		authors := escapeMarkdown(book.FullAuthors)
+		authors := html.EscapeString(strings.TrimSpace(book.FullAuthors))
 		if authors == "" {
 			authors = "Unknown Author"
 		}
-		lines = append(lines, fmt.Sprintf("%d\\. %s\nby %s", globalIndex, title, authors))
+		lines = append(lines, fmt.Sprintf("%d. %s\nby %s", globalIndex, title, authors))
 	}
 
 	text := strings.Join(lines, "\n\n")
@@ -66,9 +67,9 @@ func (f *TelegramFormatter) FormatSearchResult(result *corepresenter.PresenterRe
 func (f *TelegramFormatter) FormatHelp() string {
 	return strings.Join([]string{
 		"Available commands:",
-		"/search <query>",
-		"/search <query> page <n>",
-		"/page <n>",
+		"/search &lt;query&gt;",
+		"/search &lt;query&gt; page &lt;n&gt;",
+		"/page &lt;n&gt;",
 		"/next",
 		"/prev",
 		"/help",
@@ -76,10 +77,11 @@ func (f *TelegramFormatter) FormatHelp() string {
 }
 
 func (f *TelegramFormatter) FormatError(message, traceID string) string {
+	safeMessage := html.EscapeString(message)
 	if traceID == "" {
-		return message
+		return safeMessage
 	}
-	return fmt.Sprintf("%s\nTrace: %s", message, traceID)
+	return fmt.Sprintf("%s\nTrace: %s", safeMessage, html.EscapeString(traceID))
 }
 
 func buildKeyboard(pg *corepresenter.Pagination) *InlineKeyboardMarkup {
@@ -95,28 +97,4 @@ func buildKeyboard(pg *corepresenter.Pagination) *InlineKeyboardMarkup {
 		row = append(row, InlineKeyboardButton{Text: "Next", CallbackData: "page:next"})
 	}
 	return &InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{row}}
-}
-
-func escapeMarkdown(s string) string {
-	replacer := strings.NewReplacer(
-		"_", "\\_",
-		"*", "\\*",
-		"[", "\\[",
-		"]", "\\]",
-		"(", "\\(",
-		")", "\\)",
-		"~", "\\~",
-		"`", "\\`",
-		">", "\\>",
-		"#", "\\#",
-		"+", "\\+",
-		"-", "\\-",
-		"=", "\\=",
-		"|", "\\|",
-		"{", "\\{",
-		"}", "\\}",
-		".", "\\.",
-		"!", "\\!",
-	)
-	return replacer.Replace(strings.TrimSpace(s))
 }

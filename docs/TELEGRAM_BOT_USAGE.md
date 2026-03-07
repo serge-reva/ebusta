@@ -6,7 +6,7 @@ Last Updated: 2026-03-07
 ## Purpose
 
 `cmd/telegram-bot` is the production Telegram Bot API adapter for Ebusta.
-It accepts Telegram updates in `polling` or `webhook` mode, routes user commands through `gateway`, and renders paginated search results back to Telegram chats.
+It accepts Telegram updates in `polling` or `webhook` mode, routes user commands through `gateway`, and renders paginated search results back to Telegram chats using Telegram HTML parse mode.
 
 ## Supported Commands
 
