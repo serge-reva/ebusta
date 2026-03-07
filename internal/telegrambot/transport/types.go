@@ -31,4 +31,5 @@ type UsecaseHandler interface {
 	HandleSelectBook(ctx context.Context, userID string, bookIndex int, traceID string) (*usecase.Result, error)
 	HandleHelp(traceID string) *usecase.Result
 	HandleCallback(ctx context.Context, userID, callbackData, traceID string) (*usecase.Result, error)
+	RememberBotMessage(ctx context.Context, userID string, messageID int, view string) error
 }

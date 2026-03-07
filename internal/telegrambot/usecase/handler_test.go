@@ -83,6 +83,9 @@ func TestHandleSearchSuccess(t *testing.T) {
 	if result.Text != "Book" || result.TraceID != "tg-1" {
 		t.Fatalf("unexpected result: %+v", result)
 	}
+	if !result.ForceSend || result.StoreAsView != "list" {
+		t.Fatalf("expected new search to send and store list view, got %+v", result)
+	}
 }
 
 func TestHandleSearchGatewayError(t *testing.T) {
@@ -113,10 +116,11 @@ func TestHandlePageWithoutSession(t *testing.T) {
 func TestHandleCallbackNext(t *testing.T) {
 	store := session.NewMemoryStore()
 	_ = store.Put(context.Background(), &session.Session{
-		UserID:      "u1",
-		Query:       "book",
-		PageSize:    5,
-		CurrentPage: 1,
+		UserID:            "u1",
+		Query:             "book",
+		PageSize:          5,
+		CurrentPage:       1,
+		LastListMessageID: 444,
 	})
 	h := testHandler(fakeSearcher{
 		resp: &gatewayclient.SearchResponse{
@@ -136,6 +140,9 @@ func TestHandleCallbackNext(t *testing.T) {
 	}
 	if result.TraceID != "tg-4" {
 		t.Fatalf("unexpected result: %+v", result)
+	}
+	if result.TargetMessageID != 444 || result.StoreAsView != "list" {
+		t.Fatalf("expected callback pagination to target stored list message, got %+v", result)
 	}
 }
 

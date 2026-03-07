@@ -105,7 +105,7 @@ docker compose --profile telegram stop telegram-bot
 2. Click a book title.
 3. Expected result:
    - Telegram re-enters the bot through `/start book_<index>`;
-   - bot sends a detail message with title and authors only;
+   - bot edits the existing result message into a detail view instead of adding a new bot message;
    - detail message contains `📥 Скачать` and `◀️ Назад` buttons.
 
 ### Pagination Path
@@ -113,8 +113,16 @@ docker compose --profile telegram stop telegram-bot
 1. Send `/search tolstoy`.
 2. Press `Next` or send `/page 2`.
 3. Expected result:
-   - the bot shows the next page;
+   - the existing result message is edited to the next page instead of creating a new bot message;
    - trace-linked logs appear in the bot and gateway.
+
+### Back Navigation
+
+1. Open a book detail view.
+2. Press `◀️ Назад`.
+3. Expected result:
+   - the same bot message is edited back into the paginated results list;
+   - the pagination keyboard is restored.
 
 ### Error Path
 
@@ -129,6 +137,7 @@ docker compose --profile telegram stop telegram-bot
 - For files smaller than 20 MB:
   - bot downloads the file through `gateway`;
   - bot uploads it to Telegram as a document.
+  - no extra `/start` or navigation message is sent by the bot during the callback flow.
 
 - For files 20 MB or larger:
   - bot does not expose internal download URLs;

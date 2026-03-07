@@ -34,7 +34,7 @@ func (a *Adapter) ProcessUpdate(ctx context.Context, update IncomingUpdate) erro
 		if err != nil {
 			return err
 		}
-		return a.respond(ctx, update.ChatID, update.MessageID, result, true)
+		return a.respond(ctx, update.UserID, update.ChatID, update.MessageID, result, true)
 	}
 
 	var (
@@ -63,10 +63,10 @@ func (a *Adapter) ProcessUpdate(ctx context.Context, update IncomingUpdate) erro
 	if err != nil {
 		return err
 	}
-	return a.respond(ctx, update.ChatID, update.MessageID, result, false)
+	return a.respond(ctx, update.UserID, update.ChatID, update.MessageID, result, false)
 }
 
-func (a *Adapter) respond(ctx context.Context, chatID int64, messageID int, result *usecase.Result, preferEdit bool) error {
+func (a *Adapter) respond(ctx context.Context, userID string, chatID int64, messageID int, result *usecase.Result, preferEdit bool) error {
 	if result == nil {
 		return nil
 	}
@@ -74,13 +74,43 @@ func (a *Adapter) respond(ctx context.Context, chatID int64, messageID int, resu
 		_, err := a.client.SendDocument(ctx, chatID, result.Document.Filename, result.Document.Data, result.Document.Caption)
 		return err
 	}
-	if result.ForceSend {
-		_, err := a.client.SendMessage(ctx, chatID, result.Text, result.Keyboard)
+	if !result.ForceSend {
+		targetMessageID := result.TargetMessageID
+		if targetMessageID == 0 && preferEdit && chatID != 0 && messageID != 0 {
+			targetMessageID = messageID
+		}
+		if targetMessageID != 0 {
+			err := a.client.EditMessage(ctx, chatID, targetMessageID, result.Text, result.Keyboard)
+			if err == nil {
+				return a.handler.RememberBotMessage(ctx, userID, targetMessageID, result.StoreAsView)
+			}
+			if isIgnorableEditError(err) {
+				return nil
+			}
+			if !shouldFallbackToSend(err) {
+				return err
+			}
+		}
+	}
+	sentMessageID, err := a.client.SendMessage(ctx, chatID, result.Text, result.Keyboard)
+	if err != nil {
 		return err
 	}
-	if preferEdit && chatID != 0 && messageID != 0 {
-		return a.client.EditMessage(ctx, chatID, messageID, result.Text, result.Keyboard)
+	return a.handler.RememberBotMessage(ctx, userID, sentMessageID, result.StoreAsView)
+}
+
+func shouldFallbackToSend(err error) bool {
+	if err == nil {
+		return false
 	}
-	_, err := a.client.SendMessage(ctx, chatID, result.Text, result.Keyboard)
-	return err
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "message to edit not found") ||
+		strings.Contains(message, "message can't be edited")
+}
+
+func isIgnorableEditError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "message is not modified")
 }

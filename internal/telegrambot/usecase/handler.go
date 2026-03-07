@@ -37,11 +37,13 @@ type Document struct {
 }
 
 type Result struct {
-	Text      string
-	Keyboard  *tgpresenter.InlineKeyboardMarkup
-	Document  *Document
-	ForceSend bool
-	TraceID   string
+	Text            string
+	Keyboard        *tgpresenter.InlineKeyboardMarkup
+	Document        *Document
+	ForceSend       bool
+	TargetMessageID int
+	StoreAsView     string
+	TraceID         string
 }
 
 type Handler struct {
@@ -86,7 +88,13 @@ func (h *Handler) HandleSearch(ctx context.Context, userID, input, traceID strin
 	if !ok {
 		return &Result{Text: h.formatter.FormatError("Usage: /search <query> [page <n>]", traceID), TraceID: traceID}, nil
 	}
-	return h.searchAndStore(ctx, userID, search.Query, search.Page, traceID)
+	result, err := h.searchAndStore(ctx, userID, search.Query, search.Page, traceID)
+	if err != nil || result == nil {
+		return result, err
+	}
+	result.ForceSend = true
+	result.StoreAsView = "list"
+	return result, nil
 }
 
 func (h *Handler) HandlePage(ctx context.Context, userID string, page int, traceID string) (*Result, error) {
@@ -100,7 +108,15 @@ func (h *Handler) HandlePage(ctx context.Context, userID string, page int, trace
 	if page <= 0 {
 		page = 1
 	}
-	return h.searchAndStore(ctx, userID, s.Query, page, traceID)
+	result, err := h.searchAndStore(ctx, userID, s.Query, page, traceID)
+	if err != nil || result == nil {
+		return result, err
+	}
+	result.StoreAsView = "list"
+	if s.LastListMessageID != 0 {
+		result.TargetMessageID = s.LastListMessageID
+	}
+	return result, nil
 }
 
 func (h *Handler) HandleHelp(traceID string) *Result {
@@ -158,7 +174,13 @@ func (h *Handler) HandleSelectBook(ctx context.Context, userID string, globalInd
 		return &Result{Text: h.formatter.FormatError("Book selection is out of range.", traceID), TraceID: traceID}, nil
 	}
 	text, keyboard := h.formatter.FormatBookDetails(book)
-	return &Result{Text: text, Keyboard: keyboard, TraceID: traceID, ForceSend: true}, nil
+	result := &Result{Text: text, Keyboard: keyboard, TraceID: traceID, StoreAsView: "book"}
+	if s.LastListMessageID != 0 {
+		result.TargetMessageID = s.LastListMessageID
+	} else {
+		result.ForceSend = true
+	}
+	return result, nil
 }
 
 func (h *Handler) HandleBack(ctx context.Context, userID, traceID string) (*Result, error) {
@@ -173,7 +195,15 @@ func (h *Handler) HandleBack(ctx context.Context, userID, traceID string) (*Resu
 	if err != nil {
 		return nil, err
 	}
-	return &Result{Text: text, Keyboard: keyboard, TraceID: traceID}, nil
+	result := &Result{Text: text, Keyboard: keyboard, TraceID: traceID, StoreAsView: "list"}
+	if s.LastBookMessageID != 0 {
+		result.TargetMessageID = s.LastBookMessageID
+	} else if s.LastListMessageID != 0 {
+		result.TargetMessageID = s.LastListMessageID
+	} else {
+		result.ForceSend = true
+	}
+	return result, nil
 }
 
 func (h *Handler) HandleDownload(ctx context.Context, userID, sha1, traceID string) (*Result, error) {
@@ -262,10 +292,30 @@ func (h *Handler) searchAndStore(ctx context.Context, userID, query string, page
 	})
 
 	return &Result{
-		Text:     text,
-		Keyboard: keyboard,
-		TraceID:  resp.TraceID,
+		Text:        text,
+		Keyboard:    keyboard,
+		TraceID:     resp.TraceID,
+		StoreAsView: "list",
 	}, nil
+}
+
+func (h *Handler) RememberBotMessage(ctx context.Context, userID string, messageID int, view string) error {
+	if userID == "" || messageID == 0 {
+		return nil
+	}
+	s, ok := h.store.Get(ctx, userID)
+	if !ok {
+		return nil
+	}
+	s.LastMessageID = messageID
+	switch view {
+	case "list":
+		s.LastListMessageID = messageID
+	case "book":
+		s.LastBookMessageID = messageID
+	}
+	s.UpdatedAt = time.Now()
+	return h.store.Put(ctx, s)
 }
 
 func bookByGlobalIndex(s *session.Session, globalIndex int) *corepresenter.BookDTO {

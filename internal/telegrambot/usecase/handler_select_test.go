@@ -17,10 +17,11 @@ import (
 func TestHandleSelectBookUsesLastResult(t *testing.T) {
 	store := session.NewMemoryStore()
 	_ = store.Put(context.Background(), &session.Session{
-		UserID:      "u1",
-		Query:       "dune",
-		PageSize:    5,
-		CurrentPage: 1,
+		UserID:            "u1",
+		Query:             "dune",
+		PageSize:          5,
+		CurrentPage:       1,
+		LastListMessageID: 321,
 		LastResult: &corepresenter.PresenterResult{
 			SearchResult: &corepresenter.SearchResult{
 				Total: 1,
@@ -42,14 +43,14 @@ func TestHandleSelectBookUsesLastResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HandleSelectBook() error = %v", err)
 	}
-	if !result.ForceSend {
-		t.Fatal("expected detail screen to be sent as new message")
-	}
 	if !strings.Contains(result.Text, "Dune") {
 		t.Fatalf("unexpected result text: %s", result.Text)
 	}
 	if result.Keyboard == nil || result.Keyboard.InlineKeyboard[0][0].CallbackData != "download:sha1-1" {
 		t.Fatalf("unexpected keyboard: %+v", result.Keyboard)
+	}
+	if result.TargetMessageID != 321 || result.ForceSend {
+		t.Fatalf("expected detail view to edit existing list message, got target=%d force=%v", result.TargetMessageID, result.ForceSend)
 	}
 }
 
@@ -207,6 +208,36 @@ func TestHandleDownloadMapsUnknownMetaErrorCode(t *testing.T) {
 	}
 	if !strings.Contains(result.Text, errutil.CodeForbidden) {
 		t.Fatalf("unexpected result text: %s", result.Text)
+	}
+}
+
+func TestHandleBackTargetsStoredBookMessage(t *testing.T) {
+	store := session.NewMemoryStore()
+	_ = store.Put(context.Background(), &session.Session{
+		UserID:            "u1",
+		Query:             "dune",
+		PageSize:          5,
+		CurrentPage:       1,
+		LastListMessageID: 111,
+		LastBookMessageID: 222,
+		LastResult: &corepresenter.PresenterResult{
+			SearchResult: &corepresenter.SearchResult{
+				Total: 1,
+				Books: []corepresenter.BookDTO{{ID: "sha1-1", Title: "Dune", FullAuthors: "Frank Herbert", DownloadURL: "/download/t1"}},
+			},
+			Pagination: corepresenter.NewPagination(1, 1, 5),
+		},
+		UpdatedAt: time.Now(),
+	})
+	p := edge.DefaultPolicy("telegram")
+	h := NewHandler(fakeSearcher{}, store, tgpresenter.NewTelegramFormatter(4096, "ebusta_test_bot"), edge.NewEngine(p, nil), 5)
+
+	result, err := h.HandleBack(context.Background(), "u1", "tg-back")
+	if err != nil {
+		t.Fatalf("HandleBack() error = %v", err)
+	}
+	if result.TargetMessageID != 222 || result.ForceSend {
+		t.Fatalf("expected back to edit stored book message, got target=%d force=%v", result.TargetMessageID, result.ForceSend)
 	}
 }
 
