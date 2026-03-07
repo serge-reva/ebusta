@@ -36,7 +36,7 @@ func (c *BotClient) SendMessage(ctx context.Context, chatID int64, text string, 
 	msg, err := c.bot.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
 		Text:        text,
-		ParseMode:   models.ParseModeMarkdown,
+		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: toTelegramKeyboard(keyboard),
 	})
 	if err != nil {
@@ -53,7 +53,7 @@ func (c *BotClient) EditMessage(ctx context.Context, chatID int64, messageID int
 		ChatID:      chatID,
 		MessageID:   messageID,
 		Text:        text,
-		ParseMode:   models.ParseModeMarkdown,
+		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: toTelegramKeyboard(keyboard),
 	})
 	return err

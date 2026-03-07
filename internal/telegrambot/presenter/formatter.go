@@ -2,6 +2,7 @@ package presenter
 
 import (
 	"fmt"
+	"html"
 	"strings"
 
 	corepresenter "ebusta/internal/presenter"
@@ -41,18 +42,21 @@ func (f *TelegramFormatter) FormatSearchResult(result *corepresenter.PresenterRe
 	}
 
 	var lines []string
-	lines = append(lines, fmt.Sprintf("Found %d books. Page %d/%d.", result.Total, pg.CurrentPage, pg.TotalPages))
+	lines = append(lines, fmt.Sprintf("<b>Found %d books. Page %d/%d.</b>", result.Total, pg.CurrentPage, pg.TotalPages))
 	for i, book := range result.Books {
 		globalIndex := (pg.CurrentPage-1)*pg.PageSize + i + 1
-		title := escapeMarkdown(book.Title)
+		title := escapeHTML(book.Title)
 		if title == "" {
 			title = "Unknown Title"
 		}
-		authors := escapeMarkdown(book.FullAuthors)
+		if strings.TrimSpace(book.DownloadURL) != "" {
+			title = fmt.Sprintf(`<a href="%s">%s</a>`, escapeHTML(book.DownloadURL), title)
+		}
+		authors := escapeHTML(book.FullAuthors)
 		if authors == "" {
 			authors = "Unknown Author"
 		}
-		lines = append(lines, fmt.Sprintf("%d\\. %s\nby %s", globalIndex, title, authors))
+		lines = append(lines, fmt.Sprintf("%d. %s\nby %s", globalIndex, title, authors))
 	}
 
 	text := strings.Join(lines, "\n\n")
@@ -65,10 +69,10 @@ func (f *TelegramFormatter) FormatSearchResult(result *corepresenter.PresenterRe
 
 func (f *TelegramFormatter) FormatHelp() string {
 	return strings.Join([]string{
-		"Available commands:",
-		"/search <query>",
-		"/search <query> page <n>",
-		"/page <n>",
+		"<b>Available commands:</b>",
+		"/search &lt;query&gt;",
+		"/search &lt;query&gt; page &lt;n&gt;",
+		"/page &lt;n&gt;",
 		"/next",
 		"/prev",
 		"/help",
@@ -76,10 +80,11 @@ func (f *TelegramFormatter) FormatHelp() string {
 }
 
 func (f *TelegramFormatter) FormatError(message, traceID string) string {
+	safeMessage := escapeHTML(message)
 	if traceID == "" {
-		return message
+		return safeMessage
 	}
-	return fmt.Sprintf("%s\nTrace: %s", message, traceID)
+	return fmt.Sprintf("%s\nTrace: <code>%s</code>", safeMessage, escapeHTML(traceID))
 }
 
 func buildKeyboard(pg *corepresenter.Pagination) *InlineKeyboardMarkup {
@@ -97,26 +102,6 @@ func buildKeyboard(pg *corepresenter.Pagination) *InlineKeyboardMarkup {
 	return &InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{row}}
 }
 
-func escapeMarkdown(s string) string {
-	replacer := strings.NewReplacer(
-		"_", "\\_",
-		"*", "\\*",
-		"[", "\\[",
-		"]", "\\]",
-		"(", "\\(",
-		")", "\\)",
-		"~", "\\~",
-		"`", "\\`",
-		">", "\\>",
-		"#", "\\#",
-		"+", "\\+",
-		"-", "\\-",
-		"=", "\\=",
-		"|", "\\|",
-		"{", "\\{",
-		"}", "\\}",
-		".", "\\.",
-		"!", "\\!",
-	)
-	return replacer.Replace(strings.TrimSpace(s))
+func escapeHTML(s string) string {
+	return html.EscapeString(strings.TrimSpace(s))
 }
