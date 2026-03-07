@@ -2,20 +2,27 @@ package ebusta.querybuilder
 
 import cats.effect.*
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts
+import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth
 import fs2.grpc.syntax.all.*
 import io.grpc.Metadata
 // ВАЖНО: Импорт Reflection
 import io.grpc.protobuf.services.ProtoReflectionService
+import io.grpc.protobuf.services.HealthStatusManager
+import io.grpc.health.v1.HealthCheckResponse.ServingStatus
+import java.net.InetSocketAddress
 
 import io.circe.*
 import io.circe.syntax.*
-import io.circe.parser.*
 
 import java.io.{FileWriter, FileInputStream}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.Map as JMap
 import org.yaml.snakeyaml.Yaml
+import io.prometheus.client.exporter.HTTPServer
+import io.prometheus.client.hotspot.DefaultExports
 
 import ebusta.qb.v1.query_builder.*
 import ebusta.library.v1.common.*
@@ -105,22 +112,48 @@ object OsDslBuilder {
 object OsStrategy {
   private def isExactField(field: String): Boolean = field == "author_exact" || field == "title_exact" || field == "_all_exact"
 
-  def build(ast: SearchQuery, size: Int, from: Int): (Json, QueryType) = {
+  private def cacheKey(ast: SearchQuery): String = ast.toProtoString
+
+  private def addPagination(base: Json, qType: QueryType, size: Int, from: Int): Json = {
+    qType match {
+      case QueryType.TEMPLATE =>
+        val paramsObj = base.hcursor.downField("params").focus.flatMap(_.asObject).getOrElse(JsonObject.empty)
+        base.deepMerge(
+          Json.obj(
+            "params" -> Json.fromJsonObject(
+              paramsObj
+                .add("size", size.toString.asJson)
+                .add("from", from.toString.asJson)
+            )
+          )
+        )
+      case _ =>
+        Json.obj("size" -> size.asJson, "from" -> from.asJson).deepMerge(base)
+    }
+  }
+
+  private def buildBase(ast: SearchQuery): (Json, QueryType) = {
     ast.query match {
       case SearchQuery.Query.Filter(filter) =>
         if (isExactField(filter.field)) {
           val dslQuery = OsDslBuilder.toDsl(ast)
-          (Json.obj("size" -> size.asJson, "from" -> from.asJson, "query" -> dslQuery), QueryType.DSL)
+          (Json.obj("query" -> dslQuery), QueryType.DSL)
         } else {
           val (tplId, params) = mapToTemplate(filter.field, filter.value)
-          val fullParams = params ++ Map("size" -> size.toString, "from" -> from.toString)
-          (Json.obj("id" -> tplId.asJson, "params" -> fullParams.asJson), QueryType.TEMPLATE)
+          (Json.obj("id" -> tplId.asJson, "params" -> params.asJson), QueryType.TEMPLATE)
         }
       case SearchQuery.Query.Logical(_) =>
         val dslQuery = OsDslBuilder.toDsl(ast)
-        (Json.obj("size" -> size.asJson, "from" -> from.asJson, "query" -> dslQuery), QueryType.DSL)
+        (Json.obj("query" -> dslQuery), QueryType.DSL)
       case _ => (Json.obj(), QueryType.DSL)
     }
+  }
+
+  def build(ast: SearchQuery, size: Int, from: Int): (Json, QueryType) = {
+    val (base, qType) = QueryCache.getOrCompute(cacheKey(ast)) {
+      buildBase(ast)
+    }
+    (addPagination(base, qType, size, from), qType)
   }
 
   private def mapToTemplate(field: String, value: String): (String, Map[String, String]) = field match {
@@ -152,14 +185,60 @@ class QueryBuilderImpl(logger: SimpleLogger) extends QueryBuilderFs2Grpc[IO, Met
 }
 
 object Main extends IOApp {
+  case class RuntimeConfig(
+    listenHost: String,
+    advertiseHost: String,
+    port: Int,
+    cacheMaxSize: Long,
+    cacheTtlSeconds: Long,
+    metricsPort: Int,
+    tlsEnabled: Boolean,
+    tlsCaFile: String,
+    tlsCertFile: String,
+    tlsKeyFile: String
+  )
+
   def getConfigPath(): String = sys.env.getOrElse("EBUSTA_CONFIG", "ebusta.yaml")
    
-  def loadConfig(path: String): (String, Int) = {
+  def loadConfig(path: String): RuntimeConfig = {
     val input = new FileInputStream(path)
     val yaml = new Yaml()
     val data = yaml.load(input).asInstanceOf[JMap[String, Any]]
     val section = data.get("query_builder").asInstanceOf[JMap[String, Any]]
-    (section.get("host").toString, section.get("port").toString.toDouble.toInt)
+    val listenHost = Option(section.get("listen_host"))
+      .orElse(Option(section.get("host")))
+      .map(_.toString)
+      .getOrElse("0.0.0.0")
+    val advertiseHost = Option(section.get("advertise_host"))
+      .orElse(Option(section.get("host")))
+      .map(_.toString)
+      .getOrElse(listenHost)
+    val port = section.get("port").toString.toDouble.toInt
+
+    val cacheSection = Option(section.get("cache")).map(_.asInstanceOf[JMap[String, Any]])
+    val cacheMaxSize = cacheSection
+      .flatMap(s => Option(s.get("max_size")))
+      .orElse(Option(section.get("cache_max_size")))
+      .map(_.toString.toDouble.toLong)
+      .getOrElse(1000L)
+
+    val cacheTtlSeconds = cacheSection
+      .flatMap(s => Option(s.get("ttl_seconds")))
+      .orElse(Option(section.get("cache_ttl_seconds")))
+      .map(_.toString.toDouble.toLong)
+      .getOrElse(60L)
+
+    val metricsSection = Option(data.get("metrics")).map(_.asInstanceOf[JMap[String, Any]])
+    val metricsServices = metricsSection.flatMap(m => Option(m.get("services")).map(_.asInstanceOf[JMap[String, Any]]))
+    val metricsPort = metricsServices.flatMap(s => Option(s.get("query_builder")).map(_.toString.toDouble.toInt)).getOrElse(59053)
+    val mtlsSection = Option(section.get("mtls")).map(_.asInstanceOf[JMap[String, Any]])
+    val tlsEnabled = mtlsSection.flatMap(s => Option(s.get("enabled"))).exists(_.toString.toBoolean)
+    val tlsCaFile = mtlsSection.flatMap(s => Option(s.get("ca_file"))).map(_.toString).getOrElse("")
+    val tlsCertFile = mtlsSection.flatMap(s => Option(s.get("cert_file"))).map(_.toString).getOrElse("")
+    val tlsKeyFile = mtlsSection.flatMap(s => Option(s.get("key_file"))).map(_.toString).getOrElse("")
+    input.close()
+
+    RuntimeConfig(listenHost, advertiseHost, port, cacheMaxSize, cacheTtlSeconds, metricsPort, tlsEnabled, tlsCaFile, tlsCertFile, tlsKeyFile)
   }
 
   override def run(args: List[String]): IO[ExitCode] = {
@@ -174,22 +253,56 @@ object Main extends IOApp {
       }
     } yield config
 
-    initStep.flatMap { case (host, port) =>
+    initStep.flatMap { cfg =>
       val serverResource = for {
-        _ <- Resource.eval(logger.info(s"Listening on $host:$port"))
+        _ <- Resource.eval(logger.info(s"Listening on ${cfg.listenHost}:${cfg.port} (advertise: ${cfg.advertiseHost}:${cfg.port})"))
+        _ <- Resource.eval(if (cfg.tlsEnabled) logger.info("mTLS mode enabled") else logger.info("mTLS mode disabled"))
+        _ <- Resource.eval(IO(QueryCache.configure(cfg.cacheMaxSize, cfg.cacheTtlSeconds)))
+        _ <- Resource.eval(logger.info(s"Cache configured: max_size=${cfg.cacheMaxSize} ttl_seconds=${cfg.cacheTtlSeconds}"))
+        _ <- Resource.eval(IO {
+          DefaultExports.initialize()
+          new HTTPServer(cfg.metricsPort)
+        })
+        _ <- Resource.eval(logger.info(s"Metrics listening on :${cfg.metricsPort}"))
         service <- QueryBuilderFs2Grpc.bindServiceResource[IO](new QueryBuilderImpl(logger))
+        health = new HealthStatusManager()
+        _ <- Resource.eval(IO(health.setStatus("", ServingStatus.SERVING)))
         server <- Resource.make(
-          IO(
-            NettyServerBuilder.forPort(port)
+          IO {
+            val baseBuilder = NettyServerBuilder.forAddress(new InetSocketAddress(cfg.listenHost, cfg.port))
               .addService(service)
-              .addService(ProtoReflectionService.newInstance()) // <--- ВКЛЮЧАЕМ REFLECTION
-              .build()
-              .start()
-          )
+              .addService(health.getHealthService)
+              .addService(ProtoReflectionService.newInstance())
+            val configuredBuilder =
+              if (cfg.tlsEnabled) {
+                val sslCtx = GrpcSslContexts
+                  .forServer(new java.io.File(cfg.tlsCertFile), new java.io.File(cfg.tlsKeyFile))
+                  .trustManager(new java.io.File(cfg.tlsCaFile))
+                  .clientAuth(ClientAuth.REQUIRE)
+                  .build()
+                baseBuilder.sslContext(sslCtx)
+              } else {
+                baseBuilder
+              }
+            configuredBuilder.build().start()
+          }
         )(s => logger.info("=== STOPPING ===") *> IO(s.shutdown().awaitTermination()).void)
       } yield server
 
-      serverResource.use(_ => IO.never).as(ExitCode.Success)
+      serverResource.use { server =>
+        val hookInstalled = new AtomicBoolean(false)
+        for {
+          _ <- IO {
+            if (hookInstalled.compareAndSet(false, true)) {
+              Runtime.getRuntime.addShutdownHook(new Thread(() => {
+                server.shutdown()
+                server.awaitTermination()
+              }))
+            }
+          }
+          _ <- IO.blocking(server.awaitTermination()).void
+        } yield ()
+      }.as(ExitCode.Success)
     }
   }
 }

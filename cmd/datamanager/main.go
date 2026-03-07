@@ -8,14 +8,22 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"sync"
+	"syscall"
+	"time"
 
 	libraryv1 "ebusta/api/proto/v1"
 	"ebusta/internal/config"
 	"ebusta/internal/errutil"
 	"ebusta/internal/logger"
+	"ebusta/internal/metrics"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type storageServer struct {
@@ -174,17 +182,71 @@ func (s *storageServer) SearchBooks(ctx context.Context, req *libraryv1.SearchRe
 func main() {
 	cfg := config.Get()
 	logger.InitFromConfig(cfg.Logger, "datamanager")
+	if err := cfg.Datamanager.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "datamanager config validation failed", err)
+	}
+	if err := cfg.OpenSearch.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "opensearch config validation failed", err)
+	}
+	if err := cfg.Metrics.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "metrics config validation failed", err)
+	}
+	metricsSrv := metrics.Start("datamanager", cfg.Metrics.Services.Datamanager)
 
-	lis, err := net.Listen("tcp", cfg.Datamanager.Address())
+	lis, err := net.Listen("tcp", cfg.Datamanager.ListenAddress())
 	if err != nil {
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to listen", err)
 	}
 
-	s := grpc.NewServer()
+	grpcOpts := []grpc.ServerOption{}
+	if cfg.Datamanager.MTLS.Enabled {
+		creds, tlsErr := cfg.Datamanager.MTLS.ServerTransportCredentials()
+		if tlsErr != nil {
+			logger.GetGlobal().FatalCtx(context.Background(), "failed to configure datamanager mTLS", tlsErr)
+		}
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+	}
+	s := grpc.NewServer(grpcOpts...)
+	hs := health.NewServer()
+	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	healthpb.RegisterHealthServer(s, hs)
 	libraryv1.RegisterStorageServiceServer(s, &storageServer{cfg: cfg})
 
-	logger.GetGlobal().WithField("addr", cfg.Datamanager.Address()).InfoCtx(context.Background(), "[datamanager] started")
-	if err := s.Serve(lis); err != nil {
+	logger.GetGlobal().WithField("addr", cfg.Datamanager.ListenAddress()).InfoCtx(context.Background(), "[datamanager] started")
+	serveErr := make(chan error, 1)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := s.Serve(lis); err != nil {
+			serveErr <- err
+		}
+	}()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case sig := <-stop:
+		logger.GetGlobal().WithField("signal", sig).InfoCtx(context.Background(), "[datamanager] shutting down")
+		mctx, mcancel := context.WithTimeout(context.Background(), 5*time.Second)
+		metrics.Shutdown(mctx, metricsSrv)
+		mcancel()
+		done := make(chan struct{})
+		go func() {
+			s.GracefulStop()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			logger.GetGlobal().WarnCtx(context.Background(), "[datamanager] graceful stop timeout, forcing stop")
+			s.Stop()
+		}
+	case err := <-serveErr:
 		logger.GetGlobal().FatalCtx(context.Background(), "failed to serve", err)
 	}
+
+	wg.Wait()
+	logger.GetGlobal().InfoCtx(context.Background(), "[datamanager] stopped")
 }

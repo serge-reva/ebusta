@@ -12,7 +12,7 @@
 #### 1.1 Внешние адаптеры
 - `cmd/cli` – интерфейс командной строки (Go).
 - `cmd/irc-adapter` – IRC-бот/сервер.
-- `cmd/telegram-adapter` – HTTP-сервер для Telegram-бота.
+- `cmd/json-gateway` – HTTP-сервер для отладочного JSON-шлюза.
 - `cmd/web-frontend` – простой веб-интерфейс (HTML+CSS, без фреймворков).
 - `cmd/web-adapter` – упрощённый HTTP-адаптер (обратная совместимость).
 

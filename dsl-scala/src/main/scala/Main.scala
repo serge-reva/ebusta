@@ -2,16 +2,24 @@ package ebusta.dsl
 
 import cats.effect.*
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts
+import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth
 import fs2.grpc.syntax.all.*
 import scala.util.parsing.combinator.*
 import io.grpc.Metadata
 import io.grpc.protobuf.services.ProtoReflectionService
+import io.grpc.protobuf.services.HealthStatusManager
+import io.grpc.health.v1.HealthCheckResponse.ServingStatus
+import java.net.InetSocketAddress
 
 import java.io.{FileWriter, FileInputStream}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.Map as JMap
 import org.yaml.snakeyaml.Yaml
+import io.prometheus.client.exporter.HTTPServer
+import io.prometheus.client.hotspot.DefaultExports
 
 import ebusta.dsl.v1.dsl.*
 import ebusta.library.v1.common.*
@@ -109,17 +117,43 @@ class DslImpl(logger: SimpleLogger) extends DslTransformerFs2Grpc[IO, Metadata] 
 }
 
 object Main extends IOApp {
+  case class RuntimeConfig(
+    listenHost: String,
+    advertiseHost: String,
+    port: Int,
+    metricsPort: Int,
+    tlsEnabled: Boolean,
+    tlsCaFile: String,
+    tlsCertFile: String,
+    tlsKeyFile: String
+  )
+
   def getConfigPath(): String = sys.env.getOrElse("EBUSTA_CONFIG", "ebusta.yaml")
 
-  def loadConfig(path: String): (String, Int) = {
+  def loadConfig(path: String): RuntimeConfig = {
     val input = new FileInputStream(path)
     val yaml = new Yaml()
     val data = yaml.load(input).asInstanceOf[JMap[String, Any]]
     val dslSection = data.get("dsl_scala").asInstanceOf[JMap[String, Any]]
-    val host = dslSection.get("host").toString
-    val port = dslSection.get("port").toString.toDouble.toInt    
+    val listenHost = Option(dslSection.get("listen_host"))
+      .orElse(Option(dslSection.get("host")))
+      .map(_.toString)
+      .getOrElse("0.0.0.0")
+    val advertiseHost = Option(dslSection.get("advertise_host"))
+      .orElse(Option(dslSection.get("host")))
+      .map(_.toString)
+      .getOrElse(listenHost)
+    val port = dslSection.get("port").toString.toDouble.toInt
+    val metricsSection = Option(data.get("metrics")).map(_.asInstanceOf[JMap[String, Any]])
+    val metricsServices = metricsSection.flatMap(m => Option(m.get("services")).map(_.asInstanceOf[JMap[String, Any]]))
+    val metricsPort = metricsServices.flatMap(s => Option(s.get("dsl_scala")).map(_.toString.toDouble.toInt)).getOrElse(59052)
+    val mtlsSection = Option(dslSection.get("mtls")).map(_.asInstanceOf[JMap[String, Any]])
+    val tlsEnabled = mtlsSection.flatMap(s => Option(s.get("enabled"))).exists(_.toString.toBoolean)
+    val tlsCaFile = mtlsSection.flatMap(s => Option(s.get("ca_file"))).map(_.toString).getOrElse("")
+    val tlsCertFile = mtlsSection.flatMap(s => Option(s.get("cert_file"))).map(_.toString).getOrElse("")
+    val tlsKeyFile = mtlsSection.flatMap(s => Option(s.get("key_file"))).map(_.toString).getOrElse("")
     input.close()
-    (host, port)
+    RuntimeConfig(listenHost, advertiseHost, port, metricsPort, tlsEnabled, tlsCaFile, tlsCertFile, tlsKeyFile)
   }
 
   override def run(args: List[String]): IO[ExitCode] = {
@@ -129,26 +163,58 @@ object Main extends IOApp {
 
     val program = for {
       _ <- logger.info(s"=== DSL SERVER STARTING ===")
-      configTuple <- IO(loadConfig(configPath)).handleErrorWith { e =>
+      cfg <- IO(loadConfig(configPath)).handleErrorWith { e =>
         logger.error(s"Config Error: ${e.getMessage}") *> IO.raiseError(e)
       }
-      (host, port) = configTuple
-
-      _ <- logger.info(s"Listening on $host:$port")
+      _ <- logger.info(s"Listening on ${cfg.listenHost}:${cfg.port} (advertise: ${cfg.advertiseHost}:${cfg.port})")
+      _ <- if (cfg.tlsEnabled) logger.info("mTLS mode enabled") else logger.info("mTLS mode disabled")
+      _ <- IO {
+        DefaultExports.initialize()
+        new HTTPServer(cfg.metricsPort)
+      }
+      _ <- logger.info(s"Metrics listening on :${cfg.metricsPort}")
       _ <- DslTransformerFs2Grpc.bindServiceResource[IO](new DslImpl(logger)).flatMap { service =>
+        val health = new HealthStatusManager()
+        health.setStatus("", ServingStatus.SERVING)
         Resource.make(
-          IO(
-            NettyServerBuilder.forPort(port)
+          IO {
+            val baseBuilder = NettyServerBuilder.forAddress(new InetSocketAddress(cfg.listenHost, cfg.port))
               .addService(service)
+              .addService(health.getHealthService)
               .addService(ProtoReflectionService.newInstance())
-              .build()
-              .start()
-          )
-        )(server =>    
+
+            val configuredBuilder =
+              if (cfg.tlsEnabled) {
+                val sslCtx = GrpcSslContexts
+                  .forServer(new java.io.File(cfg.tlsCertFile), new java.io.File(cfg.tlsKeyFile))
+                  .trustManager(new java.io.File(cfg.tlsCaFile))
+                  .clientAuth(ClientAuth.REQUIRE)
+                  .build()
+                baseBuilder.sslContext(sslCtx)
+              } else {
+                baseBuilder
+              }
+
+            configuredBuilder.build().start()
+          }
+        )(server =>
           logger.info("=== DSL SERVER STOPPING ===") *>    
           IO(server.shutdown().awaitTermination()).void
         )
-      }.use(_ => IO.never)
+      }.use { server =>
+        val hookInstalled = new AtomicBoolean(false)
+        for {
+          _ <- IO {
+            if (hookInstalled.compareAndSet(false, true)) {
+              Runtime.getRuntime.addShutdownHook(new Thread(() => {
+                server.shutdown()
+                server.awaitTermination()
+              }))
+            }
+          }
+          _ <- IO.blocking(server.awaitTermination()).void
+        } yield ()
+      }
     } yield ()
 
     program.as(ExitCode.Success)

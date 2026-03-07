@@ -9,11 +9,11 @@ import (
     "time"
 
     libraryv1 "ebusta/api/proto/v1"
+    "ebusta/internal/config"
     "ebusta/internal/errutil"
     "ebusta/internal/logger"
 
     "google.golang.org/grpc"
-    "google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -44,6 +44,7 @@ type Config struct {
     ParentAddr string
     MaxBytes   int64
     MaxItems   int
+    MTLS       config.GRPCTLSConfig
 }
 
 type Node struct {
@@ -73,7 +74,11 @@ func New(cfg Config) (*Node, error) {
         return nil, errors.New("MaxItems must be > 0")
     }
 
-    conn, err := grpc.Dial(cfg.ParentAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+    creds, err := cfg.MTLS.ClientTransportCredentials()
+    if err != nil {
+        return nil, err
+    }
+    conn, err := grpc.Dial(cfg.ParentAddr, grpc.WithTransportCredentials(creds))
     if err != nil {
         return nil, err
     }

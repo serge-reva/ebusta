@@ -3,9 +3,30 @@ package edge
 import (
 	"context"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
 	"sort"
 	"strings"
 	"sync"
+)
+
+var (
+	registerPromOnce sync.Once
+
+	edgeDecisionsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "edge_decisions_total",
+			Help: "Total number of edge decisions by source/action/decision/reason_code.",
+		},
+		[]string{"source", "action", "decision", "reason_code"},
+	)
+
+	edgeThrottleDroppedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "edge_throttle_dropped_total",
+			Help: "Total number of throttled edge requests by source/action/reason_code.",
+		},
+		[]string{"source", "action", "reason_code"},
+	)
 )
 
 // LabelCounterHook stores Prometheus-style counters by safe low-cardinality labels.
@@ -15,6 +36,9 @@ type LabelCounterHook struct {
 }
 
 func NewLabelCounterHook() *LabelCounterHook {
+	registerPromOnce.Do(func() {
+		prometheus.MustRegister(edgeDecisionsTotal, edgeThrottleDroppedTotal)
+	})
 	return &LabelCounterHook{
 		counters: make(map[string]uint64),
 	}
@@ -27,11 +51,13 @@ func (h *LabelCounterHook) OnDecision(_ context.Context, d Decision) {
 	key := fmt.Sprintf("edge_decisions_total|source=%s|action=%s|decision=%s|reason_code=%s",
 		d.Source, d.Action, d.Decision, d.ReasonCode)
 	h.counters[key]++
+	edgeDecisionsTotal.WithLabelValues(d.Source, d.Action, string(d.Decision), string(d.ReasonCode)).Inc()
 
 	if d.Decision == DecisionThrottle {
 		dropKey := fmt.Sprintf("edge_throttle_dropped_total|source=%s|action=%s|reason_code=%s",
 			d.Source, d.Action, d.ReasonCode)
 		h.counters[dropKey]++
+		edgeThrottleDroppedTotal.WithLabelValues(d.Source, d.Action, string(d.ReasonCode)).Inc()
 	}
 }
 

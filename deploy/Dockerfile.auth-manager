@@ -1,0 +1,21 @@
+FROM debian:stable-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl netcat-openbsd && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /app /var/log/ebusta
+
+ARG GRPC_HEALTH_PROBE_VERSION=v0.4.37
+RUN curl -fsSL -o /app/grpc_health_probe \
+    "https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64" && \
+    chmod +x /app/grpc_health_probe
+
+WORKDIR /app
+
+COPY ./bin/auth-manager /app/auth-manager
+COPY ./cmd/auth-manager/whitelist.yaml /app/whitelist.yaml
+COPY ./deploy/ebusta.docker.yaml /app/ebusta.yaml
+
+EXPOSE 50055
+
+ENTRYPOINT ["/app/auth-manager"]

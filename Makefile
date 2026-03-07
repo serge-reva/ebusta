@@ -4,7 +4,7 @@ LOG_DIR       := ./logs
 API_PROTO_DIR := api/proto/v1
 CONFIG_FILE   := ebusta.yaml
 IRC_ADAPTER_PORT := 6667
-TELEGRAM_ADAPTER_PORT := $(shell sed -n '/telegram_adapter:/,/port:/p' $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
+JSON_GATEWAY_PORT := $(shell sed -n '/telegram_adapter:/,/port:/p' $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
 
 # Пути к Scala компонентам (в корне проекта)
 DSL_DIR := dsl-scala
@@ -27,7 +27,7 @@ DOWNLOADER_PORT := $(shell sed -n '/downloader:/,/listen_port:/p'      $(CONFIG_
 WEB_FRONTEND_PORT := $(shell sed -n '/web_frontend:/,/listen_port:/p'  $(CONFIG_FILE) | grep listen_port | awk '{print $$2}')
 GATEWAY_PORT    := $(shell sed -n '/gateway:/,/port:/p'                $(CONFIG_FILE) | grep port | head -1 | awk '{print $$2}')
 
-.PHONY: all build proto proto-generate proto-verify build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-telegram up down restart test clean architecture-check docs-check proto-lint proto-breaking test-go test-scala test-unit test-integration test-e2e test-load ci-check docker-build docker-up docker-down docker-logs docker-status
+.PHONY: all build proto proto-generate proto-verify openapi-generate build-scala build-go build-cli build-search-go build-web-frontend build-downloads-go build-gateway build-irc build-json-gateway build-telegram-bot up down restart test clean architecture-check docs-check docs-refresh certs-generate proto-lint proto-breaking test-go test-scala test-unit test-integration test-e2e test-load ci-check docker-build docker-up docker-down docker-logs docker-status
 
 all: build
 
@@ -50,6 +50,13 @@ proto-verify: proto-generate proto-lint proto-breaking
 	@git diff --quiet -- $(API_PROTO_DIR)/*.pb.go $(API_PROTO_DIR)/*_grpc.pb.go || (echo "❌ Generated proto files are out of date. Run 'make proto-generate' and commit changes."; exit 1)
 	@echo "✅ proto-verify passed"
 
+openapi-generate:
+	@mkdir -p docs/api
+	@test -f docs/api/openapi.yaml || (echo "❌ docs/api/openapi.yaml is missing"; exit 1)
+	@echo "🔎 Validating docs/api/openapi.yaml ..."
+	@docker run --rm -v "$$(pwd):/work" -w /work node:20-alpine sh -lc "npm -s i -g @apidevtools/swagger-cli >/dev/null && swagger-cli validate docs/api/openapi.yaml"
+	@echo "✅ openapi-generate passed"
+
 build-scala: $(DSL_JAR) $(QB_JAR)
 	@echo "✅ Scala build up-to-date."
 
@@ -59,10 +66,15 @@ build-irc: proto
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/irc-adapter ./cmd/irc-adapter
 
-build-telegram: proto
-	@echo "🛠 Building Telegram adapter..."
+build-json-gateway: proto
+	@echo "🛠 Building JSON gateway..."
 	@mkdir -p $(BIN_DIR)
-	@go build -o $(BIN_DIR)/telegram-adapter ./cmd/telegram-adapter
+	@go build -o $(BIN_DIR)/json-gateway ./cmd/json-gateway
+
+build-telegram-bot: proto
+	@echo "🛠 Building Telegram bot..."
+	@mkdir -p $(BIN_DIR)
+	@go build -o $(BIN_DIR)/telegram-bot ./cmd/telegram-bot
 
 $(DSL_JAR): $(DSL_SCALA_SRC) $(PROTO_SRC)
 	@echo "🛠 Building DSL Scala..."
@@ -106,7 +118,7 @@ build-gateway: proto
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/gateway ./cmd/gateway
 
-build-go: build-search-go build-cli build-web-frontend build-downloads-go build-gateway build-irc build-telegram
+build-go: build-search-go build-cli build-web-frontend build-downloads-go build-gateway build-irc build-json-gateway build-telegram-bot
 	@echo "✅ Go build done."
 
 build: proto build-scala build-go
@@ -114,7 +126,7 @@ build: proto build-scala build-go
 
 down:
 	@echo "🛑 Stopping all services..."
-	@-pkill -9 -f "datamanager|orchestrator|web-adapter|web-frontend|gateway|dsl-server.jar|query-builder.jar|archive-node|tier-node|plasma-node|downloader|irc-adapter|telegram-adapter" || true
+	@-pkill -9 -f "datamanager|orchestrator|web-adapter|web-frontend|gateway|dsl-server.jar|query-builder.jar|archive-node|tier-node|plasma-node|downloader|irc-adapter|json-gateway" || true
 	@sleep 1
 
 up: down
@@ -169,13 +181,13 @@ up: down
 	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/irc-adapter >> $(LOG_DIR)/irc.log 2>&1 & sleep 0.5
 	@pgrep -f irc-adapter > /dev/null && echo "✅ RUNNING on port $(IRC_ADAPTER_PORT)" || echo "❌ FAILED"
 
-	@echo -n "   - Telegram Adapter: "
-	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/telegram-adapter >> $(LOG_DIR)/telegram.log 2>&1 & sleep 0.5
-	@pgrep -f telegram-adapter > /dev/null && echo "✅ RUNNING on port $(TELEGRAM_ADAPTER_PORT)" || echo "❌ FAILED"
+	@echo -n "   - JSON Gateway: "
+	@EBUSTA_CONFIG=./$(CONFIG_FILE) $(BIN_DIR)/json-gateway >> $(LOG_DIR)/json-gateway.log 2>&1 & sleep 0.5
+	@pgrep -f json-gateway > /dev/null && echo "✅ RUNNING on port $(JSON_GATEWAY_PORT)" || echo "❌ FAILED"
 
 
 	@echo "\n📊 Active processes:"
-	@ps aux | grep -v grep | grep -E "archive-node|tier-node|plasma-node|downloader|web-adapter|orchestrator|datamanager|gateway|irc-adapter|telegram-adapter"
+	@ps aux | grep -v grep | grep -E "archive-node|tier-node|plasma-node|downloader|web-adapter|orchestrator|datamanager|gateway|irc-adapter|json-gateway"
 
 restart: up
 
@@ -209,6 +221,17 @@ docs-check:
 	@test -f docs/TRACE.md || echo "⚠️  docs/TRACE.md missing"
 	@echo "✅ docs-check passed (warnings are non-fatal for now)"
 
+.PHONY: docs-refresh
+docs-refresh:
+	@echo "📚 docs/"
+	@ls -1 docs | sed 's/^/ - docs\//'
+	@echo "📚 test/classification/"
+	@ls -1 test/classification | sed 's/^/ - test\/classification\//'
+
+.PHONY: certs-generate
+certs-generate:
+	./scripts/gen-certs.sh
+
 .PHONY: proto-lint proto-breaking
 proto-lint:
 	@command -v buf >/dev/null 2>&1 || (echo "❌ buf not installed"; exit 1)
@@ -220,7 +243,12 @@ proto-breaking:
 
 .PHONY: test-go
 test-go:
-	go test ./...
+	go test $$(go list ./... 2>/dev/null | grep -v -e '^ebusta/old_do_not_use')
+
+
+.PHONY: test-telegram-bot
+test-telegram-bot:
+	go test ./cmd/telegram-bot ./internal/telegrambot/... ./internal/botcommand ./internal/config
 
 .PHONY: test-scala
 test-scala:
@@ -230,18 +258,22 @@ test-scala:
 
 .PHONY: test-unit
 test-unit:
-	go test -short $$(go list ./... | grep -v '^ebusta/tests')
+	go test -short $$(go list ./... 2>/dev/null | grep -v -e '^ebusta/tests' -e '^ebusta/old_do_not_use')
 
 .PHONY: test-integration
 test-integration:
-	go test ./internal/gateway/... ./internal/logger/... ./cmd/irc-adapter ./cmd/telegram-adapter ./tests/errutil ./tests/gateway
+	go test $$(go list ./internal/gateway/... ./internal/logger/... ./internal/telegrambot/... ./cmd/telegram-bot ./cmd/irc-adapter ./cmd/json-gateway ./tests/errutil ./tests/gateway | grep -v -e '^ebusta/old_do_not_use')
+
+.PHONY: test-e2e-telegram
+test-e2e-telegram:
+	./test/e2e/telegram_bot.sh
 
 .PHONY: test-e2e
 test-e2e:
 	@set -e; \
 	$(MAKE) docker-up; \
 	ec=0; \
-	for t in ./test/e2e/datamanager.sh ./test/e2e/orchestrator.sh ./test/e2e/cli_results.sh ./test/e2e/errutil.sh ./test/e2e/dsl_multiword.sh; do \
+	for t in ./test/e2e/datamanager.sh ./test/e2e/orchestrator.sh ./test/e2e/cli_results.sh ./test/e2e/errutil.sh ./test/e2e/dsl_multiword.sh ./test/e2e/test_failures.sh; do \
 		echo "▶ Running $$t"; \
 		if ! $$t; then ec=$$?; break; fi; \
 	done; \
@@ -263,6 +295,7 @@ docker-build:
 
 .PHONY: docker-up
 docker-up:
+	@test -f certs/ca.crt || (echo "❌ certs not found. Run: make certs-generate"; exit 1)
 	docker compose up -d
 
 .PHONY: docker-down

@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -15,6 +16,7 @@ import (
 	"ebusta/internal/config"
 	"ebusta/internal/edge"
 	"ebusta/internal/logger"
+	"ebusta/internal/metrics"
 )
 
 func main() {
@@ -27,6 +29,15 @@ func main() {
 
 	os.Setenv("EBUSTA_CONFIG", configPath)
 	cfg := config.Get()
+	if err := cfg.Metrics.Validate(); err != nil {
+		log.Fatalf("irc-adapter metrics config validation failed: %v", err)
+	}
+	metricsSrv := metrics.Start("irc-adapter", cfg.Metrics.Services.IRCAdapter)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		metrics.Shutdown(ctx, metricsSrv)
+	}()
 	ircCfg := loadIRCConfig(cfg, verbose)
 
 	logCfg := cfg.Logger
@@ -34,6 +45,9 @@ func main() {
 		logCfg.Level = "DEBUG"
 	}
 	logger.InitFromConfig(logCfg, "irc")
+	if err := ircCfg.Validate(); err != nil {
+		logger.GetGlobal().FatalCtx(context.Background(), "irc-adapter config validation failed", err)
+	}
 
 	policy := edge.PolicyFromConfig(cfg, "irc")
 	handler := NewIRCHandlerWithPolicy(ircCfg.GatewayURL, ircCfg.PageSize, ircCfg.Debug, policy, edge.NewLabelCounterHook())

@@ -5,7 +5,7 @@
 ### Контекст
 Проект: ebusta (monorepo). Ты работаешь прямо в репозитории.  
 Твоя основная зона ответственности:
-- Go-сервисы: `cmd/gateway`, `cmd/orchestrator`, `cmd/datamanager`, `cmd/web-adapter`, `cmd/irc-adapter`, `cmd/telegram-adapter`, `cmd/web-frontend`
+- Go-сервисы: `cmd/gateway`, `cmd/orchestrator`, `cmd/datamanager`, `cmd/web-adapter`, `cmd/irc-adapter`, `cmd/json-gateway`, `cmd/web-frontend`
 - Инфраструктура: `Makefile`, `docker-compose.yml`, `ebusta.yaml`
 - Общие библиотеки: `internal/gateway`, `internal/edge`, `internal/presenter`, `internal/search`
 

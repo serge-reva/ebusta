@@ -1,0 +1,22 @@
+services:
+  gateway:
+    image: python:3.12-alpine
+    working_dir: /app
+    command: ["python3", "/app/test/e2e/telegram_gateway_mock.py"]
+    volumes:
+      - ../..:/app:ro
+
+  telegram-bot:
+    image: ebusta-telegram-bot:local
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile.telegram-bot
+    environment:
+      EBUSTA_CONFIG: /app/telegram-bot.e2e.yaml
+    volumes:
+      - ./telegram-bot.ebusta.yaml:/app/telegram-bot.e2e.yaml:ro
+    depends_on:
+      gateway:
+        condition: service_started
+    ports:
+      - "8088:8088"

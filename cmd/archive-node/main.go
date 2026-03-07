@@ -1,16 +1,25 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 
 	libraryv1 "ebusta/api/proto/v1"
 	"ebusta/internal/config"
 	"ebusta/internal/downloads/archive"
+	"ebusta/internal/metrics"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 func main() {
@@ -22,6 +31,10 @@ func main() {
 	flag.Parse()
 
 	cfg := config.Get()
+	if err := cfg.Metrics.Validate(); err != nil {
+		log.Fatalf("archive-node metrics config validation failed: %v", err)
+	}
+	metricsSrv := metrics.Start("archive-node", cfg.Metrics.Services.ArchiveNode)
 	arch := cfg.Downloads.ArchiveNode
 
 	// overrides
@@ -53,11 +66,55 @@ func main() {
 		os.Exit(1)
 	}
 
-	s := grpc.NewServer()
+	grpcOpts := []grpc.ServerOption{}
+	if arch.MTLS.Enabled {
+		creds, tlsErr := arch.MTLS.ServerTransportCredentials()
+		if tlsErr != nil {
+			fmt.Fprintf(os.Stderr, "archive-node tls config error: %v\n", tlsErr)
+			os.Exit(2)
+		}
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+	}
+	s := grpc.NewServer(grpcOpts...)
+	hs := health.NewServer()
+	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	healthpb.RegisterHealthServer(s, hs)
 	libraryv1.RegisterStorageNodeServer(s, node)
 
-	if err := s.Serve(lis); err != nil {
+	serveErr := make(chan error, 1)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := s.Serve(lis); err != nil {
+			serveErr <- err
+		}
+	}()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case sig := <-stop:
+		fmt.Fprintf(os.Stderr, "archive-node received %s, shutting down\n", sig)
+		mctx, mcancel := context.WithTimeout(context.Background(), 5*time.Second)
+		metrics.Shutdown(mctx, metricsSrv)
+		mcancel()
+		done := make(chan struct{})
+		go func() {
+			s.GracefulStop()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			fmt.Fprintln(os.Stderr, "archive-node graceful stop timeout, forcing stop")
+			s.Stop()
+		}
+	case err := <-serveErr:
 		fmt.Fprintf(os.Stderr, "archive-node serve: %v\n", err)
 		os.Exit(1)
 	}
+
+	wg.Wait()
 }

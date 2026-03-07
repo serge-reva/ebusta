@@ -10,8 +10,8 @@ func TestLoadTelegramConfigDefaultsAndVerbose(t *testing.T) {
 	cfg := &config.Config{TelegramAdapter: config.TelegramAdapterConfig{}}
 	tg := loadTelegramConfig(cfg, true)
 
-	if tg.Host != "0.0.0.0" {
-		t.Fatalf("default host mismatch: %s", tg.Host)
+	if tg.ListenHost != "0.0.0.0" {
+		t.Fatalf("default listen_host mismatch: %s", tg.ListenHost)
 	}
 	if tg.Port != 8087 {
 		t.Fatalf("default port mismatch: %d", tg.Port)
@@ -29,7 +29,7 @@ func TestLoadTelegramConfigDefaultsAndVerbose(t *testing.T) {
 
 func TestLoadTelegramConfigKeepsExplicitValues(t *testing.T) {
 	cfg := &config.Config{TelegramAdapter: config.TelegramAdapterConfig{
-		Host:       "127.0.0.1",
+		ListenHost: "127.0.0.1",
 		Port:       8090,
 		GatewayURL: "http://gw:8443",
 		PageSize:   7,
@@ -37,8 +37,8 @@ func TestLoadTelegramConfigKeepsExplicitValues(t *testing.T) {
 	}}
 	tg := loadTelegramConfig(cfg, false)
 
-	if tg.Host != "127.0.0.1" || tg.Port != 8090 {
-		t.Fatalf("expected explicit host/port, got %s:%d", tg.Host, tg.Port)
+	if tg.ListenHost != "127.0.0.1" || tg.Port != 8090 {
+		t.Fatalf("expected explicit listen_host/port, got %s:%d", tg.ListenHost, tg.Port)
 	}
 	if tg.GatewayURL != "http://gw:8443" {
 		t.Fatalf("expected explicit gateway_url, got %s", tg.GatewayURL)
@@ -48,5 +48,16 @@ func TestLoadTelegramConfigKeepsExplicitValues(t *testing.T) {
 	}
 	if tg.Debug {
 		t.Fatalf("debug should stay false")
+	}
+}
+
+func TestLoadTelegramConfigFallsBackToLegacyHost(t *testing.T) {
+	cfg := &config.Config{TelegramAdapter: config.TelegramAdapterConfig{
+		Host: "127.0.0.2",
+		Port: 8087,
+	}}
+	tg := loadTelegramConfig(cfg, false)
+	if tg.ListenHost != "127.0.0.2" {
+		t.Fatalf("expected legacy host fallback, got %s", tg.ListenHost)
 	}
 }

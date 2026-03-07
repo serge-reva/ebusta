@@ -5,14 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"ebusta/internal/config"
 	"ebusta/internal/gateway/clients"
+	"ebusta/internal/gateway/download"
 	"ebusta/internal/gateway/mapper"
 	"ebusta/internal/gateway/middleware"
 	"ebusta/internal/gateway/validation"
 	"ebusta/internal/logger"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Server struct {
@@ -24,6 +27,9 @@ type Server struct {
 
 	orchestrator *clients.OrchestratorClient
 	downloader   *clients.DownloaderClient
+	downloadMode string
+
+	downloadBackend download.DownloadBackend
 
 	rateLimiter *middleware.RateLimiter
 	cors        *middleware.CORS
@@ -47,6 +53,18 @@ func NewServer(cfg *config.GatewayRuntimeConfig) (*Server, error) {
 	}
 
 	downloader := clients.NewDownloaderClient(cfg.Services.Downloader)
+	downloadMode := strings.ToLower(strings.TrimSpace(cfg.DownloadMode))
+	if downloadMode == "" {
+		downloadMode = "direct"
+	}
+
+	var downloadBackend download.DownloadBackend
+	switch downloadMode {
+	case "direct":
+		downloadBackend = download.NewDirectBackend(mapper, downloader)
+	default:
+		return nil, fmt.Errorf("unsupported gateway download_mode: %s", downloadMode)
+	}
 
 	rateLimiter := middleware.NewRateLimiter(cfg)
 	cors := middleware.NewCORS(&cfg.CORS)
@@ -56,19 +74,21 @@ func NewServer(cfg *config.GatewayRuntimeConfig) (*Server, error) {
 	recover := &middleware.Recover{}
 
 	s := &Server{
-		config:       cfg,
-		mapper:       mapper,
-		validator:    validator,
-		sizeLimiter:  sizeLimiter,
-		sanitizer:    sanitizer,
-		orchestrator: orchestrator,
-		downloader:   downloader,
-		rateLimiter:  rateLimiter,
-		cors:         cors,
-		security:     security,
-		csrf:         csrf,
-		contentType:  contentType,
-		recover:      recover,
+		config:          cfg,
+		mapper:          mapper,
+		validator:       validator,
+		sizeLimiter:     sizeLimiter,
+		sanitizer:       sanitizer,
+		orchestrator:    orchestrator,
+		downloader:      downloader,
+		downloadMode:    downloadMode,
+		downloadBackend: downloadBackend,
+		rateLimiter:     rateLimiter,
+		cors:            cors,
+		security:        security,
+		csrf:            csrf,
+		contentType:     contentType,
+		recover:         recover,
 	}
 
 	return s, nil
@@ -82,6 +102,7 @@ func (s *Server) setupRoutes() http.Handler {
 	mux.HandleFunc("/download/", s.handleDownload)
 	mux.HandleFunc("/download/token/", s.handleDownloadToken)
 	mux.HandleFunc("/debug/mapper", s.handleDebug)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	handler := s.recover.Middleware(mux)
 	handler = s.security.Middleware(handler)
@@ -94,7 +115,7 @@ func (s *Server) setupRoutes() http.Handler {
 }
 
 func (s *Server) Run() error {
-	addr := fmt.Sprintf(":%d", s.config.Port)
+	addr := fmt.Sprintf("%s:%d", s.config.ListenHost, s.config.Port)
 	handler := s.setupRoutes()
 
 	s.httpServer = &http.Server{
@@ -105,7 +126,7 @@ func (s *Server) Run() error {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	logger.GetGlobal().WithField("port", s.config.Port).WithField("tls", s.config.TLSCert != "").InfoCtx(context.Background(), "gateway starting")
+	logger.GetGlobal().WithField("addr", addr).WithField("tls", s.config.TLSCert != "").InfoCtx(context.Background(), "gateway starting")
 
 	if s.config.TLSCert != "" && s.config.TLSKey != "" {
 		return s.httpServer.ListenAndServeTLS(s.config.TLSCert, s.config.TLSKey)

@@ -8,24 +8,55 @@ datamanager:
   host: "localhost"
   port: 50051
   debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/datamanager/datamanager.crt"
+    key_file: "./certs/datamanager/datamanager.key"
 
 dsl_scala:
   protocol: "grpc"
   host: "localhost"
   port: 50052
   debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/dsl-scala/dsl-scala.crt"
+    key_file: "./certs/dsl-scala/dsl-scala.key"
 
 query_builder:
   protocol: "grpc"
   host: "localhost"
   port: 50053
   debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/query-builder/query-builder.crt"
+    key_file: "./certs/query-builder/query-builder.key"
 
 orchestrator:
   protocol: "grpc"
   host: "localhost"
   port: 50054
   debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/orchestrator/orchestrator.crt"
+    key_file: "./certs/orchestrator/orchestrator.key"
+
+auth_manager:
+  protocol: "grpc"
+  host: "localhost"
+  port: 50055
+  debug: false
+  mtls:
+    enabled: false
+    ca_file: "./certs/ca.crt"
+    cert_file: "./certs/auth-manager/auth-manager.crt"
+    key_file: "./certs/auth-manager/auth-manager.key"
 
 web_adapter:
   protocol: "http"
@@ -36,23 +67,47 @@ web_adapter:
 web_frontend:
   port: 3000
   page_size: 20
-  downloader_addr: "localhost:50081"
+  gateway_url: "http://localhost:8443"
   debug: false
 
 metrics:
   port: 50090
+  services:
+    gateway: 59001
+    orchestrator: 59054
+    datamanager: 59051
+    downloader: 59081
+    archive_node: 59110
+    tier_node: 59111
+    plasma_node: 59112
+    auth_manager: 59055
+    irc_adapter: 59667
+    telegram_adapter: 59087
+    web_frontend: 59300
+    dsl_scala: 59052
+    query_builder: 59053
 
 downloads:
   archive_node:
     listen_port: 50110
     zip_root: "//mnt/fb2/fb2.Flibusta.Net/"
     sqlite: "./archive.meta.sqlite"
+    mtls:
+      enabled: false
+      ca_file: "./certs/ca.crt"
+      cert_file: "./certs/archive-node/archive-node.crt"
+      key_file: "./certs/archive-node/archive-node.key"
 
   tier_node:
     listen_port: 50111
     root_path: "./tier.data"
     sqlite: "./tier.meta.sqlite"
     parent: "localhost:50110"
+    mtls:
+      enabled: false
+      ca_file: "./certs/ca.crt"
+      cert_file: "./certs/tier-node/tier-node.crt"
+      key_file: "./certs/tier-node/tier-node.key"
 
   plasma_node:
     listen_port: 50112
@@ -60,10 +115,20 @@ downloads:
     max_bytes: 1073741824
     max_items: 1000
     debug: ":8091"
+    mtls:
+      enabled: false
+      ca_file: "./certs/ca.crt"
+      cert_file: "./certs/plasma-node/plasma-node.crt"
+      key_file: "./certs/plasma-node/plasma-node.key"
 
   downloader:
     listen_port: 50081
     plasma: "localhost:50112"
+    mtls:
+      enabled: false
+      ca_file: "./certs/ca.crt"
+      cert_file: "./certs/downloader/downloader.crt"
+      key_file: "./certs/downloader/downloader.key"
 
   cli:
     download_dir: "./downloads"
@@ -195,10 +260,28 @@ irc_adapter:
   
 
 telegram_adapter:
-  host: "0.0.0.0"
+  listen_host: "0.0.0.0"
   port: 8087
   gateway_url: "http://localhost:8443"
   page_size: 5
+  debug: false
+
+telegram_bot:
+  enabled: false
+  mode: "polling"
+  mock_mode: false
+  listen_host: "0.0.0.0"
+  listen_port: 8088
+  bot_token: ""
+  gateway_url: "http://localhost:8443"
+  page_size: 5
+  webhook_url: ""
+  webhook_secret: ""
+  timeouts:
+    read_timeout_sec: 5
+    write_timeout_sec: 10
+    shutdown_timeout_sec: 10
+    poll_timeout_sec: 30
   debug: false
 
 edge:

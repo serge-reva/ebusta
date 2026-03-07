@@ -1,0 +1,18 @@
+services:
+  archive-node:
+    image: "{{ docker_registry }}/ebusta-archive-node:{{ image_tag }}"
+    ports:
+      - "50110:50110"
+    volumes:
+      - ./ebusta.yaml:/app/ebusta.yaml:ro
+      - "{{ archive_node_zip_root }}:/fb2:ro"
+      - /opt/ebusta:/opt/ebusta
+    environment:
+      - EBUSTA_CONFIG=/app/ebusta.yaml
+    healthcheck:
+      test: ["CMD", "/app/grpc_health_probe", "-addr=localhost:50110"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped

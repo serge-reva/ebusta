@@ -147,6 +147,7 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 	if traceID == "" {
 		traceID = logger.GenerateTraceID("gw-dl")
 	}
+	ctx = errutil.ContextWithTraceID(ctx, traceID)
 
 	token := strings.TrimPrefix(r.URL.Path, "/download/")
 	token = strings.TrimSpace(token)
@@ -168,29 +169,21 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sha1, _, err := s.mapper.Resolve(token)
+	meta, err := s.downloadBackend.GetMeta(ctx, token)
 	if err != nil {
-		logger.GetGlobal().WithField("token", s.sanitizer.SanitizeForLog(token)).WithField("error", err.Error()).WarnCtx(ctx, "token resolve failed")
-
+		logger.GetGlobal().WithField("token", s.sanitizer.SanitizeForLog(token)).WithField("error", err.Error()).WarnCtx(ctx, "download meta failed")
 		switch err {
 		case mapper.ErrTokenExpired:
 			errutil.WriteJSONError(w, errutil.New(
 				errutil.CodeNotFound,
 				"download token expired",
 			).WithTrace(traceID))
-		default:
+		case mapper.ErrTokenInvalid:
 			errutil.WriteJSONError(w, errutil.New(
 				errutil.CodeNotFound,
 				"invalid download token",
 			).WithTrace(traceID))
-		}
-		return
-	}
-
-	if r.Method == http.MethodHead {
-		meta, err := s.downloader.GetMetaWithTrace(sha1, traceID)
-		if err != nil {
-			logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "failed to get meta", err)
+		default:
 			var appErr *errutil.AppError
 			if errors.As(err, &appErr) {
 				errutil.WriteJSONError(w, appErr)
@@ -200,9 +193,11 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 				errutil.CodeInternal,
 				"failed to get book metadata",
 			).WithTrace(traceID).WithDetails(err.Error()))
-			return
 		}
+		return
+	}
 
+	if r.Method == http.MethodHead {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", meta.Filename))
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", meta.Size))
@@ -210,12 +205,34 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+	if r.URL.Query().Get("meta") == "1" {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Trace-Id", traceID)
+		json.NewEncoder(w).Encode(meta)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", meta.Filename))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", meta.Size))
 	w.Header().Set("X-Trace-Id", traceID)
 
-	if err := s.downloader.StreamBookWithTrace(sha1, w, traceID); err != nil {
-		logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(ctx, "failed to stream book", err)
+	if err := s.downloadBackend.GetFile(ctx, token, w); err != nil {
+		logger.GetGlobal().WithField("token", s.sanitizer.SanitizeForLog(token)).ErrorCtx(ctx, "failed to stream book", err)
+		switch err {
+		case mapper.ErrTokenExpired:
+			errutil.WriteJSONError(w, errutil.New(
+				errutil.CodeNotFound,
+				"download token expired",
+			).WithTrace(traceID))
+			return
+		case mapper.ErrTokenInvalid:
+			errutil.WriteJSONError(w, errutil.New(
+				errutil.CodeNotFound,
+				"invalid download token",
+			).WithTrace(traceID))
+			return
+		}
 		var appErr *errutil.AppError
 		if errors.As(err, &appErr) {
 			errutil.WriteJSONError(w, appErr)
@@ -238,21 +255,21 @@ func (s *Server) handleDownloadToken(w http.ResponseWriter, r *http.Request) {
 	if traceID == "" {
 		traceID = logger.GenerateTraceID("gw-token")
 	}
+	ctx := errutil.ContextWithTraceID(r.Context(), traceID)
 
 	token := strings.TrimPrefix(r.URL.Path, "/download/token/")
 
-	sha1, _, err := s.mapper.Resolve(token)
+	meta, err := s.downloadBackend.GetMeta(ctx, token)
 	if err != nil {
-		errutil.WriteJSONError(w, errutil.New(
-			errutil.CodeNotFound,
-			"invalid token",
-		).WithTrace(traceID))
-		return
-	}
-
-	meta, err := s.downloader.GetMetaWithTrace(sha1, traceID)
-	if err != nil {
-		logger.GetGlobal().WithField("sha1", sha1).ErrorCtx(r.Context(), "failed to get metadata", err)
+		switch err {
+		case mapper.ErrTokenExpired, mapper.ErrTokenInvalid:
+			errutil.WriteJSONError(w, errutil.New(
+				errutil.CodeNotFound,
+				"invalid token",
+			).WithTrace(traceID))
+			return
+		}
+		logger.GetGlobal().WithField("token", s.sanitizer.SanitizeForLog(token)).ErrorCtx(ctx, "failed to get metadata", err)
 		var appErr *errutil.AppError
 		if errors.As(err, &appErr) {
 			errutil.WriteJSONError(w, appErr)
@@ -272,6 +289,9 @@ func (s *Server) handleDownloadToken(w http.ResponseWriter, r *http.Request) {
 		ExpiresIn: expiresIn,
 		Size:      meta.Size,
 		Filename:  meta.Filename,
+	}
+	if link, lerr := s.downloadBackend.GenerateLink(ctx, token); lerr == nil && link != "" {
+		response.Token = link
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -1,0 +1,36 @@
+logger:
+  level: INFO
+  format: text
+  outputs:
+    console:
+      enabled: true
+
+edge:
+  reload_mode: restart
+  default:
+    max_line_length: 512
+    max_body_bytes: 1048576
+    max_json_depth: 10
+    actions:
+      command:
+        per_minute: 30
+        burst: 30
+  sources: {}
+
+telegram_bot:
+  enabled: true
+  mock_mode: true
+  mode: "webhook"
+  listen_host: "0.0.0.0"
+  listen_port: 8088
+  bot_token: ""
+  gateway_url: "http://gateway:8443"
+  page_size: 5
+  webhook_url: "http://localhost:8088/webhook"
+  webhook_secret: "e2e-secret"
+  timeouts:
+    read_timeout_sec: 5
+    write_timeout_sec: 10
+    shutdown_timeout_sec: 10
+    poll_timeout_sec: 30
+  debug: false

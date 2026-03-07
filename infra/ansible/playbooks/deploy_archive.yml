@@ -1,0 +1,42 @@
+---
+- name: Deploy archive node on neptune
+  hosts: neptune
+  become: true
+  tasks:
+    - name: Create base directory
+      ansible.builtin.file:
+        path: /opt/ebusta
+        state: directory
+        mode: "0755"
+
+    - name: Render ebusta config
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../templates/ebusta.yaml.j2"
+        dest: /opt/ebusta/ebusta.yaml
+        mode: "0644"
+
+    - name: Render archive compose
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../templates/docker-compose.archive.yml.j2"
+        dest: /opt/ebusta/docker-compose.yml
+        mode: "0644"
+
+    - name: Pull archive image
+      community.docker.docker_compose_v2:
+        project_src: /opt/ebusta
+        pull: always
+
+    - name: Start archive service
+      community.docker.docker_compose_v2:
+        project_src: /opt/ebusta
+        state: present
+
+    - name: Wait for archive health probe
+      ansible.builtin.command: docker compose exec -T archive-node /app/grpc_health_probe -addr=localhost:50110
+      args:
+        chdir: /opt/ebusta
+      register: archive_health
+      until: archive_health.rc == 0
+      retries: 30
+      delay: 2
+      changed_when: false

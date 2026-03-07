@@ -1,0 +1,51 @@
+---
+- name: Deploy f2bulker on cloud-1
+  hosts: bulker
+  become: true
+  vars:
+    f2bulker_owner: "{{ ansible_user | default('serge') }}"
+    f2bulker_group: "{{ ansible_user | default('serge') }}"
+  tasks:
+    - name: Install jq
+      ansible.builtin.apt:
+        name: jq
+        state: present
+        update_cache: true
+
+    - name: Create f2bulker directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ f2bulker_owner }}"
+        group: "{{ f2bulker_group }}"
+        mode: "0755"
+      loop:
+        - "{{ f2bulker_install_dir }}"
+        - "{{ f2bulker_install_dir }}/data/out"
+        - "{{ f2bulker_install_dir }}/data/warn"
+        - "{{ f2bulker_install_dir }}/logs"
+        - "{{ f2bulker_install_dir }}/scripts"
+
+    - name: Copy f2bulker binary
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../../f2bulker/bin/f2bulker"
+        dest: "{{ f2bulker_install_dir }}/f2bulker"
+        owner: "{{ f2bulker_owner }}"
+        group: "{{ f2bulker_group }}"
+        mode: "0755"
+
+    - name: Copy bulk upload script
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../../f2bulker/scripts/bulk_upload.sh"
+        dest: "{{ f2bulker_install_dir }}/scripts/bulk_upload.sh"
+        owner: "{{ f2bulker_owner }}"
+        group: "{{ f2bulker_group }}"
+        mode: "0755"
+
+    - name: Render f2bulker config
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../templates/f2bulker/config.yaml.j2"
+        dest: "{{ f2bulker_install_dir }}/config.yaml"
+        owner: "{{ f2bulker_owner }}"
+        group: "{{ f2bulker_group }}"
+        mode: "0644"

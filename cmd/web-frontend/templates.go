@@ -1,10 +1,8 @@
 package main
 
 import (
-    "html/template"
-    "net/http"
-
-    "ebusta/internal/presenter"
+	"html/template"
+	"net/http"
 )
 
 // cssStyles — стили для визуальных компонентов
@@ -39,9 +37,8 @@ const cssStyles = `
 
 // templateFuncs — функции для использования в шаблонах
 var templateFuncs = template.FuncMap{
-    "urlEscape": urlEscape,
-    "add":       func(a, b int) int { return a + b },
-    "sub":       func(a, b int) int { return a - b },
+	"add": func(a, b int) int { return a + b },
+	"sub": func(a, b int) int { return a - b },
 }
 
 // tmpl — базовый шаблонизатор
@@ -68,7 +65,7 @@ var indexTmpl = template.Must(template.Must(tmpl.Clone()).Parse(`
 {{end}}
 `))
 
-// resultsTmpl — страница с результатами поиска (использует presenter.PresenterResult)
+// resultsTmpl — страница с результатами поиска
 var resultsTmpl = template.Must(template.Must(tmpl.Clone()).Parse(`
 {{define "content"}}
 <form id="search-form" action="/search" method="get">
@@ -82,51 +79,40 @@ var resultsTmpl = template.Must(template.Must(tmpl.Clone()).Parse(`
         <tr class="table-header">
             <th>Title</th>
             <th>Authors</th>
-            <th>ID</th>
-            <th>File</th>
+            <th>Download</th>
         </tr>
     </thead>
     <tbody>
     {{range .Result.Books}}
-        <tr class="table-row" onclick="window.location='/download/{{.ID}}?q={{$.Query | urlEscape}}'">
+        <tr class="table-row" onclick="window.location='{{.DownloadURL}}?q={{$.Query}}'">
             <td class="table-cell-title">{{.Title}}</td>
             <td class="table-cell-authors">{{.FullAuthors}}</td>
-            <td class="table-cell-id">{{.ID}}</td>
-            <td class="table-cell-file">{{.Container}}/{{.Filename}}</td>
+            <td class="table-cell-file">{{.DownloadURL}}</td>
         </tr>
     {{end}}
     </tbody>
 </table>
 
-{{with .Result.Pagination}}
 <div id="pagination">
-    {{if .HasPrev}}
-        <a class="page-link page-nav" href="/search?q={{$.Query | urlEscape}}&page=1">&laquo; Первая</a>
-        <a class="page-link page-nav" href="/search?q={{$.Query | urlEscape}}&page={{sub .CurrentPage 1}}">&lt;</a>
+    {{if gt .Result.Page 1}}
+        <a class="page-link page-nav" href="/search?q={{.Query}}&page=1">&laquo; Первая</a>
+        <a class="page-link page-nav" href="/search?q={{.Query}}&page={{sub .Result.Page 1}}">&lt;</a>
     {{else}}
         <span class="page-link page-disabled">&laquo; Первая</span>
         <span class="page-link page-disabled">&lt;</span>
     {{end}}
 
-    {{range .Pages}}
-        {{if eq . 0}}
-            <span class="page-link page-disabled">...</span>
-        {{else if eq . $.Result.Pagination.CurrentPage}}
-            <span class="page-link page-current">{{.}}</span>
-        {{else}}
-            <a class="page-link" href="/search?q={{$.Query | urlEscape}}&page={{.}}">{{.}}</a>
-        {{end}}
-    {{end}}
+    <span class="page-link page-current">{{.Result.Page}}</span>
+    <span class="page-link">/ {{.Result.Pages}}</span>
 
-    {{if .HasNext}}
-        <a class="page-link page-nav" href="/search?q={{$.Query | urlEscape}}&page={{add .CurrentPage 1}}">&gt;</a>
-        <a class="page-link page-nav" href="/search?q={{$.Query | urlEscape}}&page={{.TotalPages}}">Последняя &raquo;</a>
+    {{if lt .Result.Page .Result.Pages}}
+        <a class="page-link page-nav" href="/search?q={{.Query}}&page={{add .Result.Page 1}}">&gt;</a>
+        <a class="page-link page-nav" href="/search?q={{.Query}}&page={{.Result.Pages}}">Последняя &raquo;</a>
     {{else}}
         <span class="page-link page-disabled">&gt;</span>
         <span class="page-link page-disabled">Последняя &raquo;</span>
     {{end}}
 </div>
-{{end}}
 
 {{else}}
 <p>Ничего не найдено.</p>
@@ -149,36 +135,36 @@ var errorTmpl = template.Must(template.Must(tmpl.Clone()).Parse(`
 
 // renderIndex — рендеринг главной страницы
 func renderIndex(w http.ResponseWriter) {
-    if err := indexTmpl.ExecuteTemplate(w, "base", nil); err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-    }
+	if err := indexTmpl.ExecuteTemplate(w, "base", nil); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // renderResults — рендеринг результатов поиска
-func renderResults(w http.ResponseWriter, result *presenter.PresenterResult, query string) {
-    data := struct {
-        Result *presenter.PresenterResult
-        Query  string
-    }{
-        Result: result,
-        Query:  query,
-    }
+func renderResults(w http.ResponseWriter, result *WebSearchResult, query string) {
+	data := struct {
+		Result *WebSearchResult
+		Query  string
+	}{
+		Result: result,
+		Query:  query,
+	}
 
-    if err := resultsTmpl.ExecuteTemplate(w, "base", data); err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-    }
+	if err := resultsTmpl.ExecuteTemplate(w, "base", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // renderError — рендеринг страницы ошибки
 func renderError(w http.ResponseWriter, message, traceID string) {
-    data := struct {
-        Message string
-        TraceID string
-    }{
-        Message: message,
-        TraceID: traceID,
-    }
-    if err := errorTmpl.ExecuteTemplate(w, "base", data); err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-    }
+	data := struct {
+		Message string
+		TraceID string
+	}{
+		Message: message,
+		TraceID: traceID,
+	}
+	if err := errorTmpl.ExecuteTemplate(w, "base", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }

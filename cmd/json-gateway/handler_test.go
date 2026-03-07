@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"ebusta/internal/edge"
+	"ebusta/internal/gatewayclient"
 )
 
 type tgRoundTripFunc func(*http.Request) (*http.Response, error)
@@ -60,7 +61,7 @@ func TestHandleUpdateSuccess(t *testing.T) {
 	p.Actions["command"] = edge.ActionPolicy{PerMinute: 10, Burst: 10}
 
 	h := NewTGHandler("http://gateway.local", 5, edge.NewEngine(p, edge.NewLabelCounterHook()))
-	h.httpClient = &http.Client{Transport: tgRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+	h.gatewayClient = testGatewayClient(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Path != "/search" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -70,7 +71,7 @@ func TestHandleUpdateSuccess(t *testing.T) {
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(body)),
 		}, nil
-	})}
+	})
 
 	reqBody := `{"user_id":"u1","message":"/search author:king"}`
 	req := httptest.NewRequest(http.MethodPost, "/update", strings.NewReader(reqBody))
@@ -81,6 +82,9 @@ func TestHandleUpdateSuccess(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if got := w.Header().Get("X-Trace-Id"); got != "gw-1" {
+		t.Fatalf("expected response trace header gw-1, got %q", got)
 	}
 	var resp UpdateResponse
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
@@ -99,14 +103,14 @@ func TestHandleUpdateRateLimited(t *testing.T) {
 	p.Actions["command"] = edge.ActionPolicy{PerMinute: 1, Burst: 1}
 
 	h := NewTGHandler("http://gateway.local", 5, edge.NewEngine(p, nil))
-	h.httpClient = &http.Client{Transport: tgRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+	h.gatewayClient = testGatewayClient(func(r *http.Request) (*http.Response, error) {
 		body := `{"trace_id":"gw-1","total":0,"books":[],"page":1,"pages":0}`
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(body)),
 		}, nil
-	})}
+	})
 
 	reqBody := `{"user_id":"u-rate","message":"/search test"}`
 
@@ -145,4 +149,8 @@ func TestHandleUpdateMalformedAndOversize(t *testing.T) {
 	if w2.Code != http.StatusBadRequest {
 		t.Fatalf("oversize body expected 400, got %d", w2.Code)
 	}
+}
+
+func testGatewayClient(fn tgRoundTripFunc) *gatewayclient.Client {
+	return gatewayclient.NewClient("http://gateway.local", gatewayclient.WithHTTPClient(&http.Client{Transport: fn}))
 }

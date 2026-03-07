@@ -5,6 +5,11 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /app /var/log/ebusta /data
 
+ARG GRPC_HEALTH_PROBE_VERSION=v0.4.37
+RUN curl -fsSL -o /app/grpc_health_probe \
+    "https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64" && \
+    chmod +x /app/grpc_health_probe
+
 WORKDIR /app
 
 COPY ./bin/plasma-node /app/plasma-node

@@ -1,119 +1,137 @@
 package main
 
 import (
-    "fmt"
-    "io"
-    "mime"
-    "net/http"
-    "net/url"
-    "strconv"
-    "strings"
+	"fmt"
+	"io"
+	"mime"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
-    "ebusta/internal/errutil"
-    "ebusta/internal/logger"
-    "ebusta/internal/search"
+	"ebusta/internal/errutil"
+	"ebusta/internal/gatewayclient"
+	"ebusta/internal/logger"
 )
 
 type Handler struct {
-    searchSvc      *search.Service
-    downloaderAddr string
-    pageSize       int
+	gatewayURL    string
+	httpClient    *http.Client
+	gatewayClient *gatewayclient.Client
+	pageSize      int
+}
+
+type WebSearchResult struct {
+	TraceID string
+	Total   int
+	Books   []WebBook
+	Page    int
+	Pages   int
+}
+
+type WebBook struct {
+	Title       string
+	FullAuthors string
+	DownloadURL string
 }
 
 func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
-    if r.URL.Path != "/" {
-        http.NotFound(w, r)
-        return
-    }
-    renderIndex(w)
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	renderIndex(w)
 }
 
 func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
-    query := r.URL.Query().Get("q")
-    pageStr := r.URL.Query().Get("page")
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	pageStr := r.URL.Query().Get("page")
 
-    traceID := errutil.TraceIDFromRequest(r)
-    if traceID == "" {
-        traceID = logger.GenerateTraceID("wf")
-    }
+	traceID := errutil.TraceIDFromRequest(r)
+	if traceID == "" {
+		traceID = logger.GenerateTraceID("wf")
+	}
 
-    logger.GetGlobal().WithField("query", query).
-        WithField("page", pageStr).
-        WithField("trace_id", traceID).
-        InfoCtx(r.Context(), "[web-frontend] search request")
+	logger.GetGlobal().WithField("query", query).
+		WithField("page", pageStr).
+		WithField("trace_id", traceID).
+		InfoCtx(r.Context(), "[web-frontend] search request")
 
-    if err := search.ValidateQuery(query); err != nil {
-        logger.GetGlobal().WithField("error", err.Error()).
-            WithField("query", query).
-            WarnCtx(r.Context(), "[web-frontend] invalid query")
-        renderError(w, err.Error(), traceID)
-        return
-    }
+	if query == "" {
+		logger.GetGlobal().WithField("trace_id", traceID).WarnCtx(r.Context(), "[web-frontend] empty query")
+		renderError(w, "Пустой запрос", traceID)
+		return
+	}
 
-    page, _ := strconv.Atoi(pageStr)
-    if page < 1 {
-        page = 1
-    }
+	page, _ := strconv.Atoi(pageStr)
+	if page < 1 {
+		page = 1
+	}
 
-    offset := (page - 1) * h.pageSize
+	resp, err := h.gatewayClient.Search(r.Context(), query, page, h.pageSize, traceID)
+	if err != nil {
+		logger.GetGlobal().ErrorCtx(r.Context(), "[web-frontend] gateway search failed", err)
+		if appErr, ok := err.(*errutil.AppError); ok {
+			renderError(w, appErr.Message, appErr.TraceID)
+			return
+		}
+		renderError(w, "Сервис поиска недоступен", traceID)
+		return
+	}
 
-    result, err := h.searchSvc.SearchWithPagination(r.Context(), query, h.pageSize, offset, page, traceID)
-    if err != nil {
-        logger.GetGlobal().WithField("query", query).
-            ErrorCtx(r.Context(), "[web-frontend] search error", err)
-        renderError(w, "Ошибка поиска", traceID)
-        return
-    }
+	result := &WebSearchResult{
+		TraceID: resp.TraceID,
+		Total:   resp.Total,
+		Page:    resp.Page,
+		Pages:   resp.Pages,
+		Books:   make([]WebBook, 0, len(resp.Books)),
+	}
+	for _, book := range resp.Books {
+		result.Books = append(result.Books, WebBook{
+			Title:       book.Title,
+			FullAuthors: book.FullAuthors,
+			DownloadURL: book.DownloadURL,
+		})
+	}
 
-    logger.GetGlobal().WithField("total", result.Total).
-        WithField("returned", len(result.Books)).
-        WithField("page", page).
-        WithField("total_pages", result.Pagination.TotalPages).
-        WithField("trace_id", traceID).
-        InfoCtx(r.Context(), "[web-frontend] search completed")
+	logger.GetGlobal().WithField("total", result.Total).
+		WithField("returned", len(result.Books)).
+		WithField("page", result.Page).
+		WithField("total_pages", result.Pages).
+		WithField("trace_id", traceID).
+		InfoCtx(r.Context(), "[web-frontend] search completed")
 
-    renderResults(w, result, query)
+	renderResults(w, result, query)
 }
 
 func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
-    traceID := errutil.TraceIDFromRequest(r)
-    if traceID == "" {
-        traceID = logger.GenerateTraceID("wf")
-    }
+	traceID := errutil.TraceIDFromRequest(r)
+	if traceID == "" {
+		traceID = logger.GenerateTraceID("wf")
+	}
 
-    sha1 := strings.TrimPrefix(r.URL.Path, "/download/")
-    sha1 = strings.TrimSpace(sha1)
+	token := strings.TrimPrefix(r.URL.Path, "/download/")
+	token = strings.TrimSpace(token)
 
-    if sha1 == "" {
-        logger.GetGlobal().WithField("trace_id", traceID).
-            WarnCtx(r.Context(), "[web-frontend] download missing id")
-        errutil.WriteJSONError(w, errutil.New(
-            errutil.CodeInvalidArgument,
-            "missing id",
-        ).WithTrace(traceID))
-        return
-    }
+	if token == "" {
+		logger.GetGlobal().WithField("trace_id", traceID).
+			WarnCtx(r.Context(), "[web-frontend] download missing token")
+		errutil.WriteJSONError(w, errutil.New(
+			errutil.CodeInvalidArgument,
+			"missing token",
+		).WithTrace(traceID))
+		return
+	}
 
-    if !search.ValidateSHA1(sha1) {
-        logger.GetGlobal().WithField("sha1", sha1).
-            WithField("trace_id", traceID).
-            WarnCtx(r.Context(), "[web-frontend] invalid sha1")
-        errutil.WriteJSONError(w, errutil.New(
-            errutil.CodeInvalidArgument,
-            "invalid sha1 (expected 40 hex)",
-        ).WithTrace(traceID))
-        return
-    }
-
-	logger.GetGlobal().WithField("sha1", sha1).
+	logger.GetGlobal().WithField("token", token).
 		WithField("trace_id", traceID).
 		InfoCtx(r.Context(), "[web-frontend] download request")
 
-	downloadURL := fmt.Sprintf("http://%s/books/%s", h.downloaderAddr, sha1)
-	dlReq, err := http.NewRequest(http.MethodGet, downloadURL, nil)
+	downloadURL := fmt.Sprintf("%s/download/%s", h.gatewayURL, token)
+	dlReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, downloadURL, nil)
 	if err != nil {
-		logger.GetGlobal().WithField("downloader", h.downloaderAddr).
-			ErrorCtx(r.Context(), "[web-frontend] downloader request build failed", err)
+		logger.GetGlobal().WithField("gateway", h.gatewayURL).
+			ErrorCtx(r.Context(), "[web-frontend] gateway download request build failed", err)
 		errutil.WriteJSONError(w, errutil.New(
 			errutil.CodeInternal,
 			"ошибка подготовки запроса скачивания",
@@ -122,69 +140,71 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	dlReq.Header.Set("X-Trace-Id", traceID)
 
-	dlResp, err := http.DefaultClient.Do(dlReq)
+	dlResp, err := h.httpClient.Do(dlReq)
 	if err != nil {
-		logger.GetGlobal().WithField("downloader", h.downloaderAddr).
-			ErrorCtx(r.Context(), "[web-frontend] downloader unavailable", err)
-        errutil.WriteJSONError(w, errutil.New(
-            errutil.CodeUnavailable,
-            "сервис скачивания недоступен",
-        ).WithTrace(traceID).WithDetails(err.Error()))
-        return
-    }
-    defer dlResp.Body.Close()
+		logger.GetGlobal().WithField("gateway", h.gatewayURL).
+			ErrorCtx(r.Context(), "[web-frontend] gateway unavailable", err)
+		errutil.WriteJSONError(w, errutil.New(
+			errutil.CodeUnavailable,
+			"сервис скачивания недоступен",
+		).WithTrace(traceID).WithDetails(err.Error()))
+		return
+	}
+	defer dlResp.Body.Close()
 
-    if dlResp.StatusCode != http.StatusOK {
-        body, _ := io.ReadAll(dlResp.Body)
-        appErr := errutil.FromHTTPResponse(dlResp, body, traceID)
-        logger.GetGlobal().WithField("status", dlResp.StatusCode).
-            WithField("trace_id", traceID).
-            WarnCtx(r.Context(), "[web-frontend] downloader error")
-        errutil.WriteJSONError(w, appErr)
-        return
-    }
+	if dlResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(dlResp.Body)
+		appErr := errutil.FromHTTPResponse(dlResp, body, traceID)
+		logger.GetGlobal().WithField("status", dlResp.StatusCode).
+			WithField("trace_id", traceID).
+			WarnCtx(r.Context(), "[web-frontend] gateway download error")
+		errutil.WriteJSONError(w, appErr)
+		return
+	}
 
-    filename := extractFilename(dlResp.Header.Get("Content-Disposition"))
+	filename := extractFilename(dlResp.Header.Get("Content-Disposition"))
 
-    w.Header().Set("Content-Type", "application/octet-stream")
-    w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
-    w.Header().Set("X-Trace-Id", traceID)
-    if contentLength := dlResp.Header.Get("Content-Length"); contentLength != "" {
-        w.Header().Set("Content-Length", contentLength)
-    }
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.Header().Set("X-Trace-Id", traceID)
+	if contentLength := dlResp.Header.Get("Content-Length"); contentLength != "" {
+		w.Header().Set("Content-Length", contentLength)
+	}
 
-    io.Copy(w, dlResp.Body)
+	_, _ = io.Copy(w, dlResp.Body)
 
-    logger.GetGlobal().WithField("sha1", sha1).
-        WithField("filename", filename).
-        WithField("trace_id", traceID).
-        InfoCtx(r.Context(), "[web-frontend] download completed")
+	logger.GetGlobal().WithField("token", token).
+		WithField("filename", filename).
+		WithField("trace_id", traceID).
+		InfoCtx(r.Context(), "[web-frontend] download completed")
 }
 
 func extractFilename(contentDisposition string) string {
-    if contentDisposition == "" {
-        return "unknown.bin"
-    }
+	if contentDisposition == "" {
+		return "unknown.bin"
+	}
 
-    _, params, err := mime.ParseMediaType(contentDisposition)
-    if err != nil {
-        return "unknown.bin"
-    }
+	_, params, err := mime.ParseMediaType(contentDisposition)
+	if err != nil {
+		return "unknown.bin"
+	}
 
-    filename := params["filename"]
-    if filename == "" {
-        return "unknown.bin"
-    }
+	filename := params["filename"]
+	if filename == "" {
+		return "unknown.bin"
+	}
 
-    return filename
+	return filename
 }
 
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(http.StatusOK)
-    w.Write([]byte(`{"status":"ok"}`))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
-func urlEscape(s string) string {
-    return url.QueryEscape(s)
+func newGatewayClient() *http.Client {
+	return &http.Client{
+		Timeout: 30 * time.Second,
+	}
 }

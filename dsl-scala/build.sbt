@@ -5,6 +5,9 @@ libraryDependencies ++= Seq(
   "org.scala-lang.modules" %% "scala-parser-combinators" % "2.3.0",
   "io.grpc" % "grpc-netty-shaded" % "1.58.0",
   "io.grpc" % "grpc-services" % "1.58.0",
+  "io.prometheus" % "simpleclient" % "0.16.0",
+  "io.prometheus" % "simpleclient_httpserver" % "0.16.0",
+  "io.prometheus" % "simpleclient_hotspot" % "0.16.0",
   "org.typelevel" %% "cats-effect" % "3.5.2",
   "org.yaml" % "snakeyaml" % "2.2",
   "org.scalatest" %% "scalatest" % "3.2.19" % Test

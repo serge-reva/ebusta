@@ -1,0 +1,4 @@
+public_services:
+  - gateway
+  - web-frontend
+  - json-gateway

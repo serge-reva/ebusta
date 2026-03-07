@@ -1,4 +1,45 @@
+x-loki-logging: &loki-logging
+  driver: loki
+  options:
+    loki-url: "http://localhost:3100/loki/api/v1/push"
+    loki-retries: "5"
+    loki-batch-size: "400"
+
 services:
+  loki:
+    image: grafana/loki:latest
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./deploy/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    healthcheck:
+      test: ["CMD", "/usr/bin/loki", "-version"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3300:3000"
+    volumes:
+      - ./deploy/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana-data:/var/lib/grafana
+    depends_on:
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
   dsl-scala:
     image: ebusta-dsl-scala:local
     build:
@@ -8,15 +49,18 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50052:50052"
+      - "59052:59052"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./certs:/certs:ro
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 50052 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50052", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/dsl-scala/dsl-scala.crt", "-tls-client-key=/certs/dsl-scala/dsl-scala.key"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 20s
     restart: unless-stopped
+    logging: *loki-logging
 
   query-builder:
     image: ebusta-query-builder:local
@@ -27,15 +71,18 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50053:50053"
+      - "59053:59053"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./certs:/certs:ro
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 50053 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50053", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/query-builder/query-builder.crt", "-tls-client-key=/certs/query-builder/query-builder.key"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 20s
     restart: unless-stopped
+    logging: *loki-logging
 
   datamanager:
     image: ebusta-datamanager:local
@@ -46,15 +93,18 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50051:50051"
+      - "59051:59051"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./certs:/certs:ro
     healthcheck:
-      test: ["CMD-SHELL", "nc -z datamanager 50051 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=datamanager:50051", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/datamanager/datamanager.crt", "-tls-client-key=/certs/datamanager/datamanager.key"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   orchestrator:
     image: ebusta-orchestrator:local
@@ -65,8 +115,10 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50054:50054"
+      - "59054:59054"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./certs:/certs:ro
     depends_on:
       dsl-scala:
         condition: service_healthy
@@ -75,12 +127,13 @@ services:
       datamanager:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "nc -z orchestrator 50054 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=orchestrator:50054", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/orchestrator/orchestrator.crt", "-tls-client-key=/certs/orchestrator/orchestrator.key"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   archive-node:
     image: ebusta-archive-node:local
@@ -91,16 +144,19 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50110:50110"
+      - "59110:59110"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
+      - ./certs:/certs:ro
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 50110 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50110", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/archive-node/archive-node.crt", "-tls-client-key=/certs/archive-node/archive-node.key"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   tier-node:
     image: ebusta-tier-node:local
@@ -111,19 +167,22 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50111:50111"
+      - "59111:59111"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
+      - ./certs:/certs:ro
     depends_on:
       archive-node:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 50111 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50111", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/tier-node/tier-node.crt", "-tls-client-key=/certs/tier-node/tier-node.key"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   plasma-node:
     image: ebusta-plasma-node:local
@@ -134,19 +193,22 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50112:50112"
+      - "59112:59112"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
+      - ./certs:/certs:ro
     depends_on:
       tier-node:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 50112 || exit 1"]
+      test: ["CMD", "/app/grpc_health_probe", "-addr=:50112", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/plasma-node/plasma-node.crt", "-tls-client-key=/certs/plasma-node/plasma-node.key"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
 
   downloader:
     image: ebusta-downloader:local
@@ -157,19 +219,46 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "50081:50081"
+      - "59081:59081"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
+      - ./certs:/certs:ro
     depends_on:
       plasma-node:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:50081/books/invalid >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:50081/health >/dev/null || exit 1"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
+
+  auth-manager:
+    image: ebusta-auth-manager:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.auth-manager
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+      EBUSTA_WHITELIST: /app/whitelist.yaml
+    ports:
+      - "50055:50055"
+      - "59055:59055"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+      - ./cmd/auth-manager/whitelist.yaml:/app/whitelist.yaml:ro
+      - ./certs:/certs:ro
+    healthcheck:
+      test: ["CMD", "/app/grpc_health_probe", "-addr=auth-manager:50055", "-tls", "-tls-ca-cert=/certs/ca.crt", "-tls-client-cert=/certs/auth-manager/auth-manager.crt", "-tls-client-key=/certs/auth-manager/auth-manager.key"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    logging: *loki-logging
 
   gateway:
     image: ebusta-gateway:local
@@ -180,18 +269,93 @@ services:
       EBUSTA_CONFIG: /app/ebusta.yaml
     ports:
       - "8443:8443"
+      - "59001:59001"
     volumes:
       - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
       - ./data:/data
+      - ./certs:/certs:ro
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+      downloader:
+        condition: service_healthy
+      auth-manager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8443/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    logging: *loki-logging
+
+  web-frontend:
+    image: ebusta-web-frontend:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web-frontend
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    ports:
+      - "3000:3000"
+      - "59300:59300"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
     depends_on:
       orchestrator:
         condition: service_healthy
       downloader:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8443/health >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/health >/dev/null || exit 1"]
       interval: 10s
       timeout: 3s
-      retries: 10
+      retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging: *loki-logging
+
+
+  telegram-bot:
+    profiles: ["telegram"]
+    image: ebusta-telegram-bot:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.telegram-bot
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *loki-logging
+  json-gateway:
+    profiles: ["adapters"]
+    image: ebusta-json-gateway:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.json-gateway
+    environment:
+      EBUSTA_CONFIG: /app/ebusta.yaml
+    ports:
+      - "8087:8087"
+      - "59087:59087"
+    volumes:
+      - ./deploy/ebusta.docker.yaml:/app/ebusta.yaml:ro
+    depends_on:
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8087/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    logging: *loki-logging
+
+volumes:
+  loki-data:
